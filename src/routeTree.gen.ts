@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedStockOutRouteImport } from './routes/_authenticated/stock-out'
 import { Route as AuthenticatedStockInRouteImport } from './routes/_authenticated/stock-in'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
@@ -29,6 +30,11 @@ const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedStockOutRoute = AuthenticatedStockOutRouteImport.update({
+  id: '/stock-out',
+  path: '/stock-out',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedStockInRoute = AuthenticatedStockInRouteImport.update({
   id: '/stock-in',
@@ -52,6 +58,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/products': typeof AuthenticatedProductsRoute
   '/stock-in': typeof AuthenticatedStockInRoute
+  '/stock-out': typeof AuthenticatedStockOutRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/products': typeof AuthenticatedProductsRoute
   '/stock-in': typeof AuthenticatedStockInRoute
+  '/stock-out': typeof AuthenticatedStockOutRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,12 +76,19 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
+  '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/dashboard' | '/products' | '/stock-in'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/dashboard'
+    | '/products'
+    | '/stock-in'
+    | '/stock-out'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/dashboard' | '/products' | '/stock-in'
+  to: '/' | '/login' | '/dashboard' | '/products' | '/stock-in' | '/stock-out'
   id:
     | '__root__'
     | '/'
@@ -82,6 +97,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/products'
     | '/_authenticated/stock-in'
+    | '/_authenticated/stock-out'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -113,6 +129,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/stock-out': {
+      id: '/_authenticated/stock-out'
+      path: '/stock-out'
+      fullPath: '/stock-out'
+      preLoaderRoute: typeof AuthenticatedStockOutRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/stock-in': {
       id: '/_authenticated/stock-in'
       path: '/stock-in'
@@ -141,12 +164,14 @@ interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
   AuthenticatedStockInRoute: typeof AuthenticatedStockInRoute
+  AuthenticatedStockOutRoute: typeof AuthenticatedStockOutRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
   AuthenticatedStockInRoute: AuthenticatedStockInRoute,
+  AuthenticatedStockOutRoute: AuthenticatedStockOutRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
