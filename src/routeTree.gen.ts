@@ -14,8 +14,11 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedStockOutRouteImport } from './routes/_authenticated/stock-out'
 import { Route as AuthenticatedStockInRouteImport } from './routes/_authenticated/stock-in'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedOrderRequestRouteImport } from './routes/_authenticated/order-request'
+import { Route as AuthenticatedOrderHistoryRouteImport } from './routes/_authenticated/order-history'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 
 const LoginRoute = LoginRouteImport.update({
@@ -42,6 +45,16 @@ const AuthenticatedStockInRoute = AuthenticatedStockInRouteImport.update({
   path: '/stock-in',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -51,6 +64,12 @@ const AuthenticatedOrderRequestRoute =
   AuthenticatedOrderRequestRouteImport.update({
     id: '/order-request',
     path: '/order-request',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedOrderHistoryRoute =
+  AuthenticatedOrderHistoryRouteImport.update({
+    id: '/order-history',
+    path: '/order-history',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -63,8 +82,11 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
 }
@@ -72,8 +94,11 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/reports': typeof AuthenticatedReportsRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
 }
@@ -83,8 +108,11 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
   '/_authenticated/order-request': typeof AuthenticatedOrderRequestRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
+  '/_authenticated/reports': typeof AuthenticatedReportsRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
 }
@@ -94,8 +122,11 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/dashboard'
+    | '/order-history'
     | '/order-request'
     | '/products'
+    | '/reports'
+    | '/settings'
     | '/stock-in'
     | '/stock-out'
   fileRoutesByTo: FileRoutesByTo
@@ -103,8 +134,11 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/dashboard'
+    | '/order-history'
     | '/order-request'
     | '/products'
+    | '/reports'
+    | '/settings'
     | '/stock-in'
     | '/stock-out'
   id:
@@ -113,8 +147,11 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/order-history'
     | '/_authenticated/order-request'
     | '/_authenticated/products'
+    | '/_authenticated/reports'
+    | '/_authenticated/settings'
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
   fileRoutesById: FileRoutesById
@@ -162,6 +199,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStockInRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/reports': {
+      id: '/_authenticated/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/products': {
       id: '/_authenticated/products'
       path: '/products'
@@ -176,6 +227,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrderRequestRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/order-history': {
+      id: '/_authenticated/order-history'
+      path: '/order-history'
+      fullPath: '/order-history'
+      preLoaderRoute: typeof AuthenticatedOrderHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -188,16 +246,22 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
   AuthenticatedOrderRequestRoute: typeof AuthenticatedOrderRequestRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
+  AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStockInRoute: typeof AuthenticatedStockInRoute
   AuthenticatedStockOutRoute: typeof AuthenticatedStockOutRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
   AuthenticatedOrderRequestRoute: AuthenticatedOrderRequestRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
+  AuthenticatedReportsRoute: AuthenticatedReportsRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStockInRoute: AuthenticatedStockInRoute,
   AuthenticatedStockOutRoute: AuthenticatedStockOutRoute,
 }
