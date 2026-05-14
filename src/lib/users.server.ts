@@ -17,4 +17,26 @@ export async function assertAdminOrOwner(supabase: any, userId: string) {
   }
 }
 
+export async function writeAudit(params: {
+  actorId: string;
+  actorEmail?: string | null;
+  action: string;
+  targetId?: string | null;
+  targetLabel?: string | null;
+  details?: Record<string, unknown>;
+}) {
+  try {
+    await supabaseAdmin.from("audit_logs").insert({
+      actor_id: params.actorId,
+      actor_email: params.actorEmail ?? null,
+      action: params.action,
+      target_id: params.targetId ?? null,
+      target_label: params.targetLabel ?? null,
+      details: params.details ?? {},
+    });
+  } catch (e) {
+    console.error("audit log failed", e);
+  }
+}
+
 export { supabaseAdmin };
