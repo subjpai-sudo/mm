@@ -32,7 +32,7 @@ export async function writeAudit(params: {
       action: params.action,
       target_id: params.targetId ?? null,
       target_label: params.targetLabel ?? null,
-      details: params.details ?? {},
+      details: (params.details ?? {}) as any,
     });
   } catch (e) {
     console.error("audit log failed", e);
