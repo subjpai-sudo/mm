@@ -5,34 +5,43 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 async function sendViberText(text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
   const { data: settings } = await supabaseAdmin
     .from("app_settings")
-    .select("viber_bot_token, viber_owner_id")
+    .select("infobip_base_url, viber_sender, owner_phone")
     .eq("id", 1)
     .maybeSingle();
-  if (!settings?.viber_bot_token || !settings?.viber_owner_id) {
-    return { sent: false, reason: "viber-not-configured" };
+  const apiKey = process.env.INFOBIP_API_KEY;
+  if (!apiKey) return { sent: false, reason: "infobip-key-missing" };
+  if (!settings?.infobip_base_url || !settings?.viber_sender || !settings?.owner_phone) {
+    return { sent: false, reason: "infobip-not-configured" };
   }
+  const baseUrl = settings.infobip_base_url.replace(/^https?:\/\//, "").replace(/\/$/, "");
   try {
-    const res = await fetch("https://chatapi.viber.com/pa/send_message", {
+    const res = await fetch(`https://${baseUrl}/viber/2/messages`, {
       method: "POST",
       headers: {
+        Authorization: `App ${apiKey}`,
         "Content-Type": "application/json",
-        "X-Viber-Auth-Token": settings.viber_bot_token,
+        Accept: "application/json",
       },
       body: JSON.stringify({
-        receiver: settings.viber_owner_id,
-        min_api_version: 1,
-        sender: { name: "Stock Bot" },
-        type: "text",
-        text,
+        messages: [
+          {
+            sender: settings.viber_sender,
+            destinations: [{ to: { phoneNumber: settings.owner_phone.replace(/^\+/, "") } }],
+            content: { type: "TEXT", text },
+          },
+        ],
       }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok || body?.status !== 0) {
-      return { sent: false, reason: "viber-error", detail: body };
+    if (!res.ok) return { sent: false, reason: "infobip-error", detail: body };
+    const status = body?.messages?.[0]?.status;
+    const groupName = status?.groupName;
+    if (groupName && groupName !== "PENDING" && groupName !== "DELIVERED") {
+      return { sent: false, reason: "infobip-rejected", detail: status };
     }
     return { sent: true };
   } catch (e: any) {
-    return { sent: false, reason: "viber-exception", detail: e?.message };
+    return { sent: false, reason: "infobip-exception", detail: e?.message };
   }
 }
 
