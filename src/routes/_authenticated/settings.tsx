@@ -21,20 +21,17 @@ function Settings() {
     queryKey: ["settings"],
     queryFn: async () => (await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle()).data,
   });
-  const [baseUrl, setBaseUrl] = useState("");
-  const [sender, setSender] = useState("");
+  const [twilioFrom, setTwilioFrom] = useState("");
   const [phone, setPhone] = useState("");
   useEffect(() => {
-    setBaseUrl((data as any)?.infobip_base_url ?? "");
-    setSender((data as any)?.viber_sender ?? "");
+    setTwilioFrom((data as any)?.twilio_from ?? "");
     setPhone((data as any)?.owner_phone ?? "");
   }, [data]);
 
   const save = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("app_settings").update({
-        infobip_base_url: baseUrl || null,
-        viber_sender: sender || null,
+        twilio_from: twilioFrom || null,
         owner_phone: phone || null,
         updated_at: new Date().toISOString(),
       }).eq("id", 1);
@@ -47,10 +44,10 @@ function Settings() {
   const test = useMutation({
     mutationFn: async () => sendViberTest(),
     onSuccess: (r: any) => {
-      if (r?.sent) toast.success("Test message sent to Viber ✓");
-      else if (r?.reason === "infobip-not-configured") toast.error("Save Infobip base URL, sender, and owner phone first");
-      else if (r?.reason === "infobip-key-missing") toast.error("INFOBIP_API_KEY is not set");
-      else toast.error(`Infobip error: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
+      if (r?.sent) toast.success("Test SMS sent ✓");
+      else if (r?.reason === "twilio-not-configured") toast.error("Save Twilio sender and owner phone first");
+      else if (r?.reason === "twilio-key-missing") toast.error("Twilio connection is not linked");
+      else toast.error(`Twilio error: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -59,18 +56,17 @@ function Settings() {
 
   return (
     <div className="p-6 md:p-10 max-w-3xl mx-auto">
-      <PageHeader title="Settings" subtitle="Configure Viber integration." />
+      <PageHeader title="Settings" subtitle="Configure SMS alerts." />
       <Card className="card-elevated p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="size-10 rounded-xl gradient-primary grid place-items-center"><MessageSquare className="size-5 text-primary-foreground" /></div>
           <div>
-            <div className="font-semibold">Infobip Viber</div>
-            <div className="text-xs text-muted-foreground">Send owner alerts via Infobip Viber Business Messages.</div>
+            <div className="font-semibold">Twilio SMS</div>
+            <div className="text-xs text-muted-foreground">Send owner alerts via Twilio SMS.</div>
           </div>
         </div>
         <div className="space-y-4">
-          <div><Label>Infobip base URL</Label><Input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="xxxxx.api.infobip.com" /></div>
-          <div><Label>Viber sender</Label><Input value={sender} onChange={e => setSender(e.target.value)} placeholder="MyShop (registered Viber sender)" /></div>
+          <div><Label>Twilio sender (From)</Label><Input value={twilioFrom} onChange={e => setTwilioFrom(e.target.value)} placeholder="+15017122661" /></div>
           <div><Label>Owner phone (E.164)</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+639171234567" /></div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => save.mutate()} disabled={save.isPending} className="gradient-primary text-primary-foreground border-0">
@@ -81,12 +77,11 @@ function Settings() {
             </Button>
           </div>
           <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
-            <p className="font-medium text-foreground">How to set up (Infobip portal):</p>
-            <p>1. In <span className="font-mono">portal.infobip.com</span> → <b>Developers → API keys</b>, generate an API key. It was saved as <span className="font-mono">INFOBIP_API_KEY</span>.</p>
-            <p>2. Find your account's <b>Base URL</b> (top-right of any API doc page, e.g. <span className="font-mono">xyz123.api.infobip.com</span>) and paste above.</p>
-            <p>3. Go to <b>Channels and Numbers → Viber Business Messages</b> and register a sender. Once approved, paste the sender name above.</p>
-            <p>4. Enter the owner's phone number in international E.164 format. The phone must have Viber installed.</p>
-            <p>5. Save, then <b>Send test message</b>. Note: Viber Business sender approval can take days — until then test calls will return a rejected status.</p>
+            <p className="font-medium text-foreground">How to set up (Twilio):</p>
+            <p>1. In <span className="font-mono">console.twilio.com</span>, buy or use an SMS-capable number.</p>
+            <p>2. Paste that number above as the <b>Twilio sender</b> in E.164 format (e.g. <span className="font-mono">+15017122661</span>).</p>
+            <p>3. Enter the owner's phone in E.164 format. Trial accounts can only SMS verified numbers.</p>
+            <p>4. Save, then <b>Send test message</b>.</p>
           </div>
         </div>
       </Card>
