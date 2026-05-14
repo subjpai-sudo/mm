@@ -502,7 +502,6 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
               </div>
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
-              <div className="text-xs">Price <span className="font-semibold">${Number(product.price).toFixed(2)}</span></div>
             </div>
           </div>
 
