@@ -2,57 +2,51 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
-async function sendViberText(text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
+const TWILIO_GATEWAY = "https://connector-gateway.lovable.dev/twilio";
+
+async function sendOwnerSms(text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
   const { data: settings } = await supabaseAdmin
     .from("app_settings")
-    .select("infobip_base_url, viber_sender, owner_phone")
+    .select("twilio_from, owner_phone")
     .eq("id", 1)
     .maybeSingle();
-  const apiKey = process.env.INFOBIP_API_KEY;
-  if (!apiKey) return { sent: false, reason: "infobip-key-missing" };
-  if (!settings?.infobip_base_url || !settings?.viber_sender || !settings?.owner_phone) {
-    return { sent: false, reason: "infobip-not-configured" };
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  const twilioKey = process.env.TWILIO_API_KEY;
+  if (!lovableKey) return { sent: false, reason: "lovable-key-missing" };
+  if (!twilioKey) return { sent: false, reason: "twilio-key-missing" };
+  if (!settings?.twilio_from || !settings?.owner_phone) {
+    return { sent: false, reason: "twilio-not-configured" };
   }
-  const baseUrl = settings.infobip_base_url.replace(/^https?:\/\//, "").replace(/\/$/, "");
   try {
-    const res = await fetch(`https://${baseUrl}/viber/2/messages`, {
+    const res = await fetch(`${TWILIO_GATEWAY}/Messages.json`, {
       method: "POST",
       headers: {
-        Authorization: `App ${apiKey}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Connection-Api-Key": twilioKey,
+        "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: JSON.stringify({
-        messages: [
-          {
-            sender: settings.viber_sender,
-            destinations: [{ to: settings.owner_phone.replace(/^\+/, "") }],
-            content: { type: "TEXT", text },
-          },
-        ],
+      body: new URLSearchParams({
+        To: settings.owner_phone,
+        From: settings.twilio_from,
+        Body: text,
       }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) return { sent: false, reason: "infobip-error", detail: body };
-    const status = body?.messages?.[0]?.status;
-    const groupName = status?.groupName;
-    if (groupName && groupName !== "PENDING" && groupName !== "DELIVERED") {
-      return { sent: false, reason: "infobip-rejected", detail: status };
-    }
-    return { sent: true };
+    if (!res.ok) return { sent: false, reason: "twilio-error", detail: body };
+    return { sent: true, detail: { sid: body?.sid, status: body?.status } };
   } catch (e: any) {
-    return { sent: false, reason: "infobip-exception", detail: e?.message };
+    return { sent: false, reason: "twilio-exception", detail: e?.message };
   }
 }
 
 export const sendViberTest = createServerFn({ method: "POST" })
   .handler(async () => {
-    return sendViberText(`✅ Viber connection test\nFrom Stock Bot at ${new Date().toLocaleString()}`);
+    return sendOwnerSms(`Stock Bot SMS test at ${new Date().toLocaleString()}`);
   });
 
 export const sendOrderRequestAlert = createServerFn({ method: "POST" })
-  .inputValidator((input) => z.object({ message: z.string().min(1).max(4000) }).parse(input))
-  .handler(async ({ data }) => sendViberText(data.message));
+  .inputValidator((input) => z.object({ message: z.string().min(1).max(1500) }).parse(input))
+  .handler(async ({ data }) => sendOwnerSms(data.message));
 
 export const checkLowStockAlert = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ productId: z.string().uuid() }).parse(input))
@@ -80,7 +74,7 @@ export const checkLowStockAlert = createServerFn({ method: "POST" })
     const status = product.stock <= 0 ? "OUT OF STOCK" : "LOW STOCK";
     const text = `⚠️ ${status}\n${product.name}${product.sku ? ` (${product.sku})` : ""}\nRemaining: ${product.stock} / threshold ${product.low_stock_threshold}`;
 
-    const result = await sendViberText(text);
+    const result = await sendOwnerSms(text);
     if (!result.sent) return result;
 
     await supabaseAdmin
