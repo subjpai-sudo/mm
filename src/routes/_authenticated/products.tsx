@@ -491,6 +491,8 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
   const categoryId = subCatId || mainCatId;
+  const mainName = mainCats.find((c: any) => c.id === mainCatId)?.name;
+  const subName = subCats.find((c: any) => c.id === subCatId)?.name;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -522,6 +524,17 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
                 <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
+            <span className="text-muted-foreground">Path: </span>
+            {mainName ? (
+              <span className="font-semibold">
+                {mainName}
+                {subName && <> <ChevronRight className="inline size-3 -mt-0.5 text-muted-foreground" /> {subName}</>}
+              </span>
+            ) : (
+              <span className="italic text-muted-foreground">Uncategorized</span>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
