@@ -3,41 +3,121 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, DollarSign, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
 function Dashboard() {
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("*").order("created_at", { ascending: false })).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],
   });
   const { data: movements = [] } = useQuery({
     queryKey: ["movements-recent"],
-    queryFn: async () => (await supabase.from("stock_movements").select("*, products(name)").order("created_at", { ascending: false }).limit(20)).data ?? [],
+    queryFn: async () => (await supabase.from("stock_movements").select("*, products(name, image_url)").order("created_at", { ascending: false }).limit(30)).data ?? [],
+  });
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles-all"],
+    queryFn: async () => (await supabase.from("profiles").select("id, email, full_name")).data ?? [],
+  });
+  const { data: categories = [] } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => (await supabase.from("categories").select("*")).data ?? [],
+  });
+  const { data: recentBarcodes = [] } = useQuery({
+    queryKey: ["recent-barcodes"],
+    queryFn: async () => (await supabase.from("products")
+      .select("id, name, barcode, image_url, barcode_registered_at, barcode_registered_by")
+      .not("barcode_registered_at", "is", null)
+      .order("barcode_registered_at", { ascending: false }).limit(15)).data ?? [],
   });
 
   const total = products.length;
-  const out = products.filter(p => p.stock <= 0).length;
-  const low = products.filter(p => p.stock > 0 && p.stock <= p.low_stock_threshold).length;
+  const out = products.filter((p: any) => p.stock <= 0).length;
+  const low = products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length;
   const inStockRate = total ? Math.round(((total - out) / total) * 100) : 0;
-  const lowList = products.filter(p => p.stock <= p.low_stock_threshold);
+  const lowList = products.filter((p: any) => p.stock <= p.low_stock_threshold);
+  const totalUnits = products.reduce((s: number, p: any) => s + (p.stock || 0), 0);
+  const inventoryValue = products.reduce((s: number, p: any) => s + (Number(p.price) || 0) * (p.stock || 0), 0);
+  const withBarcode = products.filter((p: any) => !!p.barcode).length;
+  const barcodeRate = total ? Math.round((withBarcode / total) * 100) : 0;
+
+  // Activity in last 24h / 7d
+  const now = Date.now();
+  const last24 = movements.filter((m: any) => now - new Date(m.created_at).getTime() < 86400000);
+  const stockedIn24 = last24.filter((m: any) => m.type === "in").reduce((s: number, m: any) => s + m.quantity, 0);
+  const stockedOut24 = last24.filter((m: any) => m.type === "out").reduce((s: number, m: any) => s + m.quantity, 0);
+
+  const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
+
+  // Group products by main category for breakdown
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+  const breakdown = mainCats.map((mc: any) => {
+    const childIds = new Set(categories.filter((c: any) => c.parent_id === mc.id).map((c: any) => c.id));
+    childIds.add(mc.id);
+    const items = products.filter((p: any) => childIds.has(p.category_id));
+    return { name: mc.name, count: items.length, units: items.reduce((s: number, p: any) => s + (p.stock || 0), 0) };
+  }).filter((g: any) => g.count > 0).sort((a: any, b: any) => b.count - a.count);
+
+  // Combined activity feed: stock movements + barcode registrations
+  const activity = [
+    ...movements.map((m: any) => ({
+      kind: m.type === "in" ? "stock_in" : "stock_out",
+      id: `mv-${m.id}`,
+      when: m.created_at,
+      who: profileMap.get(m.user_id) ?? "System",
+      product: m.products?.name ?? "—",
+      image: m.products?.image_url,
+      quantity: m.quantity,
+      detail: m.reason,
+    })),
+    ...recentBarcodes.map((b: any) => ({
+      kind: "barcode",
+      id: `bc-${b.id}`,
+      when: b.barcode_registered_at,
+      who: profileMap.get(b.barcode_registered_by) ?? "System",
+      product: b.name,
+      image: b.image_url,
+      detail: b.barcode,
+    })),
+  ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 30);
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Dashboard" subtitle="Live inventory overview." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
         <StatCard label="Total products" value={total} icon={Boxes} tone="primary" />
         <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At or below threshold" />
         <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" />
         <StatCard label="In-stock rate" value={`${inStockRate}%`} icon={TrendingUp} tone="success" />
       </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+        <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="Across all products" />
+        <StatCard label="Inventory value" value={`$${inventoryValue.toFixed(0)}`} icon={DollarSign} tone="success" />
+        <StatCard label="Barcode coverage" value={`${barcodeRate}%`} icon={Barcode} tone="primary" hint={`${withBarcode}/${total} products`} />
+        <StatCard label="24h activity" value={`+${stockedIn24} / -${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
+      </div>
+
+      {breakdown.length > 0 && (
+        <Card className="card-elevated p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3 text-sm font-semibold"><FolderTree className="size-4 text-primary" />Catalog breakdown</div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {breakdown.map((g: any) => (
+              <div key={g.name} className="rounded-xl border border-border bg-secondary/40 p-3">
+                <div className="text-xs text-muted-foreground uppercase tracking-wider">{g.name}</div>
+                <div className="text-2xl font-bold mt-1">{g.count}</div>
+                <div className="text-xs text-muted-foreground">{g.units.toLocaleString()} units in stock</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Tabs defaultValue="activity">
         <TabsList>
@@ -48,28 +128,34 @@ function Dashboard() {
 
         <TabsContent value="activity">
           <Card className="card-elevated p-0 overflow-hidden">
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead>Type</TableHead><TableHead>Product</TableHead><TableHead>Qty</TableHead><TableHead>Reason</TableHead><TableHead>When</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {movements.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-12">No activity yet</TableCell></TableRow>}
-                {movements.map((m: any) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <Badge variant="outline" className={m.type === "in" ? "text-success border-success/30 bg-success/10" : "text-destructive border-destructive/30 bg-destructive/10"}>
-                        {m.type === "in" ? <ArrowUpRight className="size-3 mr-1" /> : <ArrowDownRight className="size-3 mr-1" />}
-                        {m.type === "in" ? "Stock In" : "Stock Out"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">{m.products?.name ?? "—"}</TableCell>
-                    <TableCell>{m.quantity}</TableCell>
-                    <TableCell className="text-muted-foreground">{m.reason ?? "—"}</TableCell>
-                    <TableCell className="text-muted-foreground">{formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="divide-y divide-border max-h-[560px] overflow-auto">
+              {activity.length === 0 && <p className="text-center text-muted-foreground py-12">No activity yet</p>}
+              {activity.map((a: any) => (
+                <div key={a.id} className="flex items-center gap-3 p-3 sm:p-4 hover:bg-secondary/30">
+                  {a.image ? (
+                    <img src={a.image} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
+                  ) : (
+                    <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
+                      {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
+                      {a.kind === "barcode" && <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><Barcode className="size-3" /> Barcode</Badge>}
+                      <span className="font-medium truncate">{a.product}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {a.kind === "barcode" ? <span className="font-mono">{a.detail}</span> : a.detail || (a.kind === "stock_in" ? "Stock in" : "Stock out")}
+                      {" · "}by <span className="text-foreground font-medium">{a.who}</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground text-right shrink-0">
+                    <div>{formatDistanceToNow(new Date(a.when), { addSuffix: true })}</div>
+                    <div className="hidden sm:block">{format(new Date(a.when), "MMM d, p")}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </Card>
         </TabsContent>
 
@@ -81,7 +167,7 @@ function Dashboard() {
               </TableRow></TableHeader>
               <TableBody>
                 {products.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-12">No products</TableCell></TableRow>}
-                {products.map(p => <ProductRow key={p.id} p={p} />)}
+                {products.map((p: any) => <ProductRow key={p.id} p={p} />)}
               </TableBody>
             </Table>
           </Card>
@@ -95,7 +181,7 @@ function Dashboard() {
               </TableRow></TableHeader>
               <TableBody>
                 {lowList.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-12">All products well stocked</TableCell></TableRow>}
-                {lowList.map(p => (
+                {lowList.map((p: any) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">{p.name}</TableCell>
                     <TableCell>{p.stock}</TableCell>
