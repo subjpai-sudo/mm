@@ -128,9 +128,8 @@ function ProductsPage() {
       {scanFor && (
         <BarcodeScanner
           open={!!scanFor}
-          onOpenChange={(o) => { if (!o) setScanFor(null); }}
+          onClose={() => setScanFor(null)}
           onDetected={(code) => setBarcode.mutate({ id: scanFor.id, barcode: code })}
-          title={`Register barcode for ${scanFor.name}`}
         />
       )}
     </div>
