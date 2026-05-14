@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ScanLine, Search, Boxes, Camera } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -64,11 +65,11 @@ function StockOut() {
   });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Stock Out" subtitle="Issue inventory with reason logging." />
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card className="card-elevated p-6 relative overflow-hidden">
+      <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+        <Card className="card-elevated p-4 sm:p-6 relative overflow-hidden">
           <div className="absolute -top-20 -right-20 size-60 rounded-full bg-destructive/20 blur-3xl" />
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Scan zone</Label>
           <div className="mt-2 flex gap-2">
@@ -86,20 +87,41 @@ function StockOut() {
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Or search manually…" className="pl-9" />
           </div>
-          <div className="mt-3 max-h-72 overflow-auto space-y-1">
-            {filtered.slice(0, 30).map((p: any) => (
-              <button key={p.id} onClick={() => setSelected(p)} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60 text-left">
-                <Boxes className="size-4 text-muted-foreground" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{p.name}</div>
-                  <div className="text-xs text-muted-foreground">Stock: {p.stock}</div>
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 max-h-[60vh] sm:max-h-[520px] overflow-auto p-1">
+            {filtered.slice(0, 60).map((p: any) => (
+              <button
+                key={p.id}
+                onClick={() => setSelected(p)}
+                className={cn(
+                  "group flex flex-col rounded-xl border bg-card hover:border-destructive/60 hover:shadow-md transition-all text-left overflow-hidden",
+                  selected?.id === p.id ? "border-destructive ring-2 ring-destructive/40" : "border-border"
+                )}
+              >
+                <div className="aspect-square w-full bg-secondary relative">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
+                  )}
+                  <span className={cn(
+                    "absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full backdrop-blur text-[10px] font-bold border",
+                    p.stock <= 0
+                      ? "bg-destructive/90 text-destructive-foreground border-destructive"
+                      : "bg-background/90 border-border"
+                  )}>
+                    {p.stock}
+                  </span>
+                </div>
+                <div className="p-2">
+                  <div className="font-semibold text-xs leading-tight line-clamp-2 min-h-[2.2em]">{p.name}</div>
                 </div>
               </button>
             ))}
+            {filtered.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products found.</p>}
           </div>
         </Card>
 
-        <Card className="card-elevated p-6">
+        <Card className="card-elevated p-4 sm:p-6">
           <div className="text-sm uppercase tracking-wider text-muted-foreground">Issue details</div>
           {selected ? (
             <div className="mt-3 space-y-4">
