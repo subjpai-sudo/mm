@@ -1011,6 +1011,26 @@ function RapidScanDialog({
           </Card>
         )}
 
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={mainCatId} onValueChange={(v) => { setMainCatId(v); setSubCatId("all"); setCurrentId(null); }}>
+            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={subCatId} onValueChange={(v) => { setSubCatId(v); setCurrentId(null); }}
+            disabled={mainCatId === "all" || subCats.length === 0}>
+            <SelectTrigger>
+              <SelectValue placeholder={mainCatId === "all" ? "Pick category first" : "All vendors"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All vendors</SelectItem>
+              {subCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="relative">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search remaining products" className="pl-9" />
