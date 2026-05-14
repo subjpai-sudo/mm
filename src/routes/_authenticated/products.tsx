@@ -18,13 +18,20 @@ import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
+type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
+export const Route = createFileRoute("/_authenticated/products")({
+  component: ProductsPage,
+  validateSearch: (s: Record<string, unknown>): ProductsSearch => ({
+    filter: s.filter === "in" || s.filter === "low" || s.filter === "out" || s.filter === "all" ? s.filter : undefined,
+  }),
+});
 
 function ProductsPage() {
   const { role, user } = useAuth();
   const qc = useQueryClient();
+  const search = Route.useSearch();
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all" | "in" | "low" | "out">("all");
+  const [filter, setFilter] = useState<"all" | "in" | "low" | "out">(search.filter ?? "all");
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<any | null>(null);

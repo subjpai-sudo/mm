@@ -1,12 +1,15 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 
 export function StatCard({
-  label, value, hint, icon: Icon, tone = "primary",
+  label, value, hint, icon: Icon, tone = "primary", to, search,
 }: {
   label: string; value: string | number; hint?: string; icon: LucideIcon;
   tone?: "primary" | "success" | "warning" | "destructive";
+  to?: string;
+  search?: Record<string, string>;
 }) {
   const toneCls: Record<string, string> = {
     primary: "from-primary/30 to-primary/0 text-primary",
@@ -14,8 +17,8 @@ export function StatCard({
     warning: "from-warning/30 to-warning/0 text-warning",
     destructive: "from-destructive/30 to-destructive/0 text-destructive",
   };
-  return (
-    <Card className="card-elevated relative overflow-hidden p-5">
+  const inner = (
+    <Card className={cn("card-elevated relative overflow-hidden p-5", to && "cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] transition-all")}>
       <div className={cn("absolute -top-12 -right-12 size-32 rounded-full bg-gradient-to-br blur-2xl opacity-60", toneCls[tone])} />
       <div className="relative flex items-start justify-between">
         <div>
@@ -29,4 +32,12 @@ export function StatCard({
       </div>
     </Card>
   );
+  if (to) {
+    return (
+      <Link to={to as any} search={search as any} className="block focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-2xl">
+        {inner}
+      </Link>
+    );
+  }
+  return inner;
 }
