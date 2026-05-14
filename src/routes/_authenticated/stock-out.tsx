@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Boxes } from "lucide-react";
+import { ScanLine, Search, Boxes, Camera } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
 export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
 
@@ -24,17 +25,21 @@ function StockOut() {
   const [selected, setSelected] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
   const [reason, setReason] = useState(REASONS[0]);
+  const [camOpen, setCamOpen] = useState(false);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
   });
 
-  function onScan() {
-    const p = products.find((x: any) => x.barcode === scan.trim() || x.sku === scan.trim());
+  function lookup(code: string) {
+    const v = code.trim();
+    if (!v) return;
+    const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
     setSelected(p); setScan("");
   }
+  const onScan = () => lookup(scan);
   const filtered = products.filter((p: any) =>
     !search || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(search.toLowerCase())
   );
@@ -70,6 +75,9 @@ function StockOut() {
               <Input autoFocus value={scan} onChange={e => setScan(e.target.value)} onKeyDown={e => e.key === "Enter" && onScan()}
                 placeholder="Scan barcode / SKU…" className="pl-9 font-mono" />
             </div>
+            <Button onClick={() => setCamOpen(true)} variant="secondary" size="icon" aria-label="Open camera">
+              <Camera className="size-4" />
+            </Button>
             <Button onClick={onScan} variant="destructive">Find</Button>
           </div>
           <div className="relative mt-4">
@@ -117,6 +125,7 @@ function StockOut() {
           )}
         </Card>
       </div>
+      <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
     </div>
   );
 }

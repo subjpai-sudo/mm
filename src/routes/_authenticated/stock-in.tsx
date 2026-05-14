@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScanLine, Search, ChevronRight, Folder, FolderOpen, Boxes } from "lucide-react";
+import { ScanLine, Search, ChevronRight, Folder, FolderOpen, Boxes, Camera } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
 export const Route = createFileRoute("/_authenticated/stock-in")({ component: StockIn });
 
@@ -24,6 +25,7 @@ function StockIn() {
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
+  const [camOpen, setCamOpen] = useState(false);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -43,12 +45,15 @@ function StockIn() {
     return true;
   });
 
-  function onScan() {
-    if (!scan.trim()) return;
-    const p = products.find((x: any) => x.barcode === scan.trim() || x.sku === scan.trim());
+  function lookup(code: string) {
+    const v = code.trim();
+    if (!v) return;
+    const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
-    setConfirm(p); setScan("");
+    setConfirm(p);
+    setScan("");
   }
+  const onScan = () => lookup(scan);
 
   const apply = useMutation({
     mutationFn: async () => {
@@ -103,6 +108,9 @@ function StockIn() {
                   onKeyDown={e => e.key === "Enter" && onScan()}
                   placeholder="Scan or type barcode / SKU…" className="pl-9 font-mono" />
               </div>
+              <Button onClick={() => setCamOpen(true)} variant="secondary" size="icon" aria-label="Open camera">
+                <Camera className="size-4" />
+              </Button>
               <Button onClick={onScan} className="gradient-primary text-primary-foreground border-0">Find</Button>
             </div>
           </Card>
@@ -150,6 +158,7 @@ function StockIn() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
     </div>
   );
 }
