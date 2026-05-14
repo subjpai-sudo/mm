@@ -310,6 +310,107 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   );
 }
 
+function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
+  { product: any; onClose: () => void; onEdit: () => void; onScan: () => void; canEdit: boolean }) {
+  const { data: lastMove } = useQuery({
+    queryKey: ["product-last-movement", product.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("stock_movements")
+        .select("*").eq("product_id", product.id)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!data) return null;
+      let email: string | null = null;
+      if (data.user_id) {
+        const { data: prof } = await supabase.from("profiles").select("email,full_name").eq("id", data.user_id).maybeSingle();
+        email = prof?.full_name || prof?.email || null;
+      }
+      return { ...data, by: email };
+    },
+  });
+  const { data: registrar } = useQuery({
+    queryKey: ["product-barcode-registrar", product.id, product.barcode_registered_by],
+    enabled: !!product.barcode_registered_by,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("email,full_name").eq("id", product.barcode_registered_by).maybeSingle();
+      return data?.full_name || data?.email || null;
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{product.name}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            {product.image_url ? (
+              <img src={product.image_url} alt={product.name} className="size-32 rounded-xl object-cover border border-border" />
+            ) : (
+              <div className="size-32 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-10" /></div>
+            )}
+            <div className="flex-1 min-w-0 space-y-1.5 text-sm">
+              <div className="text-xs text-muted-foreground">{product.categories?.name ?? "Uncategorized"}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">{product.stock}</span>
+                <span className="text-xs text-muted-foreground">in stock · low at {product.low_stock_threshold}</span>
+              </div>
+              <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
+              <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
+              <div className="text-xs">Price <span className="font-semibold">${Number(product.price).toFixed(2)}</span></div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-2 text-sm">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground"><Barcode className="size-3.5" />Barcode</div>
+            {product.barcode ? (
+              <>
+                <div className="font-mono text-base">{product.barcode}</div>
+                {product.barcode_registered_at && (
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                    <span className="flex items-center gap-1"><UserIcon className="size-3" />{registrar ?? "Unknown"}</span>
+                    <span>·</span>
+                    <span className="flex items-center gap-1"><Calendar className="size-3" />{format(new Date(product.barcode_registered_at), "PP p")}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Not registered yet</div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-1 text-sm">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Last stock update</div>
+            {lastMove ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium",
+                    lastMove.type === "in" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+                    {lastMove.type === "in" ? "Stock In" : "Stock Out"} · {lastMove.quantity}
+                  </span>
+                  {lastMove.reason && <span className="text-xs text-muted-foreground truncate">{lastMove.reason}</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1"><UserIcon className="size-3" />{lastMove.by ?? "Unknown"}</span>
+                  <span>·</span>
+                  <span className="flex items-center gap-1"><Calendar className="size-3" />
+                    {formatDistanceToNow(new Date(lastMove.created_at), { addSuffix: true })}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">No stock movements yet</div>
+            )}
+          </div>
+        </div>
+        <DialogFooter className="gap-2 flex-wrap sm:flex-nowrap">
+          {canEdit && <Button variant="secondary" onClick={onScan}><ScanLine className="size-4" /> Scan barcode</Button>}
+          {canEdit && <Button onClick={onEdit} className="gradient-primary text-primary-foreground border-0"><Pencil className="size-4" /> Edit</Button>}
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void }) {
   const [uploading, setUploading] = useState(false);
   async function handleFile(file: File) {
