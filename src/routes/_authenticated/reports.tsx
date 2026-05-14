@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowDownRight, ArrowUpRight, ArrowLeftRight, TrendingDown, TrendingUp, AlertTriangle, PackageX, Download } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, ArrowLeftRight, TrendingDown, TrendingUp, AlertTriangle, PackageX, Download, ExternalLink, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/lib/auth";
 
@@ -23,7 +23,7 @@ function Reports() {
   });
   const { data: products = [] } = useQuery({
     queryKey: ["products-report"],
-    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, stock, low_stock_threshold, categories(name)").order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, stock, low_stock_threshold, image_url, last_alert_stock, categories(name, parent_id)").order("name")).data ?? [],
   });
 
   const inQty = movements.filter((m: any) => m.type === "in").reduce((a, m: any) => a + m.quantity, 0);
@@ -34,7 +34,7 @@ function Reports() {
   const outList = products.filter((p: any) => p.stock <= 0);
 
   function downloadCsv(filename: string, rows: any[]) {
-    const headers = ["Name", "SKU", "Barcode", "Category", "Stock", "Threshold", "Status"];
+    const headers = ["Name", "SKU", "Barcode", "Category", "Stock", "Threshold", "Last alert stock", "Status", "Image URL"];
     const escape = (v: any) => {
       const s = v == null ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -43,7 +43,8 @@ function Reports() {
     for (const p of rows) {
       lines.push([
         p.name, p.sku ?? "", p.barcode ?? "", p.categories?.name ?? "",
-        p.stock, p.low_stock_threshold, p.stock <= 0 ? "Out of stock" : "Low stock",
+        p.stock, p.low_stock_threshold, p.last_alert_stock ?? "",
+        p.stock <= 0 ? "Out of stock" : "Low stock", p.image_url ?? "",
       ].map(escape).join(","));
     }
     const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -146,18 +147,33 @@ function Reports() {
               </div>
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>Name</TableHead><TableHead>SKU</TableHead><TableHead>Category</TableHead>
+                  <TableHead>Product</TableHead><TableHead>SKU</TableHead><TableHead>Category</TableHead>
                   <TableHead className="text-right">Stock</TableHead><TableHead className="text-right">Threshold</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {lowList.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">All good — no low-stock items</TableCell></TableRow>}
+                  {lowList.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">All good — no low-stock items</TableCell></TableRow>}
                   {lowList.map((p: any) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="size-9 rounded-md object-cover border border-border" />
+                          ) : (
+                            <div className="size-9 rounded-md bg-secondary grid place-items-center text-muted-foreground"><ImageIcon className="size-4" /></div>
+                          )}
+                          <span className="font-medium">{p.name}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{p.sku ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{p.categories?.name ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums font-semibold text-warning">{p.stock}</TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">{p.low_stock_threshold}</TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link to="/products" search={{ filter: "low" }}><ExternalLink className="size-3.5" /> Open</Link>
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -174,17 +190,32 @@ function Reports() {
               </div>
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>Name</TableHead><TableHead>SKU</TableHead><TableHead>Category</TableHead>
+                  <TableHead>Product</TableHead><TableHead>SKU</TableHead><TableHead>Category</TableHead>
                   <TableHead className="text-right">Threshold</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {outList.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nothing is out of stock</TableCell></TableRow>}
+                  {outList.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nothing is out of stock</TableCell></TableRow>}
                   {outList.map((p: any) => (
                     <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          {p.image_url ? (
+                            <img src={p.image_url} alt={p.name} className="size-9 rounded-md object-cover border border-border" />
+                          ) : (
+                            <div className="size-9 rounded-md bg-secondary grid place-items-center text-muted-foreground"><ImageIcon className="size-4" /></div>
+                          )}
+                          <span className="font-medium">{p.name}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">{p.sku ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{p.categories?.name ?? "—"}</TableCell>
                       <TableCell className="text-right tabular-nums text-muted-foreground">{p.low_stock_threshold}</TableCell>
+                      <TableCell className="text-right">
+                        <Button asChild size="sm" variant="ghost">
+                          <Link to="/products" search={{ filter: "out" }}><ExternalLink className="size-3.5" /> Open</Link>
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
