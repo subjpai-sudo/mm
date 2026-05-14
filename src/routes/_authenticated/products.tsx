@@ -906,12 +906,7 @@ function RapidScanDialog({
   const current = currentId
     ? products.find((p: any) => p.id === currentId)
     : remaining[0];
-
-  // Keep current valid; pick first remaining when none chosen.
-  if (current && currentId !== current.id) {
-    // sync silently — initial pick
-    setTimeout(() => setCurrentId(current.id), 0);
-  }
+  const activeId = current?.id ?? null;
 
   const catFor = (p: any) => {
     const c = categories.find((x: any) => x.id === p?.category_id);
@@ -1015,7 +1010,7 @@ function RapidScanDialog({
               onClick={() => setCurrentId(p.id)}
               className={cn(
                 "w-full text-left rounded-lg px-3 py-2 border transition flex items-center gap-2",
-                currentId === p.id
+                activeId === p.id
                   ? "border-primary bg-primary/10"
                   : "border-border bg-secondary/40 hover:bg-secondary"
               )}
@@ -1024,7 +1019,7 @@ function RapidScanDialog({
                 <div className="text-sm font-medium truncate">{p.name}</div>
                 <div className="text-[10px] text-muted-foreground truncate">{catFor(p)}</div>
               </div>
-              {currentId === p.id && <span className="text-[10px] font-bold text-primary uppercase">Active</span>}
+              {activeId === p.id && <span className="text-[10px] font-bold text-primary uppercase">Active</span>}
             </button>
           ))}
         </div>
