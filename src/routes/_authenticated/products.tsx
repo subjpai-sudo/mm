@@ -19,6 +19,9 @@ import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
+import { useServerFn } from "@tanstack/react-start";
+import { fetchProductImage, bulkFetchProductImages } from "@/lib/product-images.functions";
+import { Sparkles, Globe } from "lucide-react";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -112,6 +115,17 @@ function ProductsPage() {
   const canEdit = !!role;
   const canDelete = !!role;
 
+  const fetchImageFn = useServerFn(fetchProductImage);
+  const bulkFetchFn = useServerFn(bulkFetchProductImages);
+  const bulkAutoFill = useMutation({
+    mutationFn: () => bulkFetchFn({}),
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Fetched ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}`);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Bulk fetch failed"),
+  });
+
   // Build category tree: main (no parent) -> children -> products
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subsByMain = new Map<string, any[]>();
@@ -163,6 +177,10 @@ function ProductsPage() {
         actions={canEdit ? (
           <div className="flex gap-2 flex-wrap items-center">
             <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
+            <Button variant="secondary" disabled={bulkAutoFill.isPending}
+              onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
+              <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
+            </Button>
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
