@@ -86,10 +86,13 @@ function HealthPage() {
       await timed("stock_movements (1)", async () =>
         await supabase.from("stock_movements").select("id").limit(1),
       );
-      await timed("REST ping (/rest/v1/)", async () => {
-        const url = `${env.VITE_SUPABASE_URL}/rest/v1/`;
+      await timed("REST ping (categories?limit=1)", async () => {
+        const url = `${env.VITE_SUPABASE_URL}/rest/v1/categories?select=id&limit=1`;
+        const key = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "";
+        const { data: s } = await supabase.auth.getSession();
+        const token = s.session?.access_token ?? key;
         const res = await fetch(url, {
-          headers: { apikey: env.VITE_SUPABASE_PUBLISHABLE_KEY ?? "" },
+          headers: { apikey: key, Authorization: `Bearer ${token}` },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return { data: res.status };
@@ -186,19 +189,23 @@ function HealthPage() {
           {calls.map((c) => (
             <div
               key={c.id}
-              className="flex items-center justify-between gap-3 border rounded-lg px-3 py-2 text-sm"
+              className="border rounded-lg px-3 py-2 text-sm space-y-1"
             >
               <div className="flex items-center gap-2 min-w-0">
-                {c.status === "pending" && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-                {c.status === "ok" && <CheckCircle2 className="size-4 text-emerald-500" />}
-                {c.status === "fail" && <XCircle className="size-4 text-destructive" />}
-                <span className="font-mono truncate">{c.name}</span>
+                {c.status === "pending" && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+                {c.status === "ok" && <CheckCircle2 className="size-4 shrink-0 text-emerald-500" />}
+                {c.status === "fail" && <XCircle className="size-4 shrink-0 text-destructive" />}
+                <span className="font-mono text-xs truncate flex-1">{c.name}</span>
+                {typeof c.ms === "number" && (
+                  <span className="text-[10px] text-muted-foreground shrink-0">{c.ms}ms</span>
+                )}
+                <span className="text-[10px] text-muted-foreground shrink-0">{c.at}</span>
               </div>
-              <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                {c.detail && <span className="truncate max-w-[220px]">{c.detail}</span>}
-                {typeof c.ms === "number" && <span>{c.ms}ms</span>}
-                <span>{c.at}</span>
-              </div>
+              {c.detail && (
+                <div className="text-[11px] text-muted-foreground break-all pl-6">
+                  {c.detail}
+                </div>
+              )}
             </div>
           ))}
         </div>
