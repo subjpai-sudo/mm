@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity, Truck, Store } from "lucide-react";
+import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity, Truck, Store, ChevronDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
