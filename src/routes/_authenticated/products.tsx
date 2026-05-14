@@ -6,11 +6,11 @@ import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ function ProductsPage() {
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
   });
+  const [manageCats, setManageCats] = useState(false);
 
   const filtered = products.filter((p: any) => {
     if (q && !`${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
@@ -89,28 +90,50 @@ function ProductsPage() {
   const canEdit = !!role;
   const canDelete = !!role;
 
+  // Build category tree: main (no parent) -> children -> products
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+  const subsByMain = new Map<string, any[]>();
+  categories.forEach((c: any) => {
+    if (c.parent_id) {
+      const arr = subsByMain.get(c.parent_id) ?? [];
+      arr.push(c);
+      subsByMain.set(c.parent_id, arr);
+    }
+  });
+  const productsByCat = new Map<string, any[]>();
+  filtered.forEach((p: any) => {
+    const key = p.category_id ?? "__none__";
+    const arr = productsByCat.get(key) ?? [];
+    arr.push(p);
+    productsByCat.set(key, arr);
+  });
+  const uncategorized = productsByCat.get("__none__") ?? [];
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader
         title="Products"
         subtitle={`${products.length} items in catalog`}
         actions={canEdit ? (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground border-0"><Plus className="size-4" /> New product</Button>
-            </DialogTrigger>
-            <ProductDialog categories={categories} onSubmit={(f) => create.mutate(f)} />
-          </Dialog>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
+            <Dialog open={open} onOpenChange={setOpen}>
+              <DialogTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground border-0"><Plus className="size-4" /> New product</Button>
+              </DialogTrigger>
+              <ProductDialog categories={categories} onSubmit={(f) => create.mutate(f)} />
+            </Dialog>
+          </div>
         ) : null}
       />
 
-      <Card className="card-elevated p-4 mb-4 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[220px]">
+      <Card className="card-elevated p-3 mb-4 flex flex-wrap gap-2 items-center">
+        <div className="relative flex-1 min-w-[180px]">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search by name, SKU or barcode" className="pl-9" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, SKU, barcode" className="pl-9" />
         </div>
         <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
-          <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
             <SelectItem value="in">In stock</SelectItem>
@@ -120,54 +143,92 @@ function ProductsPage() {
         </Select>
       </Card>
 
-      <Card className="card-elevated p-0 overflow-hidden">
-        <Table>
-          <TableHeader><TableRow>
-            <TableHead className="w-14">Photo</TableHead>
-            <TableHead>Name</TableHead><TableHead className="hidden md:table-cell">Category</TableHead><TableHead>Barcode</TableHead>
-            <TableHead className="hidden sm:table-cell">Price</TableHead><TableHead>Stock</TableHead><TableHead className="hidden md:table-cell">Status</TableHead>
-            {canEdit && <TableHead className="w-[120px] text-right">Actions</TableHead>}
-          </TableRow></TableHeader>
-          <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-12">No products found</TableCell></TableRow>}
-            {filtered.map((p: any) => (
-              <TableRow key={p.id} className="cursor-pointer hover:bg-secondary/40" onClick={() => setViewing(p)}>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
-                  ) : (
-                    <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground"><ImageIcon className="size-4" /></div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{p.name}</div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{p.sku ?? "—"}</div>
-                </TableCell>
-                <TableCell className="text-muted-foreground hidden md:table-cell">{p.categories?.name ?? "—"}</TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
-                  {canEdit ? (
-                    <Button variant="ghost" size="sm" className="h-8 px-2 font-mono text-xs gap-1"
-                      onClick={() => setScanFor({ id: p.id, name: p.name })}>
-                      <ScanLine className="size-3.5" />{p.barcode ?? "Register"}
-                    </Button>
-                  ) : (<span className="font-mono text-xs">{p.barcode ?? "—"}</span>)}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">${Number(p.price).toFixed(2)}</TableCell>
-                <TableCell>{p.stock}</TableCell>
-                <TableCell className="hidden md:table-cell"><StockStatus stock={p.stock} threshold={p.low_stock_threshold} /></TableCell>
-                {canEdit && (
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-end gap-1">
-                      <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label="Edit"><Pencil className="size-3.5" /></Button>
-                      {canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => setDeleting(p)} aria-label="Delete"><Trash2 className="size-3.5" /></Button>}
+      {filtered.length === 0 ? (
+        <Card className="card-elevated p-12 text-center text-muted-foreground">No products found</Card>
+      ) : (
+        <Accordion type="multiple" defaultValue={mainCats.map((c: any) => c.id).concat(["__none__"])} className="space-y-3">
+          {mainCats.map((mc: any) => {
+            const subs = subsByMain.get(mc.id) ?? [];
+            const directProducts = productsByCat.get(mc.id) ?? [];
+            const subItemCount = subs.reduce((s, sub) => s + (productsByCat.get(sub.id)?.length ?? 0), 0);
+            const totalCount = directProducts.length + subItemCount;
+            if (totalCount === 0) return null;
+            return (
+              <Card key={mc.id} className="card-elevated p-0 overflow-hidden">
+                <AccordionItem value={mc.id} className="border-0">
+                  <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-secondary/40">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <FolderTree className="size-4 text-primary shrink-0" />
+                      <span className="font-semibold truncate">{mc.name}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">· {totalCount} items</span>
                     </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-2 pb-2">
+                    {subs.map((sub: any) => {
+                      const items = productsByCat.get(sub.id) ?? [];
+                      if (items.length === 0) return null;
+                      return (
+                        <div key={sub.id} className="mb-2">
+                          <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+                            <ChevronRight className="size-3" />{sub.name}<span className="opacity-60">· {items.length}</span>
+                          </div>
+                          <div className="space-y-1">
+                            {items.map((p: any) => (
+                              <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
+                                onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                                onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {directProducts.length > 0 && (
+                      <div className="mb-1">
+                        {subs.length > 0 && (
+                          <div className="flex items-center gap-1.5 px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+                            <ChevronRight className="size-3" />Other<span className="opacity-60">· {directProducts.length}</span>
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          {directProducts.map((p: any) => (
+                            <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
+                              onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                              onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              </Card>
+            );
+          })}
+          {uncategorized.length > 0 && (
+            <Card className="card-elevated p-0 overflow-hidden">
+              <AccordionItem value="__none__" className="border-0">
+                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-secondary/40">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <FolderTree className="size-4 text-muted-foreground shrink-0" />
+                    <span className="font-semibold truncate">Uncategorized</span>
+                    <span className="text-xs text-muted-foreground shrink-0">· {uncategorized.length} items</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-2 pb-2">
+                  <div className="space-y-1">
+                    {uncategorized.map((p: any) => (
+                      <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
+                        onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                        onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                    ))}
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Card>
+          )}
+        </Accordion>
+      )}
+
+      {manageCats && <CategoryManagerDialog categories={categories} onClose={() => setManageCats(false)} />}
 
       {scanFor && (
         <BarcodeScanner
@@ -452,6 +513,138 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (url: strin
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
         )}
       </div>
+    </div>
+  );
+}
+
+function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }:
+  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void }) {
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/40 cursor-pointer" onClick={onView}>
+      {p.image_url ? (
+        <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
+      ) : (
+        <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm truncate">{p.name}</span>
+          <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+        </div>
+        <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+          <span>Stock <span className="text-foreground font-semibold">{p.stock}</span></span>
+          <span>·</span>
+          <span>${Number(p.price).toFixed(2)}</span>
+          {p.barcode && <><span>·</span><span className="font-mono truncate">{p.barcode}</span></>}
+        </div>
+      </div>
+      {canEdit && (
+        <div className="flex gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onScan} aria-label="Scan"><ScanLine className="size-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onEdit} aria-label="Edit"><Pencil className="size-3.5" /></Button>
+          {canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={onDelete} aria-label="Delete"><Trash2 className="size-3.5" /></Button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [parentId, setParentId] = useState<string>("__root__");
+  const [editingCat, setEditingCat] = useState<any | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error("Name required");
+      const { error } = await supabase.from("categories").insert({ name: name.trim(), parent_id: parentId === "__root__" ? null : parentId });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setName(""); toast.success("Category added"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const rename = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("categories").update({ name: editName.trim() }).eq("id", editingCat.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setEditingCat(null); toast.success("Category renamed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category removed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Manage categories</DialogTitle></DialogHeader>
+        <div className="space-y-4 max-h-[60vh] overflow-auto">
+          <div className="rounded-xl border border-border p-3 space-y-2 bg-secondary/30">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add new</div>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Category name" />
+            <Select value={parentId} onValueChange={setParentId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__root__">— Top level (main category)</SelectItem>
+                {mainCats.map(c => <SelectItem key={c.id} value={c.id}>Sub of: {c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="gradient-primary text-primary-foreground border-0 w-full" onClick={() => create.mutate()}>
+              <Plus className="size-4" /> Add category
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {mainCats.map((mc: any) => {
+              const subs = categories.filter((c: any) => c.parent_id === mc.id);
+              return (
+                <div key={mc.id} className="rounded-lg border border-border">
+                  <CategoryRow cat={mc} onEdit={() => { setEditingCat(mc); setEditName(mc.name); }} onDelete={() => remove.mutate(mc.id)} />
+                  {subs.map((sub: any) => (
+                    <div key={sub.id} className="pl-6 border-t border-border">
+                      <CategoryRow cat={sub} onEdit={() => { setEditingCat(sub); setEditName(sub.name); }} onDelete={() => remove.mutate(sub.id)} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <DialogFooter><Button variant="ghost" onClick={onClose}>Done</Button></DialogFooter>
+        {editingCat && (
+          <Dialog open onOpenChange={(v) => !v && setEditingCat(null)}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Rename category</DialogTitle></DialogHeader>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} />
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setEditingCat(null)}>Cancel</Button>
+                <Button className="gradient-primary text-primary-foreground border-0" onClick={() => rename.mutate()}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CategoryRow({ cat, onEdit, onDelete }: { cat: any; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <span className="flex-1 text-sm truncate">{cat.name}</span>
+      <Button variant="ghost" size="icon" className="size-8" onClick={onEdit}><Pencil className="size-3.5" /></Button>
+      <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={onDelete}><Trash2 className="size-3.5" /></Button>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, DollarSign, Activity } from "lucide-react";
+import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -43,9 +43,6 @@ function Dashboard() {
   const inStockRate = total ? Math.round(((total - out) / total) * 100) : 0;
   const lowList = products.filter((p: any) => p.stock <= p.low_stock_threshold);
   const totalUnits = products.reduce((s: number, p: any) => s + (p.stock || 0), 0);
-  const inventoryValue = products.reduce((s: number, p: any) => s + (Number(p.price) || 0) * (p.stock || 0), 0);
-  const withBarcode = products.filter((p: any) => !!p.barcode).length;
-  const barcodeRate = total ? Math.round((withBarcode / total) * 100) : 0;
 
   // Activity in last 24h / 7d
   const now = Date.now();
@@ -91,16 +88,12 @@ function Dashboard() {
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Dashboard" subtitle="Live inventory overview." />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-4">
         <StatCard label="Total products" value={total} icon={Boxes} tone="primary" />
         <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At or below threshold" />
         <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" />
         <StatCard label="In-stock rate" value={`${inStockRate}%`} icon={TrendingUp} tone="success" />
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="Across all products" />
-        <StatCard label="Inventory value" value={`$${inventoryValue.toFixed(0)}`} icon={DollarSign} tone="success" />
-        <StatCard label="Barcode coverage" value={`${barcodeRate}%`} icon={Barcode} tone="primary" hint={`${withBarcode}/${total} products`} />
         <StatCard label="24h activity" value={`+${stockedIn24} / -${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
       </div>
 
