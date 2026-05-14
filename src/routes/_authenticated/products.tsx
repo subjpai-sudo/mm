@@ -9,17 +9,18 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StockStatus } from "./dashboard";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { formatDistanceToNow, format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
 function ProductsPage() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">("all");
@@ -27,6 +28,7 @@ function ProductsPage() {
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
+  const [viewing, setViewing] = useState<any | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -56,7 +58,9 @@ function ProductsPage() {
 
   const setBarcode = useMutation({
     mutationFn: async ({ id, barcode }: { id: string; barcode: string }) => {
-      const { error } = await supabase.from("products").update({ barcode }).eq("id", id);
+      const { error } = await supabase.from("products")
+        .update({ barcode, barcode_registered_by: user?.id, barcode_registered_at: new Date().toISOString() })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); setScanFor(null); toast.success("Barcode registered"); },
@@ -126,8 +130,8 @@ function ProductsPage() {
           <TableBody>
             {filtered.length === 0 && <TableRow><TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-12">No products found</TableCell></TableRow>}
             {filtered.map((p: any) => (
-              <TableRow key={p.id}>
-                <TableCell>
+              <TableRow key={p.id} className="cursor-pointer hover:bg-secondary/40" onClick={() => setViewing(p)}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {p.image_url ? (
                     <img src={p.image_url} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
                   ) : (
@@ -139,7 +143,7 @@ function ProductsPage() {
                   <div className="font-mono text-[10px] text-muted-foreground">{p.sku ?? "—"}</div>
                 </TableCell>
                 <TableCell className="text-muted-foreground hidden md:table-cell">{p.categories?.name ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {canEdit ? (
                     <Button variant="ghost" size="sm" className="h-8 px-2 font-mono text-xs gap-1"
                       onClick={() => setScanFor({ id: p.id, name: p.name })}>
@@ -151,7 +155,7 @@ function ProductsPage() {
                 <TableCell>{p.stock}</TableCell>
                 <TableCell className="hidden md:table-cell"><StockStatus stock={p.stock} threshold={p.low_stock_threshold} /></TableCell>
                 {canEdit && (
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label="Edit"><Pencil className="size-3.5" /></Button>
                       {canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => setDeleting(p)} aria-label="Delete"><Trash2 className="size-3.5" /></Button>}
@@ -193,6 +197,13 @@ function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {viewing && (
+        <ProductDetailDialog product={viewing} onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setViewing(null); }}
+          onScan={() => { setScanFor({ id: viewing.id, name: viewing.name }); setViewing(null); }}
+          canEdit={canEdit} />
+      )}
     </div>
   );
 }
