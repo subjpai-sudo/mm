@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { checkLowStockAlert } from "@/lib/notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
 
@@ -52,6 +53,8 @@ function StockOut() {
         product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason: destination, destination,
       });
       if (error) throw error;
+      // Fire-and-forget low-stock alert. Don't block the UX if it fails.
+      checkLowStockAlert({ data: { productId: selected.id } }).catch(() => {});
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
