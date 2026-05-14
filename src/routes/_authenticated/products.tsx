@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { formatDistanceToNow, format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
