@@ -177,7 +177,7 @@ function ProductsPage() {
                             <span className="text-base font-bold tracking-wide">{sub.name}</span>
                             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">{items.length}</span>
                           </div>
-                          <div className="space-y-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {items.map((p: any) => (
                               <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                                 onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
@@ -195,7 +195,7 @@ function ProductsPage() {
                             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{directProducts.length}</span>
                           </div>
                         )}
-                        <div className="space-y-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {directProducts.map((p: any) => (
                             <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                               onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
@@ -220,7 +220,7 @@ function ProductsPage() {
                   </div>
                 </AccordionTrigger>
                 <AccordionContent className="px-2 pb-2">
-                  <div className="space-y-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {uncategorized.map((p: any) => (
                       <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                         onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
