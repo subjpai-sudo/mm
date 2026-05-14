@@ -884,3 +884,161 @@ function CategoryRow({ cat, onEdit, onDelete }: { cat: any; onEdit: () => void; 
     </div>
   );
 }
+
+function RapidScanDialog({
+  products, categories, userId, onClose,
+}: { products: any[]; categories: any[]; userId?: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [q, setQ] = useState("");
+  const [doneIds, setDoneIds] = useState<Set<string>>(new Set());
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const [currentId, setCurrentId] = useState<string | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [autoNext, setAutoNext] = useState(true);
+
+  const remaining = products
+    .filter((p: any) => !p.barcode && !doneIds.has(p.id) && !skippedIds.has(p.id))
+    .filter((p: any) => !q || `${p.name} ${p.sku ?? ""}`.toLowerCase().includes(q.toLowerCase()));
+
+  const totalUnbarcoded = products.filter((p: any) => !p.barcode).length;
+  const completed = doneIds.size;
+
+  const current = currentId
+    ? products.find((p: any) => p.id === currentId)
+    : remaining[0];
+
+  // Keep current valid; pick first remaining when none chosen.
+  if (current && currentId !== current.id) {
+    // sync silently — initial pick
+    setTimeout(() => setCurrentId(current.id), 0);
+  }
+
+  const catFor = (p: any) => {
+    const c = categories.find((x: any) => x.id === p?.category_id);
+    if (!c) return "Uncategorized";
+    const main = c.parent_id ? categories.find((x: any) => x.id === c.parent_id) : null;
+    return main ? `${main.name} › ${c.name}` : c.name;
+  };
+
+  const advance = (afterId: string) => {
+    const next = products.find(
+      (p: any) => !p.barcode && p.id !== afterId && !doneIds.has(p.id) && !skippedIds.has(p.id)
+    );
+    setCurrentId(next ? next.id : null);
+    if (next && autoNext) setTimeout(() => setScannerOpen(true), 350);
+  };
+
+  const save = useMutation({
+    mutationFn: async ({ id, code }: { id: string; code: string }) => {
+      const { error } = await supabase.from("products")
+        .update({ barcode: code, barcode_registered_by: userId, barcode_registered_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      setDoneIds(prev => new Set(prev).add(vars.id));
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Saved — next product");
+      advance(vars.id);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const onDetected = (code: string) => {
+    if (!current) return;
+    // Check if barcode already exists on another product
+    const dupe = products.find((p: any) => p.barcode === code && p.id !== current.id);
+    if (dupe) {
+      toast.error(`Barcode already used by "${dupe.name}"`);
+      return;
+    }
+    save.mutate({ id: current.id, code });
+  };
+
+  const skip = () => {
+    if (!current) return;
+    setSkippedIds(prev => new Set(prev).add(current.id));
+    advance(current.id);
+  };
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Zap className="size-4 text-primary" /> Rapid barcode scan
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground -mt-2">
+          <span>{completed} done · {remaining.length} remaining · {totalUnbarcoded} total without barcode</span>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={autoNext} onChange={e => setAutoNext(e.target.checked)} className="accent-primary" />
+            Auto-open scanner
+          </label>
+        </div>
+
+        {current ? (
+          <Card className="card-elevated p-4 border-primary/40 bg-primary/5">
+            <div className="text-[10px] uppercase tracking-wider text-primary font-bold mb-1">Current target</div>
+            <div className="font-bold text-base leading-tight">{current.name}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{catFor(current)}{current.sku ? ` · SKU ${current.sku}` : ""}</div>
+            <div className="flex gap-2 mt-3">
+              <Button className="flex-1 gradient-primary text-primary-foreground border-0" onClick={() => setScannerOpen(true)} disabled={save.isPending}>
+                <ScanLine className="size-4" /> {save.isPending ? "Saving…" : "Scan barcode"}
+              </Button>
+              <Button variant="secondary" onClick={skip} disabled={save.isPending}>
+                <SkipForward className="size-4" /> Skip
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <Card className="card-elevated p-6 text-center">
+            <Check className="size-6 mx-auto text-success mb-2" />
+            <div className="font-semibold">All caught up</div>
+            <div className="text-xs text-muted-foreground">No products left without a barcode in this list.</div>
+          </Card>
+        )}
+
+        <div className="relative">
+          <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search remaining products" className="pl-9" />
+        </div>
+
+        <div className="max-h-64 overflow-y-auto -mx-1 px-1 space-y-1">
+          {remaining.length === 0 && (
+            <div className="text-xs text-muted-foreground text-center py-4">No matches</div>
+          )}
+          {remaining.map((p: any) => (
+            <button
+              key={p.id}
+              onClick={() => setCurrentId(p.id)}
+              className={cn(
+                "w-full text-left rounded-lg px-3 py-2 border transition flex items-center gap-2",
+                currentId === p.id
+                  ? "border-primary bg-primary/10"
+                  : "border-border bg-secondary/40 hover:bg-secondary"
+              )}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{p.name}</div>
+                <div className="text-[10px] text-muted-foreground truncate">{catFor(p)}</div>
+              </div>
+              {currentId === p.id && <span className="text-[10px] font-bold text-primary uppercase">Active</span>}
+            </button>
+          ))}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Done</Button>
+        </DialogFooter>
+
+        <BarcodeScanner
+          open={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onDetected={onDetected}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
