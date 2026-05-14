@@ -90,12 +90,12 @@ function StockIn() {
   });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Stock In" subtitle="Receive inventory by category or scan." />
 
-      <div className="grid lg:grid-cols-[1fr_2fr] gap-4">
+      <div className="grid lg:grid-cols-[1fr_2fr] gap-3 sm:gap-4">
         {/* Categories breadcrumb tree */}
-        <Card className="card-elevated p-4">
+        <Card className="card-elevated p-3 sm:p-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
             <button onClick={() => { setParent(null); setChild(null); }} className="hover:text-foreground">All</button>
             {parent && (<><ChevronRight className="size-3" /><button onClick={() => setChild(null)} className="hover:text-foreground">{parent.name}</button></>)}
@@ -116,8 +116,8 @@ function StockIn() {
         </Card>
 
         {/* Scan + search + product list */}
-        <div className="space-y-4">
-          <Card className="card-elevated p-4">
+        <div className="space-y-3 sm:space-y-4">
+          <Card className="card-elevated p-3 sm:p-4">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Barcode scan</Label>
             <div className="mt-2 flex gap-2">
               <div className="relative flex-1">
@@ -133,12 +133,12 @@ function StockIn() {
             </div>
           </Card>
 
-          <Card className="card-elevated p-4">
+          <Card className="card-elevated p-3 sm:p-4">
             <div className="relative mb-3">
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="pl-9" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[520px] overflow-auto p-1">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 max-h-[60vh] sm:max-h-[520px] overflow-auto p-1">
               {visibleProducts.map((p: any) => (
                 <button key={p.id} onClick={() => setConfirm(p)}
                   className={cn("group flex flex-col rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-md transition-all text-left overflow-hidden")}>
