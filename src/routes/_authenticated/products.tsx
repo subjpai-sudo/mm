@@ -95,6 +95,17 @@ function ProductsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const clearBarcode = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products")
+        .update({ barcode: null, barcode_registered_by: null, barcode_registered_at: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Barcode removed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: any }) => {
       const { error } = await supabase.from("products").update(patch).eq("id", id);
@@ -325,7 +336,7 @@ function ProductsPage() {
                               {items.map((p: any) => (
                                 <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                                   onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                                  onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                                  onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                               ))}
                             </div>
                           )}
@@ -344,7 +355,7 @@ function ProductsPage() {
                           {directProducts.map((p: any) => (
                             <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                               onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                              onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                              onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                           ))}
                         </div>
                       </div>
@@ -369,7 +380,7 @@ function ProductsPage() {
                     {uncategorized.map((p: any) => (
                       <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                         onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                        onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                        onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                     ))}
                   </div>
                 </AccordionContent>
@@ -747,8 +758,8 @@ function ImagePicker({ value, onChange, productName }: { value: string; onChange
   );
 }
 
-function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }:
-  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void }) {
+function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, onClearBarcode }:
+  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void; onClearBarcode: () => void }) {
   return (
     <div className="rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/40 transition-colors cursor-pointer overflow-hidden" onClick={onView}>
       <div className="flex items-start gap-3 p-3">
@@ -763,7 +774,20 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
           </div>
-          {p.barcode && <div className="font-mono text-[10px] text-muted-foreground truncate">{p.barcode}</div>}
+          {p.barcode && (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <span className="font-mono text-[10px] text-muted-foreground truncate flex-1">{p.barcode}</span>
+              {canEdit && (
+                <button
+                  onClick={() => { if (confirm(`Remove barcode ${p.barcode} from "${p.name}"?`)) onClearBarcode(); }}
+                  className="size-5 grid place-items-center rounded text-destructive hover:bg-destructive/10"
+                  aria-label="Remove barcode"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {canEdit && (
@@ -897,11 +921,31 @@ function RapidScanDialog({
   const [autoNext, setAutoNext] = useState(true);
   const [mainCatId, setMainCatId] = useState<string>("all");
   const [subCatId, setSubCatId] = useState<string>("all");
+  const [sequenceMode, setSequenceMode] = useState(false);
 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
 
+  // Sequence: ordered list of main categories (alphabetical) that still have un-barcoded products,
+  // plus a final "Uncategorized" bucket if applicable.
+  const sequence: { id: string; name: string }[] = (() => {
+    const list: { id: string; name: string }[] = [];
+    [...mainCats].sort((a: any, b: any) => a.name.localeCompare(b.name)).forEach((mc: any) => {
+      const has = products.some((p: any) => {
+        if (p.barcode) return false;
+        const c = categories.find((x: any) => x.id === p.category_id);
+        const mid = c ? (c.parent_id ?? c.id) : null;
+        return mid === mc.id;
+      });
+      if (has) list.push({ id: mc.id, name: mc.name });
+    });
+    const hasUncat = products.some((p: any) => !p.barcode && !p.category_id);
+    if (hasUncat) list.push({ id: "__uncat__", name: "Uncategorized" });
+    return list;
+  })();
+
   const inSelectedCategory = (p: any) => {
+    if (mainCatId === "__uncat__") return !p.category_id;
     if (mainCatId === "all") return true;
     const cat = categories.find((c: any) => c.id === p.category_id);
     if (!cat) return false;
@@ -935,8 +979,25 @@ function RapidScanDialog({
     const next = products.find(
       (p: any) => !p.barcode && p.id !== afterId && !doneIds.has(p.id) && !skippedIds.has(p.id) && inSelectedCategory(p)
     );
-    setCurrentId(next ? next.id : null);
-    if (next && autoNext) setTimeout(() => setScannerOpen(true), 350);
+    if (next) {
+      setCurrentId(next.id);
+      if (autoNext) setTimeout(() => setScannerOpen(true), 350);
+      return;
+    }
+    setCurrentId(null);
+    // Sequence mode: jump to next category that still has work.
+    if (sequenceMode) {
+      const idx = sequence.findIndex(s => s.id === mainCatId);
+      const nextCat = sequence[idx + 1] ?? sequence.find(s => s.id !== mainCatId);
+      if (nextCat) {
+        setMainCatId(nextCat.id);
+        setSubCatId("all");
+        toast.success(`Category done — moving to "${nextCat.name}"`);
+        if (autoNext) setTimeout(() => setScannerOpen(true), 600);
+      } else {
+        toast.success("All categories complete 🎉");
+      }
+    }
   };
 
   const save = useMutation({
@@ -951,6 +1012,21 @@ function RapidScanDialog({
       qc.invalidateQueries({ queryKey: ["products"] });
       toast.success("Saved — next product");
       advance(vars.id);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const clearAll = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("products")
+        .update({ barcode: null, barcode_registered_by: null, barcode_registered_at: null })
+        .not("barcode", "is", null);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setDoneIds(new Set()); setSkippedIds(new Set()); setCurrentId(null);
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success("All barcodes cleared");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -989,6 +1065,43 @@ function RapidScanDialog({
           </label>
         </div>
 
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input type="checkbox" checked={sequenceMode}
+              onChange={e => {
+                setSequenceMode(e.target.checked);
+                if (e.target.checked && (mainCatId === "all") && sequence[0]) {
+                  setMainCatId(sequence[0].id); setSubCatId("all"); setCurrentId(null);
+                }
+              }}
+              className="accent-primary" />
+            <span className="font-medium">Category sequence</span>
+            <span className="text-muted-foreground">— auto-jump to next category when done</span>
+          </label>
+          <Button size="sm" variant="ghost" className="h-7 text-destructive hover:bg-destructive/10"
+            disabled={clearAll.isPending}
+            onClick={() => { if (confirm("Remove the barcode from EVERY product? This cannot be undone.")) clearAll.mutate(); }}>
+            <Trash2 className="size-3.5" /> {clearAll.isPending ? "Clearing…" : "Clear all barcodes"}
+          </Button>
+        </div>
+
+        {sequenceMode && sequence.length > 0 && (
+          <div className="flex gap-1 flex-wrap text-[10px]">
+            {sequence.map((s, i) => {
+              const isCurrent = s.id === mainCatId;
+              const passed = sequence.findIndex(x => x.id === mainCatId) > i;
+              return (
+                <span key={s.id} className={cn(
+                  "px-2 py-0.5 rounded-full border",
+                  isCurrent ? "border-primary bg-primary text-primary-foreground font-bold"
+                    : passed ? "border-success/40 bg-success/10 text-success line-through"
+                    : "border-border bg-secondary/40 text-muted-foreground"
+                )}>{i + 1}. {s.name}</span>
+              );
+            })}
+          </div>
+        )}
+
         {current ? (
           <Card className="card-elevated p-4 border-primary/40 bg-primary/5">
             <div className="text-[10px] uppercase tracking-wider text-primary font-bold mb-1">Current target</div>
@@ -1017,10 +1130,11 @@ function RapidScanDialog({
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
               {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              <SelectItem value="__uncat__">Uncategorized</SelectItem>
             </SelectContent>
           </Select>
           <Select value={subCatId} onValueChange={(v) => { setSubCatId(v); setCurrentId(null); }}
-            disabled={mainCatId === "all" || subCats.length === 0}>
+            disabled={mainCatId === "all" || mainCatId === "__uncat__" || subCats.length === 0}>
             <SelectTrigger>
               <SelectValue placeholder={mainCatId === "all" ? "Pick category first" : "All vendors"} />
             </SelectTrigger>
