@@ -516,3 +516,135 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (url: strin
     </div>
   );
 }
+
+function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }:
+  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void }) {
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/40 cursor-pointer" onClick={onView}>
+      {p.image_url ? (
+        <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
+      ) : (
+        <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-sm truncate">{p.name}</span>
+          <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+        </div>
+        <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+          <span>Stock <span className="text-foreground font-semibold">{p.stock}</span></span>
+          <span>·</span>
+          <span>${Number(p.price).toFixed(2)}</span>
+          {p.barcode && <><span>·</span><span className="font-mono truncate">{p.barcode}</span></>}
+        </div>
+      </div>
+      {canEdit && (
+        <div className="flex gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onScan} aria-label="Scan"><ScanLine className="size-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="size-8" onClick={onEdit} aria-label="Edit"><Pencil className="size-3.5" /></Button>
+          {canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={onDelete} aria-label="Delete"><Trash2 className="size-3.5" /></Button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [parentId, setParentId] = useState<string>("__root__");
+  const [editingCat, setEditingCat] = useState<any | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+
+  const create = useMutation({
+    mutationFn: async () => {
+      if (!name.trim()) throw new Error("Name required");
+      const { error } = await supabase.from("categories").insert({ name: name.trim(), parent_id: parentId === "__root__" ? null : parentId });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setName(""); toast.success("Category added"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const rename = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("categories").update({ name: editName.trim() }).eq("id", editingCat.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setEditingCat(null); toast.success("Category renamed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("categories").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); toast.success("Category removed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Manage categories</DialogTitle></DialogHeader>
+        <div className="space-y-4 max-h-[60vh] overflow-auto">
+          <div className="rounded-xl border border-border p-3 space-y-2 bg-secondary/30">
+            <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Add new</div>
+            <Input value={name} onChange={e => setName(e.target.value)} placeholder="Category name" />
+            <Select value={parentId} onValueChange={setParentId}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__root__">— Top level (main category)</SelectItem>
+                {mainCats.map(c => <SelectItem key={c.id} value={c.id}>Sub of: {c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" className="gradient-primary text-primary-foreground border-0 w-full" onClick={() => create.mutate()}>
+              <Plus className="size-4" /> Add category
+            </Button>
+          </div>
+          <div className="space-y-2">
+            {mainCats.map((mc: any) => {
+              const subs = categories.filter((c: any) => c.parent_id === mc.id);
+              return (
+                <div key={mc.id} className="rounded-lg border border-border">
+                  <CategoryRow cat={mc} onEdit={() => { setEditingCat(mc); setEditName(mc.name); }} onDelete={() => remove.mutate(mc.id)} />
+                  {subs.map((sub: any) => (
+                    <div key={sub.id} className="pl-6 border-t border-border">
+                      <CategoryRow cat={sub} onEdit={() => { setEditingCat(sub); setEditName(sub.name); }} onDelete={() => remove.mutate(sub.id)} />
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <DialogFooter><Button variant="ghost" onClick={onClose}>Done</Button></DialogFooter>
+        {editingCat && (
+          <Dialog open onOpenChange={(v) => !v && setEditingCat(null)}>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Rename category</DialogTitle></DialogHeader>
+              <Input value={editName} onChange={e => setEditName(e.target.value)} />
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setEditingCat(null)}>Cancel</Button>
+                <Button className="gradient-primary text-primary-foreground border-0" onClick={() => rename.mutate()}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CategoryRow({ cat, onEdit, onDelete }: { cat: any; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex items-center gap-2 px-3 py-2">
+      <span className="flex-1 text-sm truncate">{cat.name}</span>
+      <Button variant="ghost" size="icon" className="size-8" onClick={onEdit}><Pencil className="size-3.5" /></Button>
+      <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={onDelete}><Trash2 className="size-3.5" /></Button>
+    </div>
+  );
+}
