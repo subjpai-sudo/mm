@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScanLine, Search, ChevronRight, Folder, FolderOpen, Boxes, Camera, ImageIcon, PackageSearch } from "lucide-react";
+import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Boxes, Camera, ImageIcon, PackageSearch, Package } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -41,12 +41,21 @@ function StockIn() {
 
   const parents = categories.filter((c: any) => !c.parent_id);
   const children = parent ? categories.filter((c: any) => c.parent_id === parent.id) : [];
+  const subIdsByParent = (pid: string) => categories.filter((c: any) => c.parent_id === pid).map((c: any) => c.id);
+  const countFor = (cat: any) => {
+    if (!cat.parent_id) {
+      const ids = new Set<string>([cat.id, ...subIdsByParent(cat.id)]);
+      return products.filter((p: any) => ids.has(p.category_id)).length;
+    }
+    return products.filter((p: any) => p.category_id === cat.id).length;
+  };
   const visibleProducts = products.filter((p: any) => {
     if (child && p.category_id !== child.id) return false;
-    if (!child && parent && !categories.filter((c:any)=>c.parent_id===parent.id).map((c:any)=>c.id).includes(p.category_id) && p.category_id !== parent.id) return false;
+    if (!child && parent && !subIdsByParent(parent.id).includes(p.category_id) && p.category_id !== parent.id) return false;
     if (search && !`${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+  const showResults = !!search || !!parent;
 
   function lookup(code: string) {
     const v = code.trim();
@@ -94,31 +103,10 @@ function StockIn() {
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Stock In" subtitle="Receive inventory by category or scan." />
 
-      <div className="grid lg:grid-cols-[1fr_2fr] gap-3 sm:gap-4">
-        {/* Categories breadcrumb tree */}
-        <Card className="card-elevated p-3 sm:p-4">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-            <button onClick={() => { setParent(null); setChild(null); }} className="hover:text-foreground">All</button>
-            {parent && (<><ChevronRight className="size-3" /><button onClick={() => setChild(null)} className="hover:text-foreground">{parent.name}</button></>)}
-            {child && (<><ChevronRight className="size-3" /><span className="text-foreground">{child.name}</span></>)}
-          </div>
-          <div className="space-y-1">
-            {(!parent ? parents : children).map((c: any) => (
-              <button key={c.id} onClick={() => parent ? setChild(c) : setParent(c)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-secondary/60 text-left">
-                {parent ? <FolderOpen className="size-4 text-accent" /> : <Folder className="size-4 text-primary" />}
-                {c.name}
-              </button>
-            ))}
-            {(!parent ? parents : children).length === 0 && (
-              <p className="text-xs text-muted-foreground p-3">No {parent ? "subcategories" : "categories"} yet.</p>
-            )}
-          </div>
-        </Card>
-
-        {/* Scan + search + product list */}
-        <div className="space-y-3 sm:space-y-4">
-          <Card className="card-elevated p-3 sm:p-4">
+      <div className="space-y-3 sm:space-y-4">
+        {/* Scan + search */}
+        <Card className="card-elevated p-3 sm:p-4 space-y-3">
+          <div>
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Barcode scan</Label>
             <div className="mt-2 flex gap-2">
               <div className="relative flex-1">
@@ -132,38 +120,85 @@ function StockIn() {
               </Button>
               <Button onClick={onScan} className="gradient-primary text-primary-foreground border-0">Find</Button>
             </div>
-          </Card>
+          </div>
+          <div className="relative">
+            <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products by name, SKU or barcode…" className="pl-9" />
+          </div>
+        </Card>
 
+        {/* Browse: category cards or results */}
+        {!showResults ? (
           <Card className="card-elevated p-3 sm:p-4">
-            <div className="relative mb-3">
-              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="pl-9" />
+            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Browse categories</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+              {parents.map((c: any) => {
+                const count = countFor(c);
+                return (
+                  <button key={c.id} onClick={() => setParent(c)}
+                    className="group relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card hover:border-primary/60 hover:shadow-md active:scale-[0.98] transition-all p-4 text-left min-h-[110px]">
+                    <div className="size-10 rounded-xl gradient-primary grid place-items-center mb-3 shadow-sm">
+                      <Folder className="size-5 text-primary-foreground" />
+                    </div>
+                    <div className="font-bold text-sm leading-tight line-clamp-2">{c.name}</div>
+                    <div className="text-[11px] text-muted-foreground mt-1">{count} item{count === 1 ? "" : "s"}</div>
+                    <ChevronRight className="size-4 text-muted-foreground absolute top-3 right-3 group-hover:text-primary transition-colors" />
+                  </button>
+                );
+              })}
+              {parents.length === 0 && <p className="text-xs text-muted-foreground p-3 col-span-full">No categories yet.</p>}
             </div>
-            <div className="@container">
-              <div className="grid grid-cols-2 @[420px]:grid-cols-3 @[640px]:grid-cols-4 @[900px]:grid-cols-5 gap-3 sm:gap-4 max-h-[65vh] sm:max-h-[560px] overflow-auto p-1">
-              {visibleProducts.map((p: any) => (
+          </Card>
+        ) : (
+          <Card className="card-elevated p-3 sm:p-4">
+            <div className="flex items-center gap-2 text-sm mb-3">
+              <button onClick={() => { setParent(null); setChild(null); setSearch(""); }}
+                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="size-4" /> Back
+              </button>
+              {parent && (
+                <>
+                  <ChevronRight className="size-3 text-muted-foreground" />
+                  <button onClick={() => setChild(null)} className="font-semibold hover:text-primary">{parent.name}</button>
+                </>
+              )}
+              {child && (<><ChevronRight className="size-3 text-muted-foreground" /><span className="font-semibold text-primary">{child.name}</span></>)}
+              {!parent && search && <span className="text-muted-foreground">Search results</span>}
+            </div>
+
+            {parent && !child && children.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {children.map((c: any) => (
+                  <button key={c.id} onClick={() => setChild(c)}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-border bg-secondary/40 hover:bg-secondary text-xs font-semibold transition active:scale-[0.97]">
+                    <FolderOpen className="size-3.5 text-accent" />
+                    {c.name}
+                    <span className="text-muted-foreground">{countFor(c)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="divide-y divide-border max-h-[60vh] overflow-auto -mx-1">
+              {visibleProducts.slice(0, 100).map((p: any) => (
                 <button key={p.id} onClick={() => setConfirm(p)}
-                  className={cn("group flex flex-col rounded-2xl border border-border bg-card hover:border-primary/60 hover:shadow-md active:scale-[0.98] transition-all text-left overflow-hidden min-h-[180px]")}>
-                  <div className="aspect-square w-full bg-secondary relative">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
-                    )}
-                    <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-background/95 backdrop-blur text-[11px] font-bold border border-border shadow-sm">
-                      {p.stock}
-                    </span>
+                  className="w-full flex items-center gap-3 px-2 py-2.5 hover:bg-secondary/60 active:bg-secondary rounded-lg text-left">
+                  {p.image_url ? (
+                    <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
+                  ) : (
+                    <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground shrink-0"><Package className="size-5" /></div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-sm truncate">{p.name}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"}</div>
                   </div>
-                  <div className="p-2.5 sm:p-3">
-                    <div className="font-semibold text-[13px] leading-tight line-clamp-2 min-h-[2.4em]">{p.name}</div>
-                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-secondary text-[11px] font-bold border border-border tabular-nums shrink-0">{p.stock}</span>
                 </button>
               ))}
-              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products in this view.</p>}
-              </div>
+              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products match.</p>}
             </div>
           </Card>
-        </div>
+        )}
       </div>
 
       <Dialog open={!!confirm} onOpenChange={(v) => !v && setConfirm(null)}>
