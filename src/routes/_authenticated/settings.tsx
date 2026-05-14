@@ -21,15 +21,22 @@ function Settings() {
     queryKey: ["settings"],
     queryFn: async () => (await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle()).data,
   });
-  const [token, setToken] = useState(""); const [owner, setOwner] = useState(""); const [hook, setHook] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [sender, setSender] = useState("");
+  const [phone, setPhone] = useState("");
   useEffect(() => {
-    setToken(data?.viber_bot_token ?? ""); setOwner(data?.viber_owner_id ?? ""); setHook(data?.viber_webhook_url ?? "");
+    setBaseUrl((data as any)?.infobip_base_url ?? "");
+    setSender((data as any)?.viber_sender ?? "");
+    setPhone((data as any)?.owner_phone ?? "");
   }, [data]);
 
   const save = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("app_settings").update({
-        viber_bot_token: token || null, viber_owner_id: owner || null, viber_webhook_url: hook || null, updated_at: new Date().toISOString(),
+        infobip_base_url: baseUrl || null,
+        viber_sender: sender || null,
+        owner_phone: phone || null,
+        updated_at: new Date().toISOString(),
       }).eq("id", 1);
       if (error) throw error;
     },
@@ -41,8 +48,9 @@ function Settings() {
     mutationFn: async () => sendViberTest(),
     onSuccess: (r: any) => {
       if (r?.sent) toast.success("Test message sent to Viber ✓");
-      else if (r?.reason === "viber-not-configured") toast.error("Save Bot token and Owner ID first");
-      else toast.error(`Viber error: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
+      else if (r?.reason === "infobip-not-configured") toast.error("Save Infobip base URL, sender, and owner phone first");
+      else if (r?.reason === "infobip-key-missing") toast.error("INFOBIP_API_KEY is not set");
+      else toast.error(`Infobip error: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -56,14 +64,14 @@ function Settings() {
         <div className="flex items-center gap-3 mb-6">
           <div className="size-10 rounded-xl gradient-primary grid place-items-center"><MessageSquare className="size-5 text-primary-foreground" /></div>
           <div>
-            <div className="font-semibold">Viber Bot</div>
-            <div className="text-xs text-muted-foreground">Used to deliver order requests.</div>
+            <div className="font-semibold">Infobip Viber</div>
+            <div className="text-xs text-muted-foreground">Send owner alerts via Infobip Viber Business Messages.</div>
           </div>
         </div>
         <div className="space-y-4">
-          <div><Label>Bot token</Label><Input value={token} onChange={e => setToken(e.target.value)} placeholder="X-Viber-Auth-Token" /></div>
-          <div><Label>Owner ID</Label><Input value={owner} onChange={e => setOwner(e.target.value)} placeholder="01a2b3c4d5…" /></div>
-          <div><Label>Webhook URL</Label><Input value={hook} onChange={e => setHook(e.target.value)} placeholder="https://yourdomain.com/api/viber" /></div>
+          <div><Label>Infobip base URL</Label><Input value={baseUrl} onChange={e => setBaseUrl(e.target.value)} placeholder="xxxxx.api.infobip.com" /></div>
+          <div><Label>Viber sender</Label><Input value={sender} onChange={e => setSender(e.target.value)} placeholder="MyShop (registered Viber sender)" /></div>
+          <div><Label>Owner phone (E.164)</Label><Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+639171234567" /></div>
           <div className="flex flex-wrap gap-2">
             <Button onClick={() => save.mutate()} disabled={save.isPending} className="gradient-primary text-primary-foreground border-0">
               <Save className="size-4" /> Save settings
@@ -73,11 +81,12 @@ function Settings() {
             </Button>
           </div>
           <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
-            <p className="font-medium text-foreground">How to set up:</p>
-            <p>1. Create a Viber bot at <span className="font-mono">partners.viber.com</span> → copy the auth token into <b>Bot token</b>.</p>
-            <p>2. Open the bot in Viber and tap <b>Subscribe</b> / send any message — that registers the owner.</p>
-            <p>3. Get the owner's Viber user ID (from the bot's webhook payload, or via <span className="font-mono">get_account_info</span>) and paste into <b>Owner ID</b>.</p>
-            <p>4. Save, then click <b>Send test message</b> — you should receive a Viber message instantly.</p>
+            <p className="font-medium text-foreground">How to set up (Infobip portal):</p>
+            <p>1. In <span className="font-mono">portal.infobip.com</span> → <b>Developers → API keys</b>, generate an API key. It was saved as <span className="font-mono">INFOBIP_API_KEY</span>.</p>
+            <p>2. Find your account's <b>Base URL</b> (top-right of any API doc page, e.g. <span className="font-mono">xyz123.api.infobip.com</span>) and paste above.</p>
+            <p>3. Go to <b>Channels and Numbers → Viber Business Messages</b> and register a sender. Once approved, paste the sender name above.</p>
+            <p>4. Enter the owner's phone number in international E.164 format. The phone must have Viber installed.</p>
+            <p>5. Save, then <b>Send test message</b>. Note: Viber Business sender approval can take days — until then test calls will return a rejected status.</p>
           </div>
         </div>
       </Card>

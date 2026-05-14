@@ -17,23 +17,32 @@ export type Database = {
       app_settings: {
         Row: {
           id: number
+          infobip_base_url: string | null
+          owner_phone: string | null
           updated_at: string
           viber_bot_token: string | null
           viber_owner_id: string | null
+          viber_sender: string | null
           viber_webhook_url: string | null
         }
         Insert: {
           id?: number
+          infobip_base_url?: string | null
+          owner_phone?: string | null
           updated_at?: string
           viber_bot_token?: string | null
           viber_owner_id?: string | null
+          viber_sender?: string | null
           viber_webhook_url?: string | null
         }
         Update: {
           id?: number
+          infobip_base_url?: string | null
+          owner_phone?: string | null
           updated_at?: string
           viber_bot_token?: string | null
           viber_owner_id?: string | null
+          viber_sender?: string | null
           viber_webhook_url?: string | null
         }
         Relationships: []
