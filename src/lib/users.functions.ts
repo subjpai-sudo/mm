@@ -6,6 +6,7 @@ import {
   usernameToEmail,
   assertAdminOrOwner,
   supabaseAdmin,
+  writeAudit,
 } from "./users.server";
 
 export const listManagedUsers = createServerFn({ method: "POST" })
@@ -66,6 +67,15 @@ export const createManagedUser = createServerFn({ method: "POST" })
       role: data.role,
     });
 
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: context.claims?.email ?? null,
+      action: "user.create",
+      targetId: created.user.id,
+      targetLabel: data.username,
+      details: { fullName: data.fullName, role: data.role },
+    });
+
     return { id: created.user.id, username: data.username, email };
   });
 
@@ -83,6 +93,12 @@ export const resetUserPin = createServerFn({ method: "POST" })
       password: data.pin,
     });
     if (error) throw new Error(error.message);
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: context.claims?.email ?? null,
+      action: "user.reset_pin",
+      targetId: data.userId,
+    });
     return { ok: true };
   });
 
@@ -102,6 +118,13 @@ export const setUserRole = createServerFn({ method: "POST" })
       role: data.role,
     });
     if (error) throw new Error(error.message);
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: context.claims?.email ?? null,
+      action: "user.set_role",
+      targetId: data.userId,
+      details: { role: data.role },
+    });
     return { ok: true };
   });
 
@@ -113,5 +136,11 @@ export const deleteManagedUser = createServerFn({ method: "POST" })
     if (data.userId === context.userId) throw new Error("Cannot delete yourself");
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: context.claims?.email ?? null,
+      action: "user.delete",
+      targetId: data.userId,
+    });
     return { ok: true };
   });
