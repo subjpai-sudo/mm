@@ -95,6 +95,17 @@ function ProductsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const clearBarcode = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("products")
+        .update({ barcode: null, barcode_registered_by: null, barcode_registered_at: null })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Barcode removed"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: any }) => {
       const { error } = await supabase.from("products").update(patch).eq("id", id);
