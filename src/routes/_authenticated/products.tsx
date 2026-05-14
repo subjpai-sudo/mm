@@ -81,8 +81,8 @@ function ProductsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const canEdit = role === "admin" || role === "operator";
-  const canDelete = role === "admin";
+  const canEdit = !!role;
+  const canDelete = !!role;
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
