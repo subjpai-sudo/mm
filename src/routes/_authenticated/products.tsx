@@ -435,7 +435,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
     <DialogContent>
       <DialogHeader><DialogTitle>New product</DialogTitle></DialogHeader>
       <div className="grid gap-3">
-        <ImagePicker value={imageUrl} onChange={setImageUrl} />
+        <ImagePicker value={imageUrl} onChange={setImageUrl} productName={name} />
         <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-3">
           <div><Label>SKU</Label><Input value={sku} onChange={e => setSku(e.target.value)} /></div>
@@ -517,7 +517,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
       <DialogContent>
         <DialogHeader><DialogTitle>Edit product</DialogTitle></DialogHeader>
         <div className="grid gap-3">
-          <ImagePicker value={imageUrl} onChange={setImageUrl} />
+          <ImagePicker value={imageUrl} onChange={setImageUrl} productName={name} />
           <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>SKU</Label><Input value={sku} onChange={e => setSku(e.target.value)} /></div>
