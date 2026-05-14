@@ -35,6 +35,8 @@ function ProductsPage() {
   const search = Route.useSearch();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">(search.filter ?? "all");
+  const [mainFilter, setMainFilter] = useState<string>("all");
+  const [subFilter, setSubFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
@@ -60,6 +62,12 @@ function ProductsPage() {
     if (filter === "out" && p.stock > 0) return false;
     if (filter === "low" && !(p.stock > 0 && p.stock <= p.low_stock_threshold)) return false;
     if (filter === "in" && !(p.stock > p.low_stock_threshold)) return false;
+    if (mainFilter !== "all") {
+      const cat = categories.find((c: any) => c.id === p.category_id);
+      const mainId = cat ? (cat.parent_id ?? cat.id) : null;
+      if (mainId !== mainFilter) return false;
+    }
+    if (subFilter !== "all" && p.category_id !== subFilter) return false;
     return true;
   });
 
@@ -200,6 +208,39 @@ function ProductsPage() {
           })}
         </div>
       </Card>
+
+      {mainCats.length > 0 && (
+        <Card className="card-elevated p-3 mb-4 grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Category</Label>
+            <Select value={mainFilter} onValueChange={(v) => { setMainFilter(v); setSubFilter("all"); }}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Vendor</Label>
+            <Select
+              value={subFilter}
+              onValueChange={setSubFilter}
+              disabled={mainFilter === "all" || (subsByMain.get(mainFilter)?.length ?? 0) === 0}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={mainFilter === "all" ? "Pick category first" : "All vendors"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All vendors</SelectItem>
+                {(subsByMain.get(mainFilter) ?? []).map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+      )}
 
       {allSubsFlat.length > 0 && (
         <Card className="card-elevated p-3 mb-4 flex flex-wrap gap-2 items-center">
@@ -369,6 +410,8 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
   const categoryId = subCatId || mainCatId;
+  const mainName = mainCats.find((c: any) => c.id === mainCatId)?.name;
+  const subName = subCats.find((c: any) => c.id === subCatId)?.name;
 
   return (
     <DialogContent>
@@ -399,6 +442,17 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
               <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
+        </div>
+        <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">Path: </span>
+          {mainName ? (
+            <span className="font-semibold">
+              {mainName}
+              {subName && <> <ChevronRight className="inline size-3 -mt-0.5 text-muted-foreground" /> {subName}</>}
+            </span>
+          ) : (
+            <span className="italic text-muted-foreground">Uncategorized</span>
+          )}
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
@@ -437,6 +491,8 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
   const categoryId = subCatId || mainCatId;
+  const mainName = mainCats.find((c: any) => c.id === mainCatId)?.name;
+  const subName = subCats.find((c: any) => c.id === subCatId)?.name;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -468,6 +524,17 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
                 <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
+            <span className="text-muted-foreground">Path: </span>
+            {mainName ? (
+              <span className="font-semibold">
+                {mainName}
+                {subName && <> <ChevronRight className="inline size-3 -mt-0.5 text-muted-foreground" /> {subName}</>}
+              </span>
+            ) : (
+              <span className="italic text-muted-foreground">Uncategorized</span>
+            )}
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
