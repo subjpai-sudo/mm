@@ -126,15 +126,6 @@ function Dashboard() {
       reason: m.reason,
       destination: m.destination,
     })),
-    ...recentBarcodes.map((b: any) => ({
-      kind: "barcode",
-      id: `bc-${b.id}`,
-      when: b.barcode_registered_at,
-      who: profileMap.get(b.barcode_registered_by) ?? "System",
-      product: b.name,
-      image: b.image_url,
-      barcode: b.barcode,
-    })),
   ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 30);
 
   const filteredActivity = destFilter === "all"
