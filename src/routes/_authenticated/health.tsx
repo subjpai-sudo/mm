@@ -77,14 +77,14 @@ function HealthPage() {
         setSession(r.data.session?.user?.email ?? null);
         return r;
       });
-      await timed("products (count)", () =>
-        supabase.from("products").select("id", { count: "exact", head: true }),
+      await timed("products (count)", async () =>
+        await supabase.from("products").select("id", { count: "exact", head: true }),
       );
-      await timed("categories (5)", () =>
-        supabase.from("categories").select("id,name").limit(5),
+      await timed("categories (5)", async () =>
+        await supabase.from("categories").select("id,name").limit(5),
       );
-      await timed("stock_movements (1)", () =>
-        supabase.from("stock_movements").select("id").limit(1),
+      await timed("stock_movements (1)", async () =>
+        await supabase.from("stock_movements").select("id").limit(1),
       );
       await timed("REST ping (/rest/v1/)", async () => {
         const url = `${env.VITE_SUPABASE_URL}/rest/v1/`;

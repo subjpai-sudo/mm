@@ -19,6 +19,7 @@ import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedOrderRequestRouteImport } from './routes/_authenticated/order-request'
 import { Route as AuthenticatedOrderHistoryRouteImport } from './routes/_authenticated/order-history'
+import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 
 const LoginRoute = LoginRouteImport.update({
@@ -72,6 +73,11 @@ const AuthenticatedOrderHistoryRoute =
     path: '/order-history',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedHealthRoute = AuthenticatedHealthRouteImport.update({
+  id: '/health',
+  path: '/health',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/health': typeof AuthenticatedHealthRoute
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/health': typeof AuthenticatedHealthRoute
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/health': typeof AuthenticatedHealthRoute
   '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
   '/_authenticated/order-request': typeof AuthenticatedOrderRequestRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/dashboard'
+    | '/health'
     | '/order-history'
     | '/order-request'
     | '/products'
@@ -134,6 +144,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/dashboard'
+    | '/health'
     | '/order-history'
     | '/order-request'
     | '/products'
@@ -147,6 +158,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/dashboard'
+    | '/_authenticated/health'
     | '/_authenticated/order-history'
     | '/_authenticated/order-request'
     | '/_authenticated/products'
@@ -234,6 +246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOrderHistoryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/health': {
+      id: '/_authenticated/health'
+      path: '/health'
+      fullPath: '/health'
+      preLoaderRoute: typeof AuthenticatedHealthRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -246,6 +265,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
   AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
   AuthenticatedOrderRequestRoute: typeof AuthenticatedOrderRequestRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
@@ -257,6 +277,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedHealthRoute: AuthenticatedHealthRoute,
   AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
   AuthenticatedOrderRequestRoute: AuthenticatedOrderRequestRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
