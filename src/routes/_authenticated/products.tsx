@@ -502,7 +502,6 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
               </div>
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
-              <div className="text-xs">Price <span className="font-semibold">${Number(product.price).toFixed(2)}</span></div>
             </div>
           </div>
 
@@ -617,7 +616,6 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
-            <span className="text-[11px] text-muted-foreground">${Number(p.price).toFixed(2)}</span>
           </div>
           {p.barcode && <div className="font-mono text-[10px] text-muted-foreground truncate">{p.barcode}</div>}
         </div>
