@@ -138,51 +138,73 @@ function StockIn() {
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="pl-9" />
             </div>
-            <div className="grid sm:grid-cols-2 gap-2 max-h-[420px] overflow-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[520px] overflow-auto p-1">
               {visibleProducts.map((p: any) => (
                 <button key={p.id} onClick={() => setConfirm(p)}
-                  className={cn("group flex items-center gap-3 p-3 rounded-xl border border-border bg-secondary/40 hover:border-primary/50 hover:bg-secondary transition-all text-left")}>
-                  <div className="size-10 rounded-lg gradient-primary/20 grid place-items-center bg-primary/10"><Boxes className="size-5 text-primary" /></div>
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">Stock: {p.stock} · SKU {p.sku ?? "—"}</div>
+                  className={cn("group flex flex-col rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-md transition-all text-left overflow-hidden")}>
+                  <div className="aspect-square w-full bg-secondary relative">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
+                    )}
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-background/90 backdrop-blur text-[10px] font-bold border border-border">
+                      {p.stock}
+                    </span>
+                  </div>
+                  <div className="p-2">
+                    <div className="font-semibold text-xs leading-tight line-clamp-2 min-h-[2.2em]">{p.name}</div>
                   </div>
                 </button>
               ))}
-              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-2">No products in this view.</p>}
+              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products in this view.</p>}
             </div>
           </Card>
         </div>
       </div>
 
       <Dialog open={!!confirm} onOpenChange={(v) => !v && setConfirm(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Confirm stock in</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
           {confirm && (
-            <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-secondary/60 border border-border flex gap-3 items-center">
+            <>
+              <div className="relative w-full aspect-square bg-secondary">
                 {confirm.image_url ? (
-                  <img src={confirm.image_url} alt={confirm.name} className="size-20 rounded-xl object-cover border border-border" />
+                  <img src={confirm.image_url} alt={confirm.name} className="w-full h-full object-contain" />
                 ) : (
-                  <div className="size-20 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-6" /></div>
+                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-20" /></div>
                 )}
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{confirm.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1">SKU {confirm.sku ?? "—"}</div>
-                  <div className="text-xs text-muted-foreground">Barcode <span className="font-mono">{confirm.barcode ?? "—"}</span></div>
-                  <div className="text-xs mt-1">Current stock: <span className="font-semibold text-foreground">{confirm.stock}</span></div>
+                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+                  Stock: <span className="font-bold">{confirm.stock}</span>
                 </div>
               </div>
-              <div>
-                <Label>Quantity</Label>
-                <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} />
+              <div className="p-5 space-y-4">
+                <div>
+                  <DialogTitle className="text-xl font-bold leading-tight break-words">{confirm.name}</DialogTitle>
+                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <span>SKU <span className="font-mono text-foreground">{confirm.sku ?? "—"}</span></span>
+                    <span>Barcode <span className="font-mono text-foreground">{confirm.barcode ?? "—"}</span></span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
+                    <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)}
+                      className="h-11 text-center text-lg font-bold" />
+                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                      onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button variant="ghost" onClick={() => setConfirm(null)} className="flex-1">Cancel</Button>
+                  <Button className="gradient-success text-success-foreground border-0 flex-1" onClick={() => apply.mutate()}>
+                    Add to stock
+                  </Button>
+                </DialogFooter>
               </div>
-            </div>
+            </>
           )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
-            <Button className="gradient-success text-success-foreground border-0" onClick={() => apply.mutate()}>Add to stock</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
