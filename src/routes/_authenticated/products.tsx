@@ -51,7 +51,9 @@ function ProductsPage() {
   });
   const [manageCats, setManageCats] = useState(false);
   const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
-  const [expandedMains, setExpandedMains] = useState<string[] | null>(null);
+  // Default to collapsed so users pick one main category at a time
+  // instead of seeing everything together.
+  const [expandedMains, setExpandedMains] = useState<string[]>([]);
 
   const filtered = products.filter((p: any) => {
     if (q && !`${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
@@ -122,7 +124,7 @@ function ProductsPage() {
   const uncategorized = productsByCat.get("__none__") ?? [];
 
   const allMainIds = mainCats.map((c: any) => c.id).concat(uncategorized.length ? ["__none__"] : []);
-  const accordionValue = expandedMains ?? allMainIds;
+  const accordionValue = expandedMains;
   const allSubsFlat: { sub: any; main: any }[] = [];
   mainCats.forEach((mc: any) => (subsByMain.get(mc.id) ?? []).forEach((sub: any) => allSubsFlat.push({ sub, main: mc })));
 
@@ -138,10 +140,7 @@ function ProductsPage() {
   const jumpToSub = (subId: string) => {
     const found = allSubsFlat.find(x => x.sub.id === subId);
     if (!found) return;
-    setExpandedMains(prev => {
-      const base = prev ?? allMainIds;
-      return base.includes(found.main.id) ? base : [...base, found.main.id];
-    });
+    setExpandedMains(prev => prev.includes(found.main.id) ? prev : [...prev, found.main.id]);
     setCollapsedSubs(prev => { const next = new Set(prev); next.delete(subId); return next; });
     setTimeout(() => {
       document.getElementById(`sub-${subId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
