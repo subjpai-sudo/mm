@@ -69,7 +69,7 @@ function AuditPage() {
               </Button>
             </div>
           )}
-          {!isLoading && logs.length === 0 && (
+          {!isLoading && !isError && logs.length === 0 && (
             <p className="text-center text-muted-foreground py-12">No audit entries yet</p>
           )}
           {logs.map((l: any) => (
