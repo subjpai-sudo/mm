@@ -143,9 +143,9 @@ function Dashboard() {
       <PageHeader title="Dashboard" subtitle="Live inventory overview." />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-4">
-        <StatCard label="Total products" value={total} icon={Boxes} tone="primary" />
-        <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At or below threshold" />
-        <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" />
+        <StatCard label="Total products" value={total} icon={Boxes} tone="primary" to="/products" search={{ filter: "all" }} />
+        <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At or below threshold" to="/products" search={{ filter: "low" }} />
+        <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" to="/products" search={{ filter: "out" }} />
         <StatCard label="In-stock rate" value={`${inStockRate}%`} icon={TrendingUp} tone="success" />
         <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="Across all products" />
         <StatCard label="24h activity" value={`+${stockedIn24} / -${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
