@@ -9,17 +9,19 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StockStatus } from "./dashboard";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { formatDistanceToNow, format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
 function ProductsPage() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">("all");
@@ -27,6 +29,7 @@ function ProductsPage() {
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
+  const [viewing, setViewing] = useState<any | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -56,7 +59,9 @@ function ProductsPage() {
 
   const setBarcode = useMutation({
     mutationFn: async ({ id, barcode }: { id: string; barcode: string }) => {
-      const { error } = await supabase.from("products").update({ barcode }).eq("id", id);
+      const { error } = await supabase.from("products")
+        .update({ barcode, barcode_registered_by: user?.id, barcode_registered_at: new Date().toISOString() })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); setScanFor(null); toast.success("Barcode registered"); },
@@ -126,8 +131,8 @@ function ProductsPage() {
           <TableBody>
             {filtered.length === 0 && <TableRow><TableCell colSpan={canEdit ? 8 : 7} className="text-center text-muted-foreground py-12">No products found</TableCell></TableRow>}
             {filtered.map((p: any) => (
-              <TableRow key={p.id}>
-                <TableCell>
+              <TableRow key={p.id} className="cursor-pointer hover:bg-secondary/40" onClick={() => setViewing(p)}>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {p.image_url ? (
                     <img src={p.image_url} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
                   ) : (
@@ -139,7 +144,7 @@ function ProductsPage() {
                   <div className="font-mono text-[10px] text-muted-foreground">{p.sku ?? "—"}</div>
                 </TableCell>
                 <TableCell className="text-muted-foreground hidden md:table-cell">{p.categories?.name ?? "—"}</TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {canEdit ? (
                     <Button variant="ghost" size="sm" className="h-8 px-2 font-mono text-xs gap-1"
                       onClick={() => setScanFor({ id: p.id, name: p.name })}>
@@ -151,7 +156,7 @@ function ProductsPage() {
                 <TableCell>{p.stock}</TableCell>
                 <TableCell className="hidden md:table-cell"><StockStatus stock={p.stock} threshold={p.low_stock_threshold} /></TableCell>
                 {canEdit && (
-                  <TableCell className="text-right">
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-end gap-1">
                       <Button variant="ghost" size="icon" className="size-8" onClick={() => setEditing(p)} aria-label="Edit"><Pencil className="size-3.5" /></Button>
                       {canDelete && <Button variant="ghost" size="icon" className="size-8 text-destructive hover:text-destructive" onClick={() => setDeleting(p)} aria-label="Delete"><Trash2 className="size-3.5" /></Button>}
@@ -193,6 +198,13 @@ function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {viewing && (
+        <ProductDetailDialog product={viewing} onClose={() => setViewing(null)}
+          onEdit={() => { setEditing(viewing); setViewing(null); }}
+          onScan={() => { setScanFor({ id: viewing.id, name: viewing.name }); setViewing(null); }}
+          canEdit={canEdit} />
+      )}
     </div>
   );
 }
@@ -294,6 +306,107 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
           })}>Save changes</Button>
         </DialogFooter>
         <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
+  { product: any; onClose: () => void; onEdit: () => void; onScan: () => void; canEdit: boolean }) {
+  const { data: lastMove } = useQuery({
+    queryKey: ["product-last-movement", product.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("stock_movements")
+        .select("*").eq("product_id", product.id)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (!data) return null;
+      let email: string | null = null;
+      if (data.user_id) {
+        const { data: prof } = await supabase.from("profiles").select("email,full_name").eq("id", data.user_id).maybeSingle();
+        email = prof?.full_name || prof?.email || null;
+      }
+      return { ...data, by: email };
+    },
+  });
+  const { data: registrar } = useQuery({
+    queryKey: ["product-barcode-registrar", product.id, product.barcode_registered_by],
+    enabled: !!product.barcode_registered_by,
+    queryFn: async () => {
+      const { data } = await supabase.from("profiles").select("email,full_name").eq("id", product.barcode_registered_by).maybeSingle();
+      return data?.full_name || data?.email || null;
+    },
+  });
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>{product.name}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            {product.image_url ? (
+              <img src={product.image_url} alt={product.name} className="size-32 rounded-xl object-cover border border-border" />
+            ) : (
+              <div className="size-32 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-10" /></div>
+            )}
+            <div className="flex-1 min-w-0 space-y-1.5 text-sm">
+              <div className="text-xs text-muted-foreground">{product.categories?.name ?? "Uncategorized"}</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-bold">{product.stock}</span>
+                <span className="text-xs text-muted-foreground">in stock · low at {product.low_stock_threshold}</span>
+              </div>
+              <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
+              <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
+              <div className="text-xs">Price <span className="font-semibold">${Number(product.price).toFixed(2)}</span></div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-2 text-sm">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground"><Barcode className="size-3.5" />Barcode</div>
+            {product.barcode ? (
+              <>
+                <div className="font-mono text-base">{product.barcode}</div>
+                {product.barcode_registered_at && (
+                  <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                    <span className="flex items-center gap-1"><UserIcon className="size-3" />{registrar ?? "Unknown"}</span>
+                    <span>·</span>
+                    <span className="flex items-center gap-1"><Calendar className="size-3" />{format(new Date(product.barcode_registered_at), "PP p")}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">Not registered yet</div>
+            )}
+          </div>
+
+          <div className="rounded-xl border border-border bg-secondary/40 p-3 space-y-1 text-sm">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Last stock update</div>
+            {lastMove ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium",
+                    lastMove.type === "in" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive")}>
+                    {lastMove.type === "in" ? "Stock In" : "Stock Out"} · {lastMove.quantity}
+                  </span>
+                  {lastMove.reason && <span className="text-xs text-muted-foreground truncate">{lastMove.reason}</span>}
+                </div>
+                <div className="text-[11px] text-muted-foreground flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-1"><UserIcon className="size-3" />{lastMove.by ?? "Unknown"}</span>
+                  <span>·</span>
+                  <span className="flex items-center gap-1"><Calendar className="size-3" />
+                    {formatDistanceToNow(new Date(lastMove.created_at), { addSuffix: true })}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground italic">No stock movements yet</div>
+            )}
+          </div>
+        </div>
+        <DialogFooter className="gap-2 flex-wrap sm:flex-nowrap">
+          {canEdit && <Button variant="secondary" onClick={onScan}><ScanLine className="size-4" /> Scan barcode</Button>}
+          {canEdit && <Button onClick={onEdit} className="gradient-primary text-primary-foreground border-0"><Pencil className="size-4" /> Edit</Button>}
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

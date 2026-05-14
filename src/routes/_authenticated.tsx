@@ -51,6 +51,7 @@ function ProtectedLayout() {
       .channel("global-db-changes")
       .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
         qc.invalidateQueries({ queryKey: ["products"] });
+        qc.invalidateQueries({ queryKey: ["recent-barcodes"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "stock_movements" }, () => {
         qc.invalidateQueries({ queryKey: ["movements-recent"] });
