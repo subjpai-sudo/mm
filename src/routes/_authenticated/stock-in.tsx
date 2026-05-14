@@ -160,9 +160,18 @@ function StockIn() {
           <DialogHeader><DialogTitle>Confirm stock in</DialogTitle></DialogHeader>
           {confirm && (
             <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-secondary/60 border border-border">
-                <div className="font-semibold">{confirm.name}</div>
-                <div className="text-xs text-muted-foreground mt-1">SKU {confirm.sku ?? "—"} · Current stock: {confirm.stock}</div>
+              <div className="p-4 rounded-xl bg-secondary/60 border border-border flex gap-3 items-center">
+                {confirm.image_url ? (
+                  <img src={confirm.image_url} alt={confirm.name} className="size-20 rounded-xl object-cover border border-border" />
+                ) : (
+                  <div className="size-20 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-6" /></div>
+                )}
+                <div className="min-w-0">
+                  <div className="font-semibold truncate">{confirm.name}</div>
+                  <div className="text-xs text-muted-foreground mt-1">SKU {confirm.sku ?? "—"}</div>
+                  <div className="text-xs text-muted-foreground">Barcode <span className="font-mono">{confirm.barcode ?? "—"}</span></div>
+                  <div className="text-xs mt-1">Current stock: <span className="font-semibold text-foreground">{confirm.stock}</span></div>
+                </div>
               </div>
               <div>
                 <Label>Quantity</Label>
