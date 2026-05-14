@@ -20,9 +20,9 @@ const ROLES: { id: Role; label: string; desc: string; icon: any }[] = [
 ];
 
 const DEMO: Record<Role, { email: string; password: string; name: string }> = {
-  admin:    { email: "admin@demo.stockflow.app",    password: "demo12345", name: "Demo Admin" },
-  operator: { email: "operator@demo.stockflow.app", password: "demo12345", name: "Demo Operator" },
-  owner:    { email: "owner@demo.stockflow.app",    password: "demo12345", name: "Demo Owner" },
+  admin:    { email: "admin@demo.app",    password: "demo12345", name: "Demo Admin" },
+  operator: { email: "operator@demo.app", password: "demo12345", name: "Demo Operator" },
+  owner:    { email: "owner@demo.app",    password: "demo12345", name: "Demo Owner" },
 };
 
 function LoginPage() {
@@ -42,29 +42,10 @@ function LoginPage() {
     const creds = DEMO[r];
     setDemoBusy(r);
     try {
-      let { error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email: creds.email, password: creds.password,
       });
-      if (error) {
-        // First time — create the demo account with the right role.
-        const { error: signUpErr } = await supabase.auth.signUp({
-          email: creds.email, password: creds.password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/dashboard`,
-            data: { full_name: creds.name, role: r },
-          },
-        });
-        if (signUpErr) throw signUpErr;
-        const retry = await supabase.auth.signInWithPassword({
-          email: creds.email, password: creds.password,
-        });
-        if (retry.error) {
-          toast.message("Demo account created", {
-            description: "Check the demo email inbox to confirm, or disable email confirmation in settings.",
-          });
-          return;
-        }
-      }
+      if (error) throw error;
       toast.success(`Signed in as Demo ${r[0].toUpperCase()}${r.slice(1)}`);
     } catch (e: any) {
       toast.error(e.message ?? "Demo sign-in failed");
