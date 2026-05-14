@@ -178,10 +178,6 @@ function StockIn() {
       </Dialog>
       <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
 
-      <Dialog open={!!confirm} onOpenChange={() => {}}>
-        {/* placeholder to satisfy single Dialog instance pattern — real one above */}
-      </Dialog>
-
       <Dialog open={!!notFound} onOpenChange={(v) => !v && setNotFound(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
