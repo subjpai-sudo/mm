@@ -6,7 +6,7 @@ import { useAuth, NAV_BY_ROLE, type Role } from "@/lib/auth";
 import {
   LayoutDashboard, PackagePlus, PackageMinus, Boxes,
   ShoppingCart, ClipboardList, BarChart3, Settings as SettingsIcon,
-  LogOut, Shield, UserCog, Eye, Menu, Activity,
+  LogOut, Shield, UserCog, Eye, Menu, Activity, Users as UsersIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ const NAV = [
   { id: "order-history", to: "/order-history", label: "Order History", icon: ClipboardList },
   { id: "reports", to: "/reports", label: "Reports", icon: BarChart3 },
   { id: "settings", to: "/settings", label: "Settings", icon: SettingsIcon },
+  { id: "users", to: "/users", label: "Users", icon: UsersIcon },
   { id: "health", to: "/health", label: "Health", icon: Activity },
 ] as const;
 
