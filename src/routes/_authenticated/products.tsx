@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
@@ -40,6 +40,8 @@ function ProductsPage() {
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
   });
   const [manageCats, setManageCats] = useState(false);
+  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
+  const [expandedMains, setExpandedMains] = useState<string[] | null>(null);
 
   const filtered = products.filter((p: any) => {
     if (q && !`${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase())) return false;
@@ -109,6 +111,33 @@ function ProductsPage() {
   });
   const uncategorized = productsByCat.get("__none__") ?? [];
 
+  const allMainIds = mainCats.map((c: any) => c.id).concat(uncategorized.length ? ["__none__"] : []);
+  const accordionValue = expandedMains ?? allMainIds;
+  const allSubsFlat: { sub: any; main: any }[] = [];
+  mainCats.forEach((mc: any) => (subsByMain.get(mc.id) ?? []).forEach((sub: any) => allSubsFlat.push({ sub, main: mc })));
+
+  const toggleSub = (id: string) => {
+    setCollapsedSubs(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const expandAll = () => { setExpandedMains(allMainIds); setCollapsedSubs(new Set()); };
+  const collapseAll = () => { setExpandedMains([]); setCollapsedSubs(new Set(allSubsFlat.map(x => x.sub.id))); };
+  const jumpToSub = (subId: string) => {
+    const found = allSubsFlat.find(x => x.sub.id === subId);
+    if (!found) return;
+    setExpandedMains(prev => {
+      const base = prev ?? allMainIds;
+      return base.includes(found.main.id) ? base : [...base, found.main.id];
+    });
+    setCollapsedSubs(prev => { const next = new Set(prev); next.delete(subId); return next; });
+    setTimeout(() => {
+      document.getElementById(`sub-${subId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 250);
+  };
+
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader
@@ -143,10 +172,29 @@ function ProductsPage() {
         </Select>
       </Card>
 
+      {allSubsFlat.length > 0 && (
+        <Card className="card-elevated p-3 mb-4 flex flex-wrap gap-2 items-center">
+          <Select value="" onValueChange={jumpToSub}>
+            <SelectTrigger className="flex-1 min-w-[200px]">
+              <SelectValue placeholder="Jump to subcategory…" />
+            </SelectTrigger>
+            <SelectContent>
+              {allSubsFlat.map(({ sub, main }) => (
+                <SelectItem key={sub.id} value={sub.id}>
+                  <span className="text-muted-foreground">{main.name}</span> › <span className="font-semibold">{sub.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="secondary" size="sm" onClick={expandAll}><Maximize2 className="size-3.5" /> Expand all</Button>
+          <Button variant="secondary" size="sm" onClick={collapseAll}><Minimize2 className="size-3.5" /> Collapse all</Button>
+        </Card>
+      )}
+
       {filtered.length === 0 ? (
         <Card className="card-elevated p-12 text-center text-muted-foreground">No products found</Card>
       ) : (
-        <Accordion type="multiple" defaultValue={mainCats.map((c: any) => c.id).concat(["__none__"])} className="space-y-3">
+        <Accordion type="multiple" value={accordionValue} onValueChange={setExpandedMains} className="space-y-3">
           {mainCats.map((mc: any) => {
             const subs = subsByMain.get(mc.id) ?? [];
             const directProducts = productsByCat.get(mc.id) ?? [];
@@ -171,19 +219,24 @@ function ProductsPage() {
                     {subs.map((sub: any) => {
                       const items = productsByCat.get(sub.id) ?? [];
                       if (items.length === 0) return null;
+                      const collapsed = collapsedSubs.has(sub.id);
                       return (
-                        <div key={sub.id} className="mb-3">
-                          <div className="flex items-center gap-2 px-2 py-2 mb-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-l-4 border-primary rounded-r-md">
-                            <span className="text-base font-bold tracking-wide">{sub.name}</span>
+                        <div key={sub.id} id={`sub-${sub.id}`} className="mb-3 scroll-mt-20">
+                          <button type="button" onClick={() => toggleSub(sub.id)}
+                            className="w-full flex items-center gap-2 px-2 py-2 mb-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-l-4 border-primary rounded-r-md hover:bg-secondary/40 transition-colors text-left">
+                            <ChevronDown className={cn("size-4 text-primary transition-transform", collapsed && "-rotate-90")} />
+                            <span className="text-base font-bold tracking-wide flex-1 truncate">{sub.name}</span>
                             <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">{items.length}</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {items.map((p: any) => (
-                              <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                                onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                                onScan={() => setScanFor({ id: p.id, name: p.name })} />
-                            ))}
-                          </div>
+                          </button>
+                          {!collapsed && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {items.map((p: any) => (
+                                <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
+                                  onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                                  onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                              ))}
+                            </div>
+                          )}
                         </div>
                       );
                     })}
