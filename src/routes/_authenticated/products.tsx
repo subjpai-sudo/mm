@@ -10,10 +10,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Plus, Search } from "lucide-react";
+import { ScanLine } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StockStatus } from "./dashboard";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
 export const Route = createFileRoute("/_authenticated/products")({ component: ProductsPage });
 
@@ -23,6 +25,7 @@ function ProductsPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">("all");
   const [open, setOpen] = useState(false);
+  const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -47,6 +50,15 @@ function ProductsPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); setOpen(false); toast.success("Product added"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const setBarcode = useMutation({
+    mutationFn: async ({ id, barcode }: { id: string; barcode: string }) => {
+      const { error } = await supabase.from("products").update({ barcode }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); setScanFor(null); toast.success("Barcode registered"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -86,16 +98,24 @@ function ProductsPage() {
       <Card className="card-elevated p-0 overflow-hidden">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>SKU</TableHead><TableHead>Name</TableHead><TableHead>Category</TableHead>
+            <TableHead>SKU</TableHead><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead>Barcode</TableHead>
             <TableHead>Price</TableHead><TableHead>Stock</TableHead><TableHead>Status</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-12">No products found</TableCell></TableRow>}
+            {filtered.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-12">No products found</TableCell></TableRow>}
             {filtered.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="font-mono text-xs text-muted-foreground">{p.sku ?? "—"}</TableCell>
                 <TableCell className="font-medium">{p.name}</TableCell>
                 <TableCell className="text-muted-foreground">{p.categories?.name ?? "—"}</TableCell>
+                <TableCell>
+                  {canEdit ? (
+                    <Button variant="ghost" size="sm" className="h-8 px-2 font-mono text-xs gap-1"
+                      onClick={() => setScanFor({ id: p.id, name: p.name })}>
+                      <ScanLine className="size-3.5" />{p.barcode ?? "Register"}
+                    </Button>
+                  ) : (<span className="font-mono text-xs">{p.barcode ?? "—"}</span>)}
+                </TableCell>
                 <TableCell>${Number(p.price).toFixed(2)}</TableCell>
                 <TableCell>{p.stock}</TableCell>
                 <TableCell><StockStatus stock={p.stock} threshold={p.low_stock_threshold} /></TableCell>
@@ -104,6 +124,15 @@ function ProductsPage() {
           </TableBody>
         </Table>
       </Card>
+
+      {scanFor && (
+        <BarcodeScanner
+          open={!!scanFor}
+          onOpenChange={(o) => { if (!o) setScanFor(null); }}
+          onDetected={(code) => setBarcode.mutate({ id: scanFor.id, barcode: code })}
+          title={`Register barcode for ${scanFor.name}`}
+        />
+      )}
     </div>
   );
 }
