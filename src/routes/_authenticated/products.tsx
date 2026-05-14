@@ -747,8 +747,8 @@ function ImagePicker({ value, onChange, productName }: { value: string; onChange
   );
 }
 
-function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }:
-  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void }) {
+function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, onClearBarcode }:
+  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void; onClearBarcode: () => void }) {
   return (
     <div className="rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/40 transition-colors cursor-pointer overflow-hidden" onClick={onView}>
       <div className="flex items-start gap-3 p-3">
@@ -763,7 +763,20 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
           </div>
-          {p.barcode && <div className="font-mono text-[10px] text-muted-foreground truncate">{p.barcode}</div>}
+          {p.barcode && (
+            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <span className="font-mono text-[10px] text-muted-foreground truncate flex-1">{p.barcode}</span>
+              {canEdit && (
+                <button
+                  onClick={() => { if (confirm(`Remove barcode ${p.barcode} from "${p.name}"?`)) onClearBarcode(); }}
+                  className="size-5 grid place-items-center rounded text-destructive hover:bg-destructive/10"
+                  aria-label="Remove barcode"
+                >
+                  <Trash2 className="size-3" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
       {canEdit && (
