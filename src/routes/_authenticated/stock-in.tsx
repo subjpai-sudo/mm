@@ -138,18 +138,26 @@ function StockIn() {
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="pl-9" />
             </div>
-            <div className="grid sm:grid-cols-2 gap-2 max-h-[420px] overflow-auto">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[520px] overflow-auto p-1">
               {visibleProducts.map((p: any) => (
                 <button key={p.id} onClick={() => setConfirm(p)}
-                  className={cn("group flex items-center gap-3 p-3 rounded-xl border border-border bg-secondary/40 hover:border-primary/50 hover:bg-secondary transition-all text-left")}>
-                  <div className="size-10 rounded-lg gradient-primary/20 grid place-items-center bg-primary/10"><Boxes className="size-5 text-primary" /></div>
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">Stock: {p.stock} · SKU {p.sku ?? "—"}</div>
+                  className={cn("group flex flex-col rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-md transition-all text-left overflow-hidden")}>
+                  <div className="aspect-square w-full bg-secondary relative">
+                    {p.image_url ? (
+                      <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
+                    )}
+                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-background/90 backdrop-blur text-[10px] font-bold border border-border">
+                      {p.stock}
+                    </span>
+                  </div>
+                  <div className="p-2">
+                    <div className="font-semibold text-xs leading-tight line-clamp-2 min-h-[2.2em]">{p.name}</div>
                   </div>
                 </button>
               ))}
-              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-2">No products in this view.</p>}
+              {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products in this view.</p>}
             </div>
           </Card>
         </div>
