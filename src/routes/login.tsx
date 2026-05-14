@@ -19,6 +19,12 @@ const ROLES: { id: Role; label: string; desc: string; icon: any }[] = [
   { id: "owner", label: "Owner", desc: "Read-only insights", icon: Eye },
 ];
 
+const DEMO: Record<Role, { email: string; password: string; name: string }> = {
+  admin:    { email: "admin@demo.stockflow.app",    password: "demo12345", name: "Demo Admin" },
+  operator: { email: "operator@demo.stockflow.app", password: "demo12345", name: "Demo Operator" },
+  owner:    { email: "owner@demo.stockflow.app",    password: "demo12345", name: "Demo Owner" },
+};
+
 function LoginPage() {
   const { session, loading } = useAuth();
   const nav = useNavigate();
@@ -30,6 +36,40 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [demoBusy, setDemoBusy] = useState<Role | null>(null);
+
+  async function demoLogin(r: Role) {
+    const creds = DEMO[r];
+    setDemoBusy(r);
+    try {
+      let { error } = await supabase.auth.signInWithPassword({
+        email: creds.email, password: creds.password,
+      });
+      if (error) {
+        // First time — create the demo account with the right role.
+        const { error: signUpErr } = await supabase.auth.signUp({
+          email: creds.email, password: creds.password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/dashboard`,
+            data: { full_name: creds.name, role: r },
+          },
+        });
+        if (signUpErr) throw signUpErr;
+        const retry = await supabase.auth.signInWithPassword({
+          email: creds.email, password: creds.password,
+        });
+        if (retry.error) {
+          toast.message("Demo account created", {
+            description: "Check the demo email inbox to confirm, or disable email confirmation in settings.",
+          });
+          return;
+        }
+      }
+      toast.success(`Signed in as Demo ${r[0].toUpperCase()}${r.slice(1)}`);
+    } catch (e: any) {
+      toast.error(e.message ?? "Demo sign-in failed");
+    } finally { setDemoBusy(null); }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -144,6 +184,33 @@ function LoginPage() {
           <p className="text-[11px] text-muted-foreground mt-6 text-center">
             Role determines which screens you can access. Admins can adjust roles later.
           </p>
+
+          <div className="mt-6 pt-6 border-t border-border">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs font-medium text-foreground">Try a demo account</div>
+              <span className="text-[10px] text-muted-foreground">one click</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {ROLES.map(r => {
+                const Icon = r.icon;
+                const loading = demoBusy === r.id;
+                return (
+                  <Button
+                    key={r.id} type="button" variant="outline" size="sm"
+                    disabled={demoBusy !== null}
+                    onClick={() => demoLogin(r.id)}
+                    className="flex-col h-auto py-2.5 gap-1"
+                  >
+                    {loading ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
+                    <span className="text-[11px]">{r.label}</span>
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-2 text-center">
+              Demo data is shared. Don't store anything sensitive.
+            </p>
+          </div>
         </Card>
       </div>
     </div>
