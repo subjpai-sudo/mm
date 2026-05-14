@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2 } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
@@ -163,20 +163,39 @@ function ProductsPage() {
         ) : null}
       />
 
-      <Card className="card-elevated p-3 mb-4 flex flex-wrap gap-2 items-center">
-        <div className="relative flex-1 min-w-[180px]">
+      <Card className="card-elevated p-3 mb-4 space-y-2">
+        <div className="relative">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, SKU, barcode" className="pl-9" />
         </div>
-        <Select value={filter} onValueChange={(v: any) => setFilter(v)}>
-          <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="in">In stock</SelectItem>
-            <SelectItem value="low">Low stock</SelectItem>
-            <SelectItem value="out">Out of stock</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+          {([
+            { id: "all", label: "All", icon: LayoutGrid, count: products.length },
+            { id: "in", label: "In stock", icon: PackageCheck, count: products.filter((p: any) => p.stock > p.low_stock_threshold).length },
+            { id: "low", label: "Low", icon: AlertTriangle, count: products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length },
+            { id: "out", label: "Out", icon: PackageX, count: products.filter((p: any) => p.stock <= 0).length },
+          ] as const).map(t => {
+            const active = filter === t.id;
+            const Icon = t.icon;
+            return (
+              <button key={t.id} type="button" onClick={() => setFilter(t.id as any)}
+                className={cn(
+                  "shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-full border text-xs font-semibold transition active:scale-[0.97]",
+                  active
+                    ? t.id === "low" ? "border-warning bg-warning text-warning-foreground"
+                      : t.id === "out" ? "border-destructive bg-destructive text-destructive-foreground"
+                      : t.id === "in" ? "border-success bg-success text-success-foreground"
+                      : "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-secondary/40 hover:bg-secondary text-foreground"
+                )}>
+                <Icon className="size-3.5" />
+                {t.label}
+                <span className={cn("ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] tabular-nums",
+                  active ? "bg-background/20" : "bg-background/60 text-muted-foreground")}>{t.count}</span>
+              </button>
+            );
+          })}
+        </div>
       </Card>
 
       {allSubsFlat.length > 0 && (
