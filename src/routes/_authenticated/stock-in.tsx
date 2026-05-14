@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScanLine, Search, ChevronRight, Folder, FolderOpen, Boxes, Camera } from "lucide-react";
+import { ScanLine, Search, ChevronRight, Folder, FolderOpen, Boxes, Camera, ImageIcon, PackageSearch } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -26,6 +26,8 @@ function StockIn() {
   const [confirm, setConfirm] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
   const [camOpen, setCamOpen] = useState(false);
+  const [notFound, setNotFound] = useState<string | null>(null);
+  const [pickSearch, setPickSearch] = useState("");
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -49,7 +51,7 @@ function StockIn() {
     const v = code.trim();
     if (!v) return;
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
-    if (!p) { toast.error("Product not found"); return; }
+    if (!p) { setNotFound(v); setPickSearch(""); setScan(""); return; }
     setConfirm(p);
     setScan("");
   }
@@ -67,6 +69,22 @@ function StockIn() {
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
       toast.success(`Added ${qty} × ${confirm.name}`);
       setConfirm(null); setQty("1");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const registerBarcode = useMutation({
+    mutationFn: async ({ id, barcode }: { id: string; barcode: string }) => {
+      const { error } = await supabase.from("products").update({ barcode }).eq("id", id);
+      if (error) throw error;
+      return barcode;
+    },
+    onSuccess: async (_data, vars) => {
+      await qc.invalidateQueries({ queryKey: ["products"] });
+      const { data } = await supabase.from("products").select("*").eq("id", vars.id).single();
+      toast.success("Barcode registered");
+      setNotFound(null);
+      if (data) setConfirm(data);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -159,6 +177,62 @@ function StockIn() {
         </DialogContent>
       </Dialog>
       <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
+
+      <Dialog open={!!confirm} onOpenChange={() => {}}>
+        {/* placeholder to satisfy single Dialog instance pattern — real one above */}
+      </Dialog>
+
+      <Dialog open={!!notFound} onOpenChange={(v) => !v && setNotFound(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><PackageSearch className="size-5 text-primary" />Barcode not registered</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="p-3 rounded-lg bg-secondary/60 border border-border text-sm">
+              Scanned code: <span className="font-mono text-foreground">{notFound}</span>
+              <p className="text-xs text-muted-foreground mt-1">Pick the product this barcode belongs to. We'll register it for future scans.</p>
+            </div>
+            <div className="relative">
+              <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input autoFocus value={pickSearch} onChange={e => setPickSearch(e.target.value)} placeholder="Search products or categories…" className="pl-9" />
+            </div>
+            <div className="max-h-[320px] overflow-auto space-y-1">
+              {products
+                .filter((p: any) => {
+                  if (!pickSearch) return true;
+                  const q = pickSearch.toLowerCase();
+                  const cat = categories.find((c: any) => c.id === p.category_id);
+                  const parentCat = cat ? categories.find((c: any) => c.id === cat.parent_id) : null;
+                  return `${p.name} ${p.sku ?? ""} ${cat?.name ?? ""} ${parentCat?.name ?? ""}`.toLowerCase().includes(q);
+                })
+                .slice(0, 50)
+                .map((p: any) => {
+                  const cat = categories.find((c: any) => c.id === p.category_id);
+                  return (
+                    <button key={p.id}
+                      onClick={() => registerBarcode.mutate({ id: p.id, barcode: notFound! })}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60 text-left border border-transparent hover:border-border">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
+                      ) : (
+                        <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground"><ImageIcon className="size-4" /></div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-sm truncate">{p.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">{cat?.name ?? "Uncategorized"} · Stock {p.stock}</div>
+                      </div>
+                      <span className="text-[10px] uppercase tracking-wider text-primary">Register</span>
+                    </button>
+                  );
+                })}
+              {products.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products yet.</p>}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNotFound(null)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
