@@ -1,24 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
-const USERNAME_DOMAIN = "stockflow.local";
-
-function usernameToEmail(u: string) {
-  return `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
-}
-
-async function assertAdminOrOwner(supabase: any, userId: string) {
-  const { data } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId);
-  const roles = (data ?? []).map((r: any) => r.role);
-  if (!roles.includes("admin") && !roles.includes("owner")) {
-    throw new Error("Forbidden: admin or owner only");
-  }
-}
+import {
+  USERNAME_DOMAIN,
+  usernameToEmail,
+  assertAdminOrOwner,
+  supabaseAdmin,
+} from "./users.server";
 
 export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -67,14 +55,11 @@ export const createManagedUser = createServerFn({ method: "POST" })
     });
     if (error || !created.user) throw new Error(error?.message ?? "Create failed");
 
-    // Profile + role rows are created by handle_new_user trigger using metadata.
-    // Ensure they reflect the requested values (idempotent).
     await supabaseAdmin.from("profiles").upsert({
       id: created.user.id,
       full_name: data.fullName,
       email,
     });
-    // Replace any default role the trigger added with the requested role.
     await supabaseAdmin.from("user_roles").delete().eq("user_id", created.user.id);
     await supabaseAdmin.from("user_roles").insert({
       user_id: created.user.id,
