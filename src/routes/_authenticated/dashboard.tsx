@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
@@ -59,6 +60,26 @@ function Dashboard() {
   }, {});
   const destEntries = Object.entries(destTotals).sort((a, b) => b[1] - a[1]);
   const destMax = Math.max(1, ...destEntries.map(([, v]) => v));
+  const totalOutQty = outMoves.reduce((s: number, m: any) => s + m.quantity, 0);
+
+  // Top products per destination
+  const topByDest: Record<string, { name: string; qty: number; image?: string }[]> = {};
+  for (const [dest] of destEntries) {
+    const map = new Map<string, { name: string; qty: number; image?: string }>();
+    outMoves
+      .filter((m: any) => (m.destination || "Unspecified") === dest)
+      .forEach((m: any) => {
+        const name = m.products?.name ?? "—";
+        const cur = map.get(name) ?? { name, qty: 0, image: m.products?.image_url };
+        cur.qty += m.quantity;
+        map.set(name, cur);
+      });
+    topByDest[dest] = [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
+  }
+
+  // Filter state for activity feed
+  const [destFilter, setDestFilter] = useState<"all" | "Delivery" | "Shops">("all");
+  const [openDest, setOpenDest] = useState<string | null>(null);
 
   const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
 
@@ -81,7 +102,8 @@ function Dashboard() {
       product: m.products?.name ?? "—",
       image: m.products?.image_url,
       quantity: m.quantity,
-      detail: [m.reason, m.destination && `→ ${m.destination}`].filter(Boolean).join(" "),
+      reason: m.reason,
+      destination: m.destination,
     })),
     ...recentBarcodes.map((b: any) => ({
       kind: "barcode",
@@ -90,9 +112,13 @@ function Dashboard() {
       who: profileMap.get(b.barcode_registered_by) ?? "System",
       product: b.name,
       image: b.image_url,
-      detail: b.barcode,
+      barcode: b.barcode,
     })),
   ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 30);
+
+  const filteredActivity = destFilter === "all"
+    ? activity
+    : activity.filter((a: any) => a.kind === "stock_out" && a.destination === destFilter);
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
@@ -131,19 +157,52 @@ function Dashboard() {
           <div className="space-y-3">
             {destEntries.map(([name, qty]) => {
               const pct = Math.round((qty / destMax) * 100);
-              const share = Math.round((qty / outMoves.reduce((s: number, m: any) => s + m.quantity, 0)) * 100);
+              const share = totalOutQty ? Math.round((qty / totalOutQty) * 100) : 0;
               const Icon = name === "Delivery" ? Truck : name === "Shops" ? Store : Boxes;
+              const isOpen = openDest === name;
+              const top = topByDest[name] ?? [];
               return (
-                <div key={name}>
-                  <div className="flex items-center gap-2 text-sm mb-1">
+                <div key={name} className="rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setOpenDest(isOpen ? null : name)}
+                    className="w-full flex items-center gap-2 text-sm mb-1 text-left"
+                  >
                     <Icon className="size-4 text-muted-foreground" />
                     <span className="font-medium">{name}</span>
+                    <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
                     <span className="ml-auto tabular-nums font-semibold">{qty.toLocaleString()}</span>
                     <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{share}%</span>
-                  </div>
+                  </button>
                   <div className="h-2 rounded-full bg-secondary overflow-hidden">
                     <div className="h-full gradient-warning rounded-full transition-all" style={{ width: `${pct}%` }} />
                   </div>
+                  {isOpen && (
+                    <div className="mt-2 ml-6 rounded-lg border border-border bg-secondary/30 divide-y divide-border">
+                      {top.length === 0 && <div className="p-3 text-xs text-muted-foreground">No products</div>}
+                      {top.map((p, i) => (
+                        <div key={p.name} className="flex items-center gap-2 p-2 text-sm">
+                          <span className="text-xs text-muted-foreground w-5 tabular-nums">#{i + 1}</span>
+                          {p.image ? (
+                            <img src={p.image} alt="" className="size-7 rounded object-cover border border-border" />
+                          ) : (
+                            <div className="size-7 rounded bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-3" /></div>
+                          )}
+                          <span className="truncate flex-1">{p.name}</span>
+                          <span className="tabular-nums font-semibold">{p.qty}</span>
+                        </div>
+                      ))}
+                      {(name === "Delivery" || name === "Shops") && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDestFilter(name as "Delivery" | "Shops"); }}
+                          className="w-full text-xs text-primary hover:underline p-2 text-left"
+                        >
+                          Filter activity by {name} →
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -159,10 +218,35 @@ function Dashboard() {
         </TabsList>
 
         <TabsContent value="activity">
+          <div className="flex items-center gap-2 mt-3 mb-2 flex-wrap">
+            <span className="text-xs text-muted-foreground mr-1">Filter:</span>
+            {([
+              { k: "all", label: "All", Icon: Activity },
+              { k: "Delivery", label: "Delivery", Icon: Truck },
+              { k: "Shops", label: "Shops", Icon: Store },
+            ] as const).map(({ k, label, Icon }) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setDestFilter(k)}
+                className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-xs font-medium border transition ${
+                  destFilter === k
+                    ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                    : "bg-secondary/40 border-border hover:bg-secondary"
+                }`}
+              >
+                <Icon className="size-3.5" />
+                {label}
+              </button>
+            ))}
+            {destFilter !== "all" && (
+              <span className="text-xs text-muted-foreground ml-1">{filteredActivity.length} stock-out events</span>
+            )}
+          </div>
           <Card className="card-elevated p-0 overflow-hidden">
             <div className="divide-y divide-border max-h-[560px] overflow-auto">
-              {activity.length === 0 && <p className="text-center text-muted-foreground py-12">No activity yet</p>}
-              {activity.map((a: any) => (
+              {filteredActivity.length === 0 && <p className="text-center text-muted-foreground py-12">No activity</p>}
+              {filteredActivity.map((a: any) => (
                 <div key={a.id} className="flex items-center gap-3 p-3 sm:p-4 hover:bg-secondary/30">
                   {a.image ? (
                     <img src={a.image} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
@@ -174,10 +258,22 @@ function Dashboard() {
                       {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
                       {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
                       {a.kind === "barcode" && <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><Barcode className="size-3" /> Barcode</Badge>}
+                      {a.kind === "stock_out" && a.destination && (
+                        <Badge className={
+                          a.destination === "Delivery"
+                            ? "bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"
+                            : "bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"
+                        }>
+                          {a.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
+                          {a.destination}
+                        </Badge>
+                      )}
                       <span className="font-medium truncate">{a.product}</span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                      {a.kind === "barcode" ? <span className="font-mono">{a.detail}</span> : a.detail || (a.kind === "stock_in" ? "Stock in" : "Stock out")}
+                      {a.kind === "barcode"
+                        ? <span className="font-mono">{a.barcode}</span>
+                        : (a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out"))}
                       {" · "}by <span className="text-foreground font-medium">{a.who}</span>
                     </div>
                   </div>
