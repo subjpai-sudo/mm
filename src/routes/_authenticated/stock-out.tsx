@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Boxes, Camera } from "lucide-react";
+import { ScanLine, Search, Boxes, Camera, ImageIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -65,7 +66,7 @@ function StockOut() {
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Stock Out" subtitle="Issue inventory with reason logging." />
 
-      <div className="grid lg:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid gap-3 sm:gap-4">
         <Card className="card-elevated p-4 sm:p-6 relative overflow-hidden">
           <div className="absolute -top-20 -right-20 size-60 rounded-full bg-destructive/20 blur-3xl" />
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Scan zone</Label>
@@ -119,55 +120,72 @@ function StockOut() {
             </div>
           </div>
         </Card>
-
-        <Card className="card-elevated p-4 sm:p-6">
-          <div className="text-sm uppercase tracking-wider text-muted-foreground">Issue details</div>
-          {selected ? (
-            <div className="mt-3 space-y-4">
-              <div className="p-4 rounded-xl border border-border bg-secondary/60">
-                <div className="font-semibold text-lg">{selected.name}</div>
-                <div className="text-xs text-muted-foreground">Available: {selected.stock} · SKU {selected.sku ?? "—"}</div>
-              </div>
-              <div>
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity</Label>
-                <div className="mt-2 flex items-center gap-3">
-                  <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                    onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
-                  <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
-                    className="h-16 text-center text-2xl font-bold rounded-2xl" />
-                  <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                    onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
-                <div className="grid grid-cols-2 gap-2 mt-2">
-                  {DESTINATIONS.map(d => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setDestination(d)}
-                      className={cn(
-                        "h-14 rounded-2xl border text-base font-semibold transition active:scale-[0.98]",
-                        destination === d
-                          ? "border-primary bg-primary text-primary-foreground shadow-md"
-                          : "border-border bg-secondary/40 hover:bg-secondary"
-                      )}
-                    >
-                      {d}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <Button className="w-full gradient-warning text-warning-foreground border-0" onClick={() => apply.mutate()}>
-                Confirm stock out
-              </Button>
-            </div>
-          ) : (
-            <div className="mt-12 text-center text-muted-foreground">Scan or pick a product to issue stock.</div>
-          )}
-        </Card>
       </div>
+
+      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setQty("1"); } }}>
+        <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
+          {selected && (
+            <>
+              <div className="relative w-full aspect-square bg-secondary">
+                {selected.image_url ? (
+                  <img src={selected.image_url} alt={selected.name} className="w-full h-full object-contain" />
+                ) : (
+                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-20" /></div>
+                )}
+                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+                  Stock: <span className="font-bold">{selected.stock}</span>
+                </div>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <DialogTitle className="text-xl font-bold leading-tight break-words">{selected.name}</DialogTitle>
+                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <span>SKU <span className="font-mono text-foreground">{selected.sku ?? "—"}</span></span>
+                    <span>Barcode <span className="font-mono text-foreground">{selected.barcode ?? "—"}</span></span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove</Label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
+                    <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
+                      className="h-16 text-center text-2xl font-bold rounded-2xl" />
+                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                      onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {DESTINATIONS.map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDestination(d)}
+                        className={cn(
+                          "h-14 rounded-2xl border text-base font-semibold transition active:scale-[0.98]",
+                          destination === d
+                            ? "border-primary bg-primary text-primary-foreground shadow-md"
+                            : "border-border bg-secondary/40 hover:bg-secondary"
+                        )}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button variant="ghost" onClick={() => setSelected(null)} className="flex-1">Cancel</Button>
+                  <Button className="gradient-warning text-warning-foreground border-0 flex-1" onClick={() => apply.mutate()}>
+                    Confirm stock out
+                  </Button>
+                </DialogFooter>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
     </div>
   );
