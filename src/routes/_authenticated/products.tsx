@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid, Zap, Check, SkipForward } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
@@ -42,6 +42,7 @@ function ProductsPage() {
   const [subFilter, setSubFilter] = useState<string>("all");
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
+  const [rapidOpen, setRapidOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [viewing, setViewing] = useState<any | null>(null);
@@ -180,6 +181,9 @@ function ProductsPage() {
             <Button variant="secondary" disabled={bulkAutoFill.isPending}
               onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
               <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
+            </Button>
+            <Button variant="secondary" onClick={() => setRapidOpen(true)}>
+              <Zap className="size-4" /> Rapid scan
             </Button>
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -382,6 +386,15 @@ function ProductsPage() {
           open={!!scanFor}
           onClose={() => setScanFor(null)}
           onDetected={(code) => setBarcode.mutate({ id: scanFor.id, barcode: code })}
+        />
+      )}
+
+      {rapidOpen && (
+        <RapidScanDialog
+          products={products}
+          categories={categories}
+          userId={user?.id}
+          onClose={() => { setRapidOpen(false); qc.invalidateQueries({ queryKey: ["products"] }); }}
         />
       )}
 
