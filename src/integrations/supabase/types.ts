@@ -19,6 +19,7 @@ export type Database = {
           id: number
           infobip_base_url: string | null
           owner_phone: string | null
+          twilio_from: string | null
           updated_at: string
           viber_bot_token: string | null
           viber_owner_id: string | null
@@ -29,6 +30,7 @@ export type Database = {
           id?: number
           infobip_base_url?: string | null
           owner_phone?: string | null
+          twilio_from?: string | null
           updated_at?: string
           viber_bot_token?: string | null
           viber_owner_id?: string | null
@@ -39,6 +41,7 @@ export type Database = {
           id?: number
           infobip_base_url?: string | null
           owner_phone?: string | null
+          twilio_from?: string | null
           updated_at?: string
           viber_bot_token?: string | null
           viber_owner_id?: string | null
