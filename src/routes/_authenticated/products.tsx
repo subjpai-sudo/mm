@@ -674,8 +674,21 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
   );
 }
 
-function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+function ImagePicker({ value, onChange, productName }: { value: string; onChange: (url: string) => void; productName?: string }) {
   const [uploading, setUploading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const fetchImageFn = useServerFn(fetchProductImage);
+  async function searchWeb() {
+    if (!productName?.trim()) { toast.error("Enter product name first"); return; }
+    setSearching(true);
+    try {
+      const res = await fetchImageFn({ data: { name: productName.trim() } });
+      onChange(res.url);
+      toast.success("Image found");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Search failed");
+    } finally { setSearching(false); }
+  }
   async function handleFile(file: File) {
     if (!file) return;
     setUploading(true);
@@ -710,6 +723,9 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (url: strin
             <ImagePlus className="size-3.5" />{uploading ? "Uploading…" : value ? "Change picture" : "Add picture"}
           </span>
         </label>
+        <Button type="button" variant="secondary" size="sm" className="h-7 text-xs" disabled={searching} onClick={searchWeb}>
+          <Globe className="size-3.5" /> {searching ? "Searching…" : "Search web"}
+        </Button>
         {value && (
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
         )}
