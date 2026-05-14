@@ -70,7 +70,7 @@ function UsersPage() {
       <PageHeader
         title="Users"
         subtitle="Issue username + PIN logins. Everyone defaults to Operator."
-        action={<CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />}
+        actions={<CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />}
       />
 
       <Card className="card-elevated p-0 overflow-hidden">
