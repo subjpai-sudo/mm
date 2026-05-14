@@ -617,7 +617,6 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
-            <span className="text-[11px] text-muted-foreground">${Number(p.price).toFixed(2)}</span>
           </div>
           {p.barcode && <div className="font-mono text-[10px] text-muted-foreground truncate">{p.barcode}</div>}
         </div>
