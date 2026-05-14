@@ -361,9 +361,14 @@ function ProductsPage() {
 function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: (f: any) => void }) {
   const [name, setName] = useState(""); const [sku, setSku] = useState(""); const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("0"); const [stock, setStock] = useState("0"); const [threshold, setThreshold] = useState("5");
-  const [categoryId, setCategoryId] = useState<string>("");
+  const [mainCatId, setMainCatId] = useState<string>("");
+  const [subCatId, setSubCatId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [scanOpen, setScanOpen] = useState(false);
+
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+  const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
+  const categoryId = subCatId || mainCatId;
 
   return (
     <DialogContent>
@@ -381,11 +386,19 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
             </div>
           </div>
         </div>
-        <div><Label>Category</Label>
-          <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger><SelectValue placeholder="Select…" /></SelectTrigger>
-            <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Category</Label>
+            <Select value={mainCatId} onValueChange={(v) => { setMainCatId(v); setSubCatId(""); }}>
+              <SelectTrigger><SelectValue placeholder="e.g. Rice" /></SelectTrigger>
+              <SelectContent>{mainCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Vendor / Subcategory</Label>
+            <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId || subCats.length === 0}>
+              <SelectTrigger><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors yet" : "Select vendor"} /></SelectTrigger>
+              <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
