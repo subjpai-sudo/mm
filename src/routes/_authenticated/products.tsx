@@ -17,6 +17,8 @@ import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useRealtimeSync } from "@/hooks/use-realtime-sync";
+import { LiveBadge } from "@/components/app/LiveBadge";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -28,6 +30,7 @@ export const Route = createFileRoute("/_authenticated/products")({
 
 function ProductsPage() {
   const { role, user } = useAuth();
+  const { lastUpdated } = useRealtimeSync();
   const qc = useQueryClient();
   const search = Route.useSearch();
   const [q, setQ] = useState("");
@@ -151,7 +154,8 @@ function ProductsPage() {
         title="Products"
         subtitle={`${products.length} items in catalog`}
         actions={canEdit ? (
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-center">
+            <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
@@ -160,7 +164,7 @@ function ProductsPage() {
               <ProductDialog categories={categories} onSubmit={(f) => create.mutate(f)} />
             </Dialog>
           </div>
-        ) : null}
+        ) : <LiveBadge lastUpdated={lastUpdated} />}
       />
 
       <Card className="card-elevated p-3 mb-4 space-y-2">
