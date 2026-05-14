@@ -36,16 +36,18 @@ export function BarcodeScanner({ open, onClose, onDetected }: Props) {
   const rafRef = useRef<number | null>(null);
   const lockRef = useRef(false);
   const quaggaRunningRef = useRef(false);
-  const [status, setStatus] = useState("Starting camera…");
+  const [status, setStatus] = useState("Tap “Start camera” to scan");
   const [manual, setManual] = useState("");
+  const [running, setRunning] = useState(false);
+  const [errored, setErrored] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     lockRef.current = false;
-    setStatus("Starting camera…");
+    setStatus("Tap “Start camera” to scan");
     setManual("");
-    // start synchronously inside the gesture-triggered effect
-    start();
+    setRunning(false);
+    setErrored(false);
     return () => stop();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -64,6 +66,8 @@ export function BarcodeScanner({ open, onClose, onDetected }: Props) {
   async function start() {
     const v = videoRef.current;
     if (!v) return;
+    setStatus("Requesting camera…");
+    setErrored(false);
     try {
       streamRef.current = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -77,14 +81,18 @@ export function BarcodeScanner({ open, onClose, onDetected }: Props) {
       v.setAttribute("playsinline", "");
       v.setAttribute("muted", "");
       await v.play().catch(() => {});
+      setRunning(true);
       setStatus("Point at a barcode — hold steady");
     } catch (e: any) {
       const msg =
         e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError"
           ? "Camera permission denied"
-          : "Camera unavailable on this device";
+          : e?.name === "NotFoundError"
+          ? "No camera found"
+          : "Camera unavailable — type barcode below";
       toast.error(msg);
-      setStatus(msg + " — type below");
+      setStatus(msg);
+      setErrored(true);
       return;
     }
 
@@ -186,13 +194,28 @@ export function BarcodeScanner({ open, onClose, onDetected }: Props) {
         <DialogTitle className="sr-only">Scan barcode</DialogTitle>
         <div ref={containerRef} className="relative aspect-[3/4] bg-black w-full overflow-hidden">
           <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+          {/* Pre-start / error overlay */}
+          {(!running || errored) && (
+            <div className="absolute inset-0 grid place-items-center bg-black/70 backdrop-blur-sm p-6 text-center">
+              <div className="space-y-4">
+                <div className="size-16 mx-auto rounded-2xl bg-primary/20 grid place-items-center">
+                  <Camera className="size-7 text-primary" />
+                </div>
+                <p className="text-white text-sm max-w-[260px] mx-auto">{status}</p>
+                <Button onClick={start} className="gradient-primary text-primary-foreground border-0 gap-2">
+                  <Camera className="size-4" /> {errored ? "Retry camera" : "Start camera"}
+                </Button>
+                <p className="text-[10px] text-white/60">Or type the barcode manually below</p>
+              </div>
+            </div>
+          )}
           {/* Reticle */}
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          {running && !errored && <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
             <div className="relative w-[78%] h-32 rounded-xl border-2 border-primary/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]">
               <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-primary glow animate-pulse" />
               <ScanLine className="absolute -top-7 left-1/2 -translate-x-1/2 size-5 text-primary" />
             </div>
-          </div>
+          </div>}
           <button
             onClick={onClose}
             className="absolute top-3 right-3 size-9 rounded-full bg-black/60 text-white grid place-items-center backdrop-blur"
@@ -200,12 +223,12 @@ export function BarcodeScanner({ open, onClose, onDetected }: Props) {
           >
             <X className="size-5" />
           </button>
-          <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs backdrop-blur">
+          {running && <div className="absolute top-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs backdrop-blur">
             <Camera className="size-3.5" /> Scanner
-          </div>
-          <div className="absolute bottom-3 left-3 right-3 text-center text-xs text-white/90 px-3 py-2 rounded-lg bg-black/60 backdrop-blur">
+          </div>}
+          {running && !errored && <div className="absolute bottom-3 left-3 right-3 text-center text-xs text-white/90 px-3 py-2 rounded-lg bg-black/60 backdrop-blur">
             {status}
-          </div>
+          </div>}
         </div>
         <div className="p-3 flex gap-2 border-t border-border">
           <Input
