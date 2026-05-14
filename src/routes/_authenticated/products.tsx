@@ -19,6 +19,9 @@ import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
+import { useServerFn } from "@tanstack/react-start";
+import { fetchProductImage, bulkFetchProductImages } from "@/lib/product-images.functions";
+import { Sparkles, Globe } from "lucide-react";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -112,6 +115,17 @@ function ProductsPage() {
   const canEdit = !!role;
   const canDelete = !!role;
 
+  const fetchImageFn = useServerFn(fetchProductImage);
+  const bulkFetchFn = useServerFn(bulkFetchProductImages);
+  const bulkAutoFill = useMutation({
+    mutationFn: () => bulkFetchFn({}),
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success(`Fetched ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}`);
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Bulk fetch failed"),
+  });
+
   // Build category tree: main (no parent) -> children -> products
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subsByMain = new Map<string, any[]>();
@@ -163,6 +177,10 @@ function ProductsPage() {
         actions={canEdit ? (
           <div className="flex gap-2 flex-wrap items-center">
             <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
+            <Button variant="secondary" disabled={bulkAutoFill.isPending}
+              onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
+              <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
+            </Button>
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
@@ -417,7 +435,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
     <DialogContent>
       <DialogHeader><DialogTitle>New product</DialogTitle></DialogHeader>
       <div className="grid gap-3">
-        <ImagePicker value={imageUrl} onChange={setImageUrl} />
+        <ImagePicker value={imageUrl} onChange={setImageUrl} productName={name} />
         <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-3">
           <div><Label>SKU</Label><Input value={sku} onChange={e => setSku(e.target.value)} /></div>
@@ -499,7 +517,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
       <DialogContent>
         <DialogHeader><DialogTitle>Edit product</DialogTitle></DialogHeader>
         <div className="grid gap-3">
-          <ImagePicker value={imageUrl} onChange={setImageUrl} />
+          <ImagePicker value={imageUrl} onChange={setImageUrl} productName={name} />
           <div><Label>Name</Label><Input value={name} onChange={e => setName(e.target.value)} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>SKU</Label><Input value={sku} onChange={e => setSku(e.target.value)} /></div>
@@ -656,8 +674,21 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
   );
 }
 
-function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void }) {
+function ImagePicker({ value, onChange, productName }: { value: string; onChange: (url: string) => void; productName?: string }) {
   const [uploading, setUploading] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const fetchImageFn = useServerFn(fetchProductImage);
+  async function searchWeb() {
+    if (!productName?.trim()) { toast.error("Enter product name first"); return; }
+    setSearching(true);
+    try {
+      const res = await fetchImageFn({ data: { name: productName.trim() } });
+      onChange(res.url);
+      toast.success("Image found");
+    } catch (e: any) {
+      toast.error(e?.message ?? "Search failed");
+    } finally { setSearching(false); }
+  }
   async function handleFile(file: File) {
     if (!file) return;
     setUploading(true);
@@ -692,6 +723,9 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (url: strin
             <ImagePlus className="size-3.5" />{uploading ? "Uploading…" : value ? "Change picture" : "Add picture"}
           </span>
         </label>
+        <Button type="button" variant="secondary" size="sm" className="h-7 text-xs" disabled={searching} onClick={searchWeb}>
+          <Globe className="size-3.5" /> {searching ? "Searching…" : "Search web"}
+        </Button>
         {value && (
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
         )}
