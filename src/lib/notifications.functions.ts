@@ -2,6 +2,49 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+async function sendViberText(text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
+  const { data: settings } = await supabaseAdmin
+    .from("app_settings")
+    .select("viber_bot_token, viber_owner_id")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!settings?.viber_bot_token || !settings?.viber_owner_id) {
+    return { sent: false, reason: "viber-not-configured" };
+  }
+  try {
+    const res = await fetch("https://chatapi.viber.com/pa/send_message", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Viber-Auth-Token": settings.viber_bot_token,
+      },
+      body: JSON.stringify({
+        receiver: settings.viber_owner_id,
+        min_api_version: 1,
+        sender: { name: "Stock Bot" },
+        type: "text",
+        text,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body?.status !== 0) {
+      return { sent: false, reason: "viber-error", detail: body };
+    }
+    return { sent: true };
+  } catch (e: any) {
+    return { sent: false, reason: "viber-exception", detail: e?.message };
+  }
+}
+
+export const sendViberTest = createServerFn({ method: "POST" })
+  .handler(async () => {
+    return sendViberText(`✅ Viber connection test\nFrom Stock Bot at ${new Date().toLocaleString()}`);
+  });
+
+export const sendOrderRequestAlert = createServerFn({ method: "POST" })
+  .inputValidator((input) => z.object({ message: z.string().min(1).max(4000) }).parse(input))
+  .handler(async ({ data }) => sendViberText(data.message));
+
 export const checkLowStockAlert = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ productId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
@@ -25,41 +68,11 @@ export const checkLowStockAlert = createServerFn({ method: "POST" })
       return { sent: false, reason: "already-alerted" };
     }
 
-    const { data: settings } = await supabaseAdmin
-      .from("app_settings")
-      .select("viber_bot_token, viber_owner_id")
-      .eq("id", 1)
-      .maybeSingle();
-
-    if (!settings?.viber_bot_token || !settings?.viber_owner_id) {
-      return { sent: false, reason: "viber-not-configured" };
-    }
-
     const status = product.stock <= 0 ? "OUT OF STOCK" : "LOW STOCK";
     const text = `⚠️ ${status}\n${product.name}${product.sku ? ` (${product.sku})` : ""}\nRemaining: ${product.stock} / threshold ${product.low_stock_threshold}`;
 
-    try {
-      const res = await fetch("https://chatapi.viber.com/pa/send_message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Viber-Auth-Token": settings.viber_bot_token,
-        },
-        body: JSON.stringify({
-          receiver: settings.viber_owner_id,
-          min_api_version: 1,
-          sender: { name: "Stock Bot" },
-          type: "text",
-          text,
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok || body?.status !== 0) {
-        return { sent: false, reason: "viber-error", detail: body };
-      }
-    } catch (e: any) {
-      return { sent: false, reason: "viber-exception", detail: e?.message };
-    }
+    const result = await sendViberText(text);
+    if (!result.sent) return result;
 
     await supabaseAdmin
       .from("products")

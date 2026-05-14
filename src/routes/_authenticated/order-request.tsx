@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { Send, MessageSquare, AlertTriangle, ImageIcon, Plus, RotateCcw, Pencil } from "lucide-react";
+import { sendOrderRequestAlert } from "@/lib/notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/order-request")({ component: OrderRequest });
 
@@ -45,10 +46,14 @@ function OrderRequest() {
         notes: notes || null, viber_message: preview, created_by: user?.id,
       });
       if (error) throw error;
+      const r = await sendOrderRequestAlert({ data: { message: preview } }).catch(() => ({ sent: false, reason: "exception" as const }));
+      return r;
     },
-    onSuccess: () => {
+    onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Request sent to Owner");
+      if (r?.sent) toast.success("Request sent to Owner via Viber");
+      else if (r?.reason === "viber-not-configured") toast.success("Request saved. Configure Viber in Settings to notify the owner.");
+      else toast.success("Request saved. Viber delivery failed — check Settings.");
       setProductName(""); setQty("10"); setNotes(""); setCustomMsg(null); setEditTemplate(false);
     },
     onError: (e: any) => toast.error(e.message),
@@ -64,6 +69,7 @@ function OrderRequest() {
         viber_message: msg, created_by: user?.id,
       });
       if (error) throw error;
+      await sendOrderRequestAlert({ data: { message: msg } }).catch(() => {});
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Restock request sent to Owner"); },
     onError: (e: any) => toast.error(e.message),
