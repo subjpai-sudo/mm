@@ -190,12 +190,12 @@ function StockIn() {
                 </div>
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                  <div className="mt-2 flex items-center gap-3">
+                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
                       onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
-                    <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)}
-                      className="h-11 text-center text-lg font-bold" />
-                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                    <Input type="number" inputMode="numeric" min="1" value={qty} onChange={e => setQty(e.target.value)}
+                      className="h-16 text-center text-2xl font-bold rounded-2xl" />
+                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
                       onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
                   </div>
                 </div>

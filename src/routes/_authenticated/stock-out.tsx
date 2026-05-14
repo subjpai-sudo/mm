@@ -9,14 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { ScanLine, Search, Boxes, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
 export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
 
-const REASONS = ["Sale", "Damaged", "Returned to supplier", "Internal use", "Lost/Shrinkage"];
 const DESTINATIONS = ["Delivery", "Shops"] as const;
 
 function StockOut() {
@@ -26,7 +24,6 @@ function StockOut() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
-  const [reason, setReason] = useState(REASONS[0]);
   const [destination, setDestination] = useState<(typeof DESTINATIONS)[number]>("Delivery");
   const [camOpen, setCamOpen] = useState(false);
 
@@ -51,7 +48,7 @@ function StockOut() {
     mutationFn: async () => {
       if (Number(qty) > selected.stock) throw new Error("Quantity exceeds available stock");
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason, destination,
+        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason: destination, destination,
       });
       if (error) throw error;
     },
@@ -132,29 +129,30 @@ function StockOut() {
                 <div className="text-xs text-muted-foreground">Available: {selected.stock} · SKU {selected.sku ?? "—"}</div>
               </div>
               <div>
-                <Label>Quantity</Label>
-                <Input type="number" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)} />
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity</Label>
+                <div className="mt-2 flex items-center gap-3">
+                  <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                    onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
+                  <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
+                    className="h-16 text-center text-2xl font-bold rounded-2xl" />
+                  <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                    onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
+                </div>
               </div>
               <div>
-                <Label>Reason</Label>
-                <Select value={reason} onValueChange={setReason}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Destination</Label>
-                <div className="grid grid-cols-2 gap-2 mt-1">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
                   {DESTINATIONS.map(d => (
                     <button
                       key={d}
                       type="button"
                       onClick={() => setDestination(d)}
-                      className={`h-11 rounded-lg border text-sm font-semibold transition ${
+                      className={cn(
+                        "h-14 rounded-2xl border text-base font-semibold transition active:scale-[0.98]",
                         destination === d
-                          ? "border-primary bg-primary text-primary-foreground shadow"
+                          ? "border-primary bg-primary text-primary-foreground shadow-md"
                           : "border-border bg-secondary/40 hover:bg-secondary"
-                      }`}
+                      )}
                     >
                       {d}
                     </button>
