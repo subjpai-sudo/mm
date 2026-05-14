@@ -16,6 +16,7 @@ import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
 
 const REASONS = ["Sale", "Damaged", "Returned to supplier", "Internal use", "Lost/Shrinkage"];
+const DESTINATIONS = ["Delivery", "Shops"] as const;
 
 function StockOut() {
   const { user } = useAuth();
@@ -25,6 +26,7 @@ function StockOut() {
   const [selected, setSelected] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
   const [reason, setReason] = useState(REASONS[0]);
+  const [destination, setDestination] = useState<(typeof DESTINATIONS)[number]>("Delivery");
   const [camOpen, setCamOpen] = useState(false);
 
   const { data: products = [] } = useQuery({
@@ -48,7 +50,7 @@ function StockOut() {
     mutationFn: async () => {
       if (Number(qty) > selected.stock) throw new Error("Quantity exceeds available stock");
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason,
+        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason, destination,
       });
       if (error) throw error;
     },
@@ -115,6 +117,25 @@ function StockOut() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{REASONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label>Destination</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  {DESTINATIONS.map(d => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDestination(d)}
+                      className={`h-11 rounded-lg border text-sm font-semibold transition ${
+                        destination === d
+                          ? "border-primary bg-primary text-primary-foreground shadow"
+                          : "border-border bg-secondary/40 hover:bg-secondary"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
               </div>
               <Button className="w-full gradient-warning text-warning-foreground border-0" onClick={() => apply.mutate()}>
                 Confirm stock out

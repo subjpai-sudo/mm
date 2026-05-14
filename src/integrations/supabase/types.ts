@@ -183,6 +183,7 @@ export type Database = {
       stock_movements: {
         Row: {
           created_at: string
+          destination: string | null
           id: string
           product_id: string
           quantity: number
@@ -192,6 +193,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          destination?: string | null
           id?: string
           product_id: string
           quantity: number
@@ -201,6 +203,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          destination?: string | null
           id?: string
           product_id?: string
           quantity?: number

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity } from "lucide-react";
+import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity, Truck, Store } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,6 +50,16 @@ function Dashboard() {
   const stockedIn24 = last24.filter((m: any) => m.type === "in").reduce((s: number, m: any) => s + m.quantity, 0);
   const stockedOut24 = last24.filter((m: any) => m.type === "out").reduce((s: number, m: any) => s + m.quantity, 0);
 
+  // Stock-out destination breakdown
+  const outMoves = movements.filter((m: any) => m.type === "out");
+  const destTotals = outMoves.reduce((acc: Record<string, number>, m: any) => {
+    const key = m.destination || "Unspecified";
+    acc[key] = (acc[key] || 0) + m.quantity;
+    return acc;
+  }, {});
+  const destEntries = Object.entries(destTotals).sort((a, b) => b[1] - a[1]);
+  const destMax = Math.max(1, ...destEntries.map(([, v]) => v));
+
   const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
 
   // Group products by main category for breakdown
@@ -71,7 +81,7 @@ function Dashboard() {
       product: m.products?.name ?? "—",
       image: m.products?.image_url,
       quantity: m.quantity,
-      detail: m.reason,
+      detail: [m.reason, m.destination && `→ ${m.destination}`].filter(Boolean).join(" "),
     })),
     ...recentBarcodes.map((b: any) => ({
       kind: "barcode",
@@ -108,6 +118,35 @@ function Dashboard() {
                 <div className="text-xs text-muted-foreground">{g.units.toLocaleString()} units in stock</div>
               </div>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {destEntries.length > 0 && (
+        <Card className="card-elevated p-5 mb-6">
+          <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
+            <Truck className="size-4 text-primary" />Stock-out destinations
+            <span className="ml-auto text-xs text-muted-foreground font-normal">Last {outMoves.length} movements</span>
+          </div>
+          <div className="space-y-3">
+            {destEntries.map(([name, qty]) => {
+              const pct = Math.round((qty / destMax) * 100);
+              const share = Math.round((qty / outMoves.reduce((s: number, m: any) => s + m.quantity, 0)) * 100);
+              const Icon = name === "Delivery" ? Truck : name === "Shops" ? Store : Boxes;
+              return (
+                <div key={name}>
+                  <div className="flex items-center gap-2 text-sm mb-1">
+                    <Icon className="size-4 text-muted-foreground" />
+                    <span className="font-medium">{name}</span>
+                    <span className="ml-auto tabular-nums font-semibold">{qty.toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{share}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                    <div className="h-full gradient-warning rounded-full transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
