@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { Send, MessageSquare, AlertTriangle, ImageIcon, Plus } from "lucide-react";
+import { Send, MessageSquare, AlertTriangle, ImageIcon, Plus, RotateCcw, Pencil } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/order-request")({ component: OrderRequest });
 
@@ -22,6 +22,8 @@ function OrderRequest() {
   const [productName, setProductName] = useState("");
   const [qty, setQty] = useState("10");
   const [notes, setNotes] = useState("");
+  const [editTemplate, setEditTemplate] = useState(false);
+  const [customMsg, setCustomMsg] = useState<string | null>(null);
 
   if (role && role !== "admin") return <Navigate to="/dashboard" />;
 
@@ -33,7 +35,8 @@ function OrderRequest() {
     },
   });
 
-  const preview = `📦 ${type === "restock" ? "RESTOCK REQUEST" : "NEW ORDER REQUEST"}\n\nProduct: ${productName || "—"}\nQuantity: ${qty}\nRequested by: ${user?.email}\n${notes ? `Notes: ${notes}\n` : ""}\nDate: ${new Date().toLocaleString()}`;
+  const defaultPreview = `📦 ${type === "restock" ? "RESTOCK REQUEST" : "NEW ORDER REQUEST"}\n\nProduct: ${productName || "—"}\nQuantity: ${qty}\nRequested by: ${user?.email}\n${notes ? `Notes: ${notes}\n` : ""}\nDate: ${new Date().toLocaleString()}`;
+  const preview = customMsg ?? defaultPreview;
 
   const submit = useMutation({
     mutationFn: async () => {
@@ -46,7 +49,7 @@ function OrderRequest() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders"] });
       toast.success("Request sent to Owner");
-      setProductName(""); setQty("10"); setNotes("");
+      setProductName(""); setQty("10"); setNotes(""); setCustomMsg(null); setEditTemplate(false);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -136,12 +139,36 @@ function OrderRequest() {
 
         <Card className="card-elevated p-0 overflow-hidden">
           <div className="bg-[oklch(0.55_0.18_295)] text-white p-3 flex items-center gap-2 text-sm">
-            <MessageSquare className="size-4" /> Message preview (WhatsApp / Viber)
+            <MessageSquare className="size-4" /> Message {editTemplate ? "editor" : "preview"} (WhatsApp / Viber)
+            <div className="ml-auto flex gap-1">
+              {customMsg !== null && (
+                <Button size="sm" variant="ghost" className="h-7 text-white hover:bg-white/10"
+                  onClick={() => { setCustomMsg(null); }}>
+                  <RotateCcw className="size-3.5" /> Reset
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" className="h-7 text-white hover:bg-white/10"
+                onClick={() => { if (!editTemplate && customMsg === null) setCustomMsg(defaultPreview); setEditTemplate(v => !v); }}>
+                <Pencil className="size-3.5" /> {editTemplate ? "Done" : "Edit"}
+              </Button>
+            </div>
           </div>
           <div className="p-6 bg-secondary/40 min-h-[300px]">
-            <div className="bg-card rounded-2xl p-4 max-w-sm shadow-md whitespace-pre-line text-sm">
-              {preview}
-            </div>
+            {editTemplate ? (
+              <Textarea
+                value={customMsg ?? defaultPreview}
+                onChange={e => setCustomMsg(e.target.value)}
+                rows={14}
+                className="font-mono text-xs bg-card"
+              />
+            ) : (
+              <div className="bg-card rounded-2xl p-4 max-w-sm shadow-md whitespace-pre-line text-sm">
+                {preview}
+              </div>
+            )}
+            {customMsg !== null && !editTemplate && (
+              <p className="text-[11px] text-muted-foreground mt-2">Custom message — auto-update from form fields is paused. Click Reset to use the live template again.</p>
+            )}
           </div>
         </Card>
       </div>

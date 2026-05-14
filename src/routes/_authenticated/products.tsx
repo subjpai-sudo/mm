@@ -895,12 +895,28 @@ function RapidScanDialog({
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
+  const [mainCatId, setMainCatId] = useState<string>("all");
+  const [subCatId, setSubCatId] = useState<string>("all");
+
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+  const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
+
+  const inSelectedCategory = (p: any) => {
+    if (mainCatId === "all") return true;
+    const cat = categories.find((c: any) => c.id === p.category_id);
+    if (!cat) return false;
+    const mainId = cat.parent_id ?? cat.id;
+    if (mainId !== mainCatId) return false;
+    if (subCatId !== "all" && p.category_id !== subCatId) return false;
+    return true;
+  };
 
   const remaining = products
     .filter((p: any) => !p.barcode && !doneIds.has(p.id) && !skippedIds.has(p.id))
+    .filter(inSelectedCategory)
     .filter((p: any) => !q || `${p.name} ${p.sku ?? ""}`.toLowerCase().includes(q.toLowerCase()));
 
-  const totalUnbarcoded = products.filter((p: any) => !p.barcode).length;
+  const totalUnbarcoded = products.filter((p: any) => !p.barcode && inSelectedCategory(p)).length;
   const completed = doneIds.size;
 
   const current = currentId
@@ -917,7 +933,7 @@ function RapidScanDialog({
 
   const advance = (afterId: string) => {
     const next = products.find(
-      (p: any) => !p.barcode && p.id !== afterId && !doneIds.has(p.id) && !skippedIds.has(p.id)
+      (p: any) => !p.barcode && p.id !== afterId && !doneIds.has(p.id) && !skippedIds.has(p.id) && inSelectedCategory(p)
     );
     setCurrentId(next ? next.id : null);
     if (next && autoNext) setTimeout(() => setScannerOpen(true), 350);
@@ -994,6 +1010,26 @@ function RapidScanDialog({
             <div className="text-xs text-muted-foreground">No products left without a barcode in this list.</div>
           </Card>
         )}
+
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={mainCatId} onValueChange={(v) => { setMainCatId(v); setSubCatId("all"); setCurrentId(null); }}>
+            <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={subCatId} onValueChange={(v) => { setSubCatId(v); setCurrentId(null); }}
+            disabled={mainCatId === "all" || subCats.length === 0}>
+            <SelectTrigger>
+              <SelectValue placeholder={mainCatId === "all" ? "Pick category first" : "All vendors"} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All vendors</SelectItem>
+              {subCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
 
         <div className="relative">
           <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
