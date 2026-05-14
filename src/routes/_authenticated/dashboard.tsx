@@ -81,7 +81,7 @@ function Dashboard() {
       product: m.products?.name ?? "—",
       image: m.products?.image_url,
       quantity: m.quantity,
-      detail: m.reason,
+      detail: [m.reason, m.destination && `→ ${m.destination}`].filter(Boolean).join(" "),
     })),
     ...recentBarcodes.map((b: any) => ({
       kind: "barcode",
