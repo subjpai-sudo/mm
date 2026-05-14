@@ -1,5 +1,7 @@
 import { createFileRoute, Outlet, useNavigate, Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useAuth, NAV_BY_ROLE, type Role } from "@/lib/auth";
 import {
   LayoutDashboard, PackagePlus, PackageMinus, Boxes,
@@ -34,12 +36,35 @@ function ProtectedLayout() {
   const nav = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const qc = useQueryClient();
 
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
   useEffect(() => {
     if (!loading && !session) nav({ to: "/login" });
   }, [loading, session, nav]);
+
+  // Global realtime: invalidate caches when any of these tables change
+  useEffect(() => {
+    if (!session) return;
+    const channel = supabase
+      .channel("global-db-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
+        qc.invalidateQueries({ queryKey: ["products"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "stock_movements" }, () => {
+        qc.invalidateQueries({ queryKey: ["movements-recent"] });
+        qc.invalidateQueries({ queryKey: ["products"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "order_requests" }, () => {
+        qc.invalidateQueries({ queryKey: ["orders"] });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
+        qc.invalidateQueries({ queryKey: ["categories"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session, qc]);
 
   if (loading || !session || !role) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading…</div>;
