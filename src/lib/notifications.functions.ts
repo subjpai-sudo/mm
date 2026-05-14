@@ -26,7 +26,7 @@ async function sendViberText(text: string): Promise<{ sent: boolean; reason?: st
         messages: [
           {
             sender: settings.viber_sender,
-            destinations: [{ to: { phoneNumber: settings.owner_phone.replace(/^\+/, "") } }],
+            destinations: [{ to: settings.owner_phone.replace(/^\+/, "") }],
             content: { type: "TEXT", text },
           },
         ],
