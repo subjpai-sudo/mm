@@ -336,7 +336,7 @@ function ProductsPage() {
                               {items.map((p: any) => (
                                 <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                                   onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                                  onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                                  onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                               ))}
                             </div>
                           )}
@@ -355,7 +355,7 @@ function ProductsPage() {
                           {directProducts.map((p: any) => (
                             <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                               onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                              onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                              onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                           ))}
                         </div>
                       </div>
@@ -380,7 +380,7 @@ function ProductsPage() {
                     {uncategorized.map((p: any) => (
                       <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
                         onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                        onScan={() => setScanFor({ id: p.id, name: p.name })} />
+                        onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                     ))}
                   </div>
                 </AccordionContent>
