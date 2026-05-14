@@ -11,10 +11,13 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow, format } from "date-fns";
+import { useRealtimeSync } from "@/hooks/use-realtime-sync";
+import { LiveBadge } from "@/components/app/LiveBadge";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
 function Dashboard() {
+  const { lastUpdated } = useRealtimeSync();
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],
@@ -140,7 +143,7 @@ function Dashboard() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Dashboard" subtitle="Live inventory overview." />
+      <PageHeader title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-4">
         <StatCard label="Total products" value={total} icon={Boxes} tone="primary" to="/products" search={{ filter: "all" }} />
