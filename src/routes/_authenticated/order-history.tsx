@@ -22,7 +22,7 @@ function History() {
   });
 
   const update = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status }: { id: string; status: "approved" | "declined" | "pending" }) => {
       const { error } = await supabase.from("order_requests").update({ status }).eq("id", id);
       if (error) throw error;
     },
