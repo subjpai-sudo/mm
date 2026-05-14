@@ -25,6 +25,7 @@ function StockIn() {
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
+  const [destination, setDestination] = useState<"Delivery" | "Shops">("Delivery");
   const [camOpen, setCamOpen] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [pickSearch, setPickSearch] = useState("");
@@ -60,7 +61,7 @@ function StockIn() {
   const apply = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: confirm.id, type: "in", quantity: Number(qty), user_id: user?.id, reason: "Stock In",
+        product_id: confirm.id, type: "in", quantity: Number(qty), user_id: user?.id, reason: "Stock In", destination,
       });
       if (error) throw error;
     },
@@ -138,26 +139,28 @@ function StockIn() {
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="pl-9" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 max-h-[60vh] sm:max-h-[520px] overflow-auto p-1">
+            <div className="@container">
+              <div className="grid grid-cols-2 @[420px]:grid-cols-3 @[640px]:grid-cols-4 @[900px]:grid-cols-5 gap-3 sm:gap-4 max-h-[65vh] sm:max-h-[560px] overflow-auto p-1">
               {visibleProducts.map((p: any) => (
                 <button key={p.id} onClick={() => setConfirm(p)}
-                  className={cn("group flex flex-col rounded-xl border border-border bg-card hover:border-primary/60 hover:shadow-md transition-all text-left overflow-hidden")}>
+                  className={cn("group flex flex-col rounded-2xl border border-border bg-card hover:border-primary/60 hover:shadow-md active:scale-[0.98] transition-all text-left overflow-hidden min-h-[180px]")}>
                   <div className="aspect-square w-full bg-secondary relative">
                     {p.image_url ? (
                       <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
                     ) : (
                       <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
                     )}
-                    <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full bg-background/90 backdrop-blur text-[10px] font-bold border border-border">
+                    <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-background/95 backdrop-blur text-[11px] font-bold border border-border shadow-sm">
                       {p.stock}
                     </span>
                   </div>
-                  <div className="p-2">
-                    <div className="font-semibold text-xs leading-tight line-clamp-2 min-h-[2.2em]">{p.name}</div>
+                  <div className="p-2.5 sm:p-3">
+                    <div className="font-semibold text-[13px] leading-tight line-clamp-2 min-h-[2.4em]">{p.name}</div>
                   </div>
                 </button>
               ))}
               {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products in this view.</p>}
+              </div>
             </div>
           </Card>
         </div>
@@ -194,6 +197,26 @@ function StockIn() {
                       className="h-11 text-center text-lg font-bold" />
                     <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
                       onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["Delivery", "Shops"] as const).map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDestination(d)}
+                        className={cn(
+                          "h-12 rounded-xl border text-sm font-semibold transition",
+                          destination === d
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-secondary/40 hover:bg-secondary"
+                        )}
+                      >
+                        {d}
+                      </button>
+                    ))}
                   </div>
                 </div>
                 <DialogFooter className="gap-2 sm:gap-2">

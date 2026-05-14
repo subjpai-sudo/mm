@@ -87,13 +87,14 @@ function StockOut() {
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Or search manually…" className="pl-9" />
           </div>
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 sm:gap-3 max-h-[60vh] sm:max-h-[520px] overflow-auto p-1">
+          <div className="mt-3 @container">
+            <div className="grid grid-cols-2 @[420px]:grid-cols-3 @[640px]:grid-cols-4 @[900px]:grid-cols-5 gap-3 sm:gap-4 max-h-[65vh] sm:max-h-[560px] overflow-auto p-1">
             {filtered.slice(0, 60).map((p: any) => (
               <button
                 key={p.id}
                 onClick={() => setSelected(p)}
                 className={cn(
-                  "group flex flex-col rounded-xl border bg-card hover:border-destructive/60 hover:shadow-md transition-all text-left overflow-hidden",
+                  "group flex flex-col rounded-2xl border bg-card hover:border-destructive/60 hover:shadow-md active:scale-[0.98] transition-all text-left overflow-hidden min-h-[180px]",
                   selected?.id === p.id ? "border-destructive ring-2 ring-destructive/40" : "border-border"
                 )}
               >
@@ -104,7 +105,7 @@ function StockOut() {
                     <div className="w-full h-full grid place-items-center text-muted-foreground"><Boxes className="size-8" /></div>
                   )}
                   <span className={cn(
-                    "absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded-full backdrop-blur text-[10px] font-bold border",
+                    "absolute top-2 right-2 px-2 py-0.5 rounded-full backdrop-blur text-[11px] font-bold border shadow-sm",
                     p.stock <= 0
                       ? "bg-destructive/90 text-destructive-foreground border-destructive"
                       : "bg-background/90 border-border"
@@ -112,12 +113,13 @@ function StockOut() {
                     {p.stock}
                   </span>
                 </div>
-                <div className="p-2">
-                  <div className="font-semibold text-xs leading-tight line-clamp-2 min-h-[2.2em]">{p.name}</div>
+                <div className="p-2.5 sm:p-3">
+                  <div className="font-semibold text-[13px] leading-tight line-clamp-2 min-h-[2.4em]">{p.name}</div>
                 </div>
               </button>
             ))}
             {filtered.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center col-span-full">No products found.</p>}
+            </div>
           </div>
         </Card>
 
