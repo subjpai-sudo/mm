@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { Save, MessageSquare } from "lucide-react";
+import { Save, MessageSquare, Send } from "lucide-react";
+import { sendViberTest } from "@/lib/notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/settings")({ component: Settings });
 
@@ -36,6 +37,16 @@ function Settings() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const test = useMutation({
+    mutationFn: async () => sendViberTest(),
+    onSuccess: (r: any) => {
+      if (r?.sent) toast.success("Test message sent to Viber ✓");
+      else if (r?.reason === "viber-not-configured") toast.error("Save Bot token and Owner ID first");
+      else toast.error(`Viber error: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   if (role && role !== "admin") return <Navigate to="/dashboard" />;
 
   return (
@@ -53,9 +64,21 @@ function Settings() {
           <div><Label>Bot token</Label><Input value={token} onChange={e => setToken(e.target.value)} placeholder="X-Viber-Auth-Token" /></div>
           <div><Label>Owner ID</Label><Input value={owner} onChange={e => setOwner(e.target.value)} placeholder="01a2b3c4d5…" /></div>
           <div><Label>Webhook URL</Label><Input value={hook} onChange={e => setHook(e.target.value)} placeholder="https://yourdomain.com/api/viber" /></div>
-          <Button onClick={() => save.mutate()} disabled={save.isPending} className="gradient-primary text-primary-foreground border-0">
-            <Save className="size-4" /> Save settings
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => save.mutate()} disabled={save.isPending} className="gradient-primary text-primary-foreground border-0">
+              <Save className="size-4" /> Save settings
+            </Button>
+            <Button variant="outline" onClick={() => test.mutate()} disabled={test.isPending}>
+              <Send className="size-4" /> Send test message
+            </Button>
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1 pt-2 border-t border-border">
+            <p className="font-medium text-foreground">How to set up:</p>
+            <p>1. Create a Viber bot at <span className="font-mono">partners.viber.com</span> → copy the auth token into <b>Bot token</b>.</p>
+            <p>2. Open the bot in Viber and tap <b>Subscribe</b> / send any message — that registers the owner.</p>
+            <p>3. Get the owner's Viber user ID (from the bot's webhook payload, or via <span className="font-mono">get_account_info</span>) and paste into <b>Owner ID</b>.</p>
+            <p>4. Save, then click <b>Send test message</b> — you should receive a Viber message instantly.</p>
+          </div>
         </div>
       </Card>
     </div>
