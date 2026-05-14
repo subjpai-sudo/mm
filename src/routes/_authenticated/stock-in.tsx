@@ -156,33 +156,47 @@ function StockIn() {
       </div>
 
       <Dialog open={!!confirm} onOpenChange={(v) => !v && setConfirm(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Confirm stock in</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
           {confirm && (
-            <div className="space-y-3">
-              <div className="p-4 rounded-xl bg-secondary/60 border border-border flex gap-3 items-center">
+            <>
+              <div className="relative w-full aspect-square bg-secondary">
                 {confirm.image_url ? (
-                  <img src={confirm.image_url} alt={confirm.name} className="size-20 rounded-xl object-cover border border-border" />
+                  <img src={confirm.image_url} alt={confirm.name} className="w-full h-full object-contain" />
                 ) : (
-                  <div className="size-20 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-6" /></div>
+                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-20" /></div>
                 )}
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{confirm.name}</div>
-                  <div className="text-xs text-muted-foreground mt-1">SKU {confirm.sku ?? "—"}</div>
-                  <div className="text-xs text-muted-foreground">Barcode <span className="font-mono">{confirm.barcode ?? "—"}</span></div>
-                  <div className="text-xs mt-1">Current stock: <span className="font-semibold text-foreground">{confirm.stock}</span></div>
+                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+                  Stock: <span className="font-bold">{confirm.stock}</span>
                 </div>
               </div>
-              <div>
-                <Label>Quantity</Label>
-                <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)} />
+              <div className="p-5 space-y-4">
+                <div>
+                  <DialogTitle className="text-xl font-bold leading-tight break-words">{confirm.name}</DialogTitle>
+                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                    <span>SKU <span className="font-mono text-foreground">{confirm.sku ?? "—"}</span></span>
+                    <span>Barcode <span className="font-mono text-foreground">{confirm.barcode ?? "—"}</span></span>
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
+                    <Input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)}
+                      className="h-11 text-center text-lg font-bold" />
+                    <Button variant="secondary" size="icon" className="size-11 text-lg shrink-0"
+                      onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-2">
+                  <Button variant="ghost" onClick={() => setConfirm(null)} className="flex-1">Cancel</Button>
+                  <Button className="gradient-success text-success-foreground border-0 flex-1" onClick={() => apply.mutate()}>
+                    Add to stock
+                  </Button>
+                </DialogFooter>
               </div>
-            </div>
+            </>
           )}
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirm(null)}>Cancel</Button>
-            <Button className="gradient-success text-success-foreground border-0" onClick={() => apply.mutate()}>Add to stock</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
