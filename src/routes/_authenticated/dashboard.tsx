@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow, format } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
@@ -63,16 +64,17 @@ function Dashboard() {
   const totalOutQty = outMoves.reduce((s: number, m: any) => s + m.quantity, 0);
 
   // Top products per destination
-  const topByDest: Record<string, { name: string; qty: number; image?: string }[]> = {};
+  const topByDest: Record<string, { id: string; name: string; qty: number; image?: string }[]> = {};
   for (const [dest] of destEntries) {
-    const map = new Map<string, { name: string; qty: number; image?: string }>();
+    const map = new Map<string, { id: string; name: string; qty: number; image?: string }>();
     outMoves
       .filter((m: any) => (m.destination || "Unspecified") === dest)
       .forEach((m: any) => {
+        const id = m.product_id;
         const name = m.products?.name ?? "—";
-        const cur = map.get(name) ?? { name, qty: 0, image: m.products?.image_url };
+        const cur = map.get(id) ?? { id, name, qty: 0, image: m.products?.image_url };
         cur.qty += m.quantity;
-        map.set(name, cur);
+        map.set(id, cur);
       });
     topByDest[dest] = [...map.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
   }
@@ -80,6 +82,22 @@ function Dashboard() {
   // Filter state for activity feed
   const [destFilter, setDestFilter] = useState<"all" | "Delivery" | "Shops">("all");
   const [openDest, setOpenDest] = useState<string | null>(null);
+  const [drill, setDrill] = useState<{ destination: string; productId: string; productName: string; image?: string } | null>(null);
+
+  const { data: drillEvents = [], isLoading: drillLoading } = useQuery({
+    queryKey: ["drill-events", drill?.destination, drill?.productId],
+    enabled: !!drill,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("stock_movements")
+        .select("id, created_at, quantity, reason, user_id")
+        .eq("type", "out")
+        .eq("destination", drill!.destination)
+        .eq("product_id", drill!.productId)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
 
   const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
 
@@ -181,7 +199,12 @@ function Dashboard() {
                     <div className="mt-2 ml-6 rounded-lg border border-border bg-secondary/30 divide-y divide-border">
                       {top.length === 0 && <div className="p-3 text-xs text-muted-foreground">No products</div>}
                       {top.map((p, i) => (
-                        <div key={p.name} className="flex items-center gap-2 p-2 text-sm">
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setDrill({ destination: name, productId: p.id, productName: p.name, image: p.image })}
+                          className="w-full flex items-center gap-2 p-2 text-sm text-left hover:bg-secondary/60 transition"
+                        >
                           <span className="text-xs text-muted-foreground w-5 tabular-nums">#{i + 1}</span>
                           {p.image ? (
                             <img src={p.image} alt="" className="size-7 rounded object-cover border border-border" />
@@ -190,7 +213,7 @@ function Dashboard() {
                           )}
                           <span className="truncate flex-1">{p.name}</span>
                           <span className="tabular-nums font-semibold">{p.qty}</span>
-                        </div>
+                        </button>
                       ))}
                       {(name === "Delivery" || name === "Shops") && (
                         <button
@@ -258,23 +281,21 @@ function Dashboard() {
                       {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
                       {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
                       {a.kind === "barcode" && <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><Barcode className="size-3" /> Barcode</Badge>}
-                      {a.kind === "stock_out" && a.destination && (
-                        <Badge className={
-                          a.destination === "Delivery"
-                            ? "bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"
-                            : "bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"
-                        }>
-                          {a.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
-                          {a.destination}
-                        </Badge>
-                      )}
                       <span className="font-medium truncate">{a.product}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
+                      {a.kind === "stock_out" && a.destination && (
+                        <span className={`inline-flex items-center gap-1 font-semibold ${a.destination === "Delivery" ? "text-primary" : "text-warning"}`}>
+                          {a.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
+                          {a.destination}
+                        </span>
+                      )}
+                      {a.kind === "stock_out" && a.destination && (a.reason || a.who) && <span>·</span>}
                       {a.kind === "barcode"
                         ? <span className="font-mono">{a.barcode}</span>
-                        : (a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out"))}
-                      {" · "}by <span className="text-foreground font-medium">{a.who}</span>
+                        : <span>{a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out")}</span>}
+                      <span>·</span>
+                      <span>by <span className="text-foreground font-medium">{a.who}</span></span>
                     </div>
                   </div>
                   <div className="text-[11px] text-muted-foreground text-right shrink-0">
@@ -322,6 +343,56 @@ function Dashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!drill} onOpenChange={(o) => !o && setDrill(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {drill?.image ? (
+                <img src={drill.image} alt="" className="size-9 rounded object-cover border border-border" />
+              ) : (
+                <div className="size-9 rounded bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-4" /></div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate text-base">{drill?.productName}</div>
+                <div className="text-xs font-normal text-muted-foreground inline-flex items-center gap-1">
+                  {drill?.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
+                  {drill?.destination} stock-out events
+                </div>
+              </div>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="border-t border-border -mx-6 px-6 pt-3">
+            {drillLoading && <p className="text-center text-muted-foreground py-8 text-sm">Loading…</p>}
+            {!drillLoading && drillEvents.length === 0 && <p className="text-center text-muted-foreground py-8 text-sm">No events found</p>}
+            {!drillLoading && drillEvents.length > 0 && (
+              <>
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                  <span>{drillEvents.length} events</span>
+                  <span className="font-semibold text-foreground tabular-nums">
+                    Total: {drillEvents.reduce((s: number, e: any) => s + e.quantity, 0)} units
+                  </span>
+                </div>
+                <div className="max-h-[400px] overflow-auto divide-y divide-border rounded-lg border border-border">
+                  {drillEvents.map((e: any) => (
+                    <div key={e.id} className="flex items-center gap-3 p-3 text-sm">
+                      <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15 tabular-nums">−{e.quantity}</Badge>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate">{e.reason || "—"}</div>
+                        <div className="text-xs text-muted-foreground">by {profileMap.get(e.user_id) ?? "System"}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground text-right shrink-0">
+                        <div>{format(new Date(e.created_at), "MMM d, yyyy")}</div>
+                        <div>{format(new Date(e.created_at), "p")}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
