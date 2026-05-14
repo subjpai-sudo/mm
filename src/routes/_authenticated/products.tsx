@@ -1067,7 +1067,14 @@ function RapidScanDialog({
 
         <div className="flex items-center justify-between gap-2 text-xs">
           <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input type="checkbox" checked={sequenceMode} onChange={e => setSequenceMode(e.target.checked)} className="accent-primary" />
+            <input type="checkbox" checked={sequenceMode}
+              onChange={e => {
+                setSequenceMode(e.target.checked);
+                if (e.target.checked && (mainCatId === "all") && sequence[0]) {
+                  setMainCatId(sequence[0].id); setSubCatId("all"); setCurrentId(null);
+                }
+              }}
+              className="accent-primary" />
             <span className="font-medium">Category sequence</span>
             <span className="text-muted-foreground">— auto-jump to next category when done</span>
           </label>
