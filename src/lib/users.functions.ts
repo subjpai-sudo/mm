@@ -15,7 +15,7 @@ export const listManagedUsers = createServerFn({ method: "POST" })
     await assertAdminOrOwner(context.supabase, context.userId);
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, created_at")
+      .select("id, full_name, email, created_at, must_change_pin")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     const { data: roles } = await supabaseAdmin
