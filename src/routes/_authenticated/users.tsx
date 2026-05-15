@@ -21,6 +21,52 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { UserPlus, KeyRound, Trash2, Loader2, Mail, Copy, ShieldAlert } from "lucide-react";
+import { useEffect, useState as useReactState } from "react";
+
+function ServerHealthBanner({ errorMessage }: { errorMessage: string }) {
+  const [health, setHealth] = useReactState<
+    { ok: boolean; missing: string[]; present: Record<string, boolean> } | null
+  >(null);
+  const [loading, setLoading] = useReactState(true);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/public/server-health", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => alive && setHealth(j))
+      .catch(() => alive && setHealth({ ok: false, missing: ["unreachable"], present: {} }))
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
+  return (
+    <Card className="border-destructive/40 bg-destructive/5 p-4 space-y-2">
+      <div className="flex items-center gap-2 font-semibold text-destructive">
+        <ShieldAlert className="size-4" /> Couldn't load users
+      </div>
+      <p className="text-xs text-muted-foreground font-mono break-all">{errorMessage}</p>
+      {loading ? (
+        <div className="text-xs text-muted-foreground flex items-center gap-2">
+          <Loader2 className="size-3 animate-spin" /> Checking server configuration…
+        </div>
+      ) : health?.ok ? (
+        <p className="text-xs text-muted-foreground">
+          Server secrets look fine. The error is likely from the database query itself — check server logs.
+        </p>
+      ) : (
+        <div className="text-xs space-y-1">
+          <p className="font-medium">Missing Worker secrets:</p>
+          <ul className="list-disc list-inside font-mono">
+            {(health?.missing ?? []).map((k) => <li key={k}>{k}</li>)}
+          </ul>
+          <p className="text-muted-foreground pt-1">
+            Set them on your Cloudflare Worker (see deploy docs) and redeploy.
+          </p>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/users")({ component: UsersPage });
 
