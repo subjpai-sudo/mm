@@ -102,9 +102,10 @@ export async function deleteBackupByName(name: string, client?: SupabaseClient<D
   return { ok: true };
 }
 
-export async function runBackup(triggeredBy: string) {
+export async function runBackup(triggeredBy: string, client?: SupabaseClient<Database>) {
+  const db = getDbClient(client);
   const startedAt = new Date().toISOString();
-  const { data: logRow } = await supabaseAdmin
+  const { data: logRow } = await db
     .from("backup_log")
     .insert({ status: "running", triggered_by: triggeredBy, started_at: startedAt })
     .select("id")
@@ -115,7 +116,7 @@ export async function runBackup(triggeredBy: string) {
   try {
     const dump: Record<string, unknown[]> = {};
     for (const table of BACKUP_TABLES) {
-      const { data, error } = await supabaseAdmin.from(table as any).select("*");
+      const { data, error } = await db.from(table as any).select("*");
       if (error) throw new Error(`${table}: ${error.message}`);
       dump[table] = data ?? [];
     }
@@ -130,7 +131,7 @@ export async function runBackup(triggeredBy: string) {
     const stamp = startedAt.replace(/[:.]/g, "-");
     const filePath = `backup-${stamp}.json`;
 
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await db.storage
       .from("backups")
       .upload(filePath, body, {
         contentType: "application/json",
@@ -139,27 +140,21 @@ export async function runBackup(triggeredBy: string) {
 
     if (uploadError) throw new Error(`storage upload: ${uploadError.message}`);
 
-    if (logId) {
-      await supabaseAdmin
-        .from("backup_log")
-        .update({
-          status: "success",
-          finished_at: new Date().toISOString(),
-          file_path: filePath,
-          size_bytes: sizeBytes,
-        })
-        .eq("id", logId);
-    }
+    await safeWriteBackupLog(logId, {
+      status: "success",
+      finished_at: new Date().toISOString(),
+      file_path: filePath,
+      size_bytes: sizeBytes,
+    });
 
     return { ok: true as const, file_path: filePath, size_bytes: sizeBytes };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (logId) {
-      await supabaseAdmin
-        .from("backup_log")
-        .update({ status: "error", finished_at: new Date().toISOString(), error: message })
-        .eq("id", logId);
-    }
+    await safeWriteBackupLog(logId, {
+      status: "error",
+      finished_at: new Date().toISOString(),
+      error: message,
+    });
     return { ok: false as const, error: message };
   }
 }
