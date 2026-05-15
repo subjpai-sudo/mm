@@ -60,8 +60,22 @@ function BackupsPage() {
   const getUrl = useServerFn(getBackupDownloadUrl);
   const remove = useServerFn(deleteBackup);
 
-  const backupsQ = useQuery({ queryKey: ["backups"], queryFn: () => fetchBackups(), retry: false });
-  const mirrorQ = useQuery({ queryKey: ["mirror-logs"], queryFn: () => fetchMirror(), retry: false });
+  const backupsQ = useQuery({
+    queryKey: ["backups"],
+    queryFn: async () => {
+      try { return await fetchBackups(); }
+      catch (e) { throw await toError(e); }
+    },
+    retry: false,
+  });
+  const mirrorQ = useQuery({
+    queryKey: ["mirror-logs"],
+    queryFn: async () => {
+      try { return await fetchMirror(); }
+      catch (e) { throw await toError(e); }
+    },
+    retry: false,
+  });
 
   const backupNow = useMutation({
     mutationFn: () => runBackup(),
