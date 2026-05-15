@@ -78,7 +78,7 @@ async function runBackup(triggeredBy: string) {
   }
 }
 
-export const Route = createFileRoute("/api/public/hooks/nightly-backup")({
+export const Route = createFileRoute("/api/public/nightly-backup")({
   server: {
     handlers: {
       POST: async ({ request }) => {
