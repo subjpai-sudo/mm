@@ -78,10 +78,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "description", content: "Modern inventory management with role-based access, real-time stock tracking, and order requests." },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Stockflow — Inventory Management" },
-      { property: "og:description", content: "Modern inventory management with role-based access." },
+      { property: "og:description", content: "Modern inventory management with role-based access, real-time stock tracking, and order requests." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Stockflow — Inventory Management" },
+      { name: "twitter:description", content: "Modern inventory management with role-based access, real-time stock tracking, and order requests." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eacd5f6e-93ee-455b-b59c-90db8024063d/id-preview-21a21291--7ddb48c9-9396-4938-9d7b-0c85be9c2dde.lovable.app-1778838310895.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/eacd5f6e-93ee-455b-b59c-90db8024063d/id-preview-21a21291--7ddb48c9-9396-4938-9d7b-0c85be9c2dde.lovable.app-1778838310895.png" },
     ],
     links: [
       {
