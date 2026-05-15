@@ -163,7 +163,7 @@ async function runMirror(triggeredBy: string) {
   }
 }
 
-export const Route = createFileRoute("/api/public/mirror-sync")({
+export const Route = createFileRoute("/api/public/hooks/mirror-sync")({
   server: {
     handlers: {
       POST: async ({ request }) => {
