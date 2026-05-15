@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowDownRight, ArrowUpRight, ArrowLeftRight, TrendingDown, TrendingUp, AlertTriangle, PackageX, Download, ExternalLink, ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { useAuth } from "@/lib/auth";
+import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 
 export const Route = createFileRoute("/_authenticated/reports")({ component: Reports });
 
@@ -60,7 +61,18 @@ function Reports() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Reports" subtitle="Transaction log and stock summary." />
+      <PageHeader
+        title="Reports"
+        subtitle="Transaction log and stock summary."
+        actions={canSeeAlerts ? (
+          <ReportPdfDialog
+            products={products as any}
+            lowList={lowList as any}
+            outList={outList as any}
+            movements={{ inQty, outQty, total: movements.length }}
+          />
+        ) : undefined}
+      />
 
       <div className="grid sm:grid-cols-3 gap-4 mb-6">
         <StatCard label="Total stock in" value={inQty} icon={TrendingUp} tone="success" />
