@@ -8,6 +8,7 @@ import {
   supabaseAdmin,
   writeAudit,
 } from "./users.server";
+import { sendSmsTo } from "./notifications.functions";
 
 export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -15,7 +16,7 @@ export const listManagedUsers = createServerFn({ method: "POST" })
     await assertAdminOrOwner(context.supabase, context.userId);
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
-      .select("id, full_name, email, created_at, must_change_pin")
+      .select("id, full_name, email, phone, created_at, must_change_pin")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
     const { data: roles } = await supabaseAdmin
@@ -85,10 +86,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
     return { id: created.user.id, username: data.username, email };
   });
 
-function generateTempPin() {
-  // 8-digit numeric temporary PIN
-  return Array.from({ length: 8 }, () => Math.floor(Math.random() * 10)).join("");
-}
+const DEFAULT_TEMP_PIN = "0000";
 
 export const inviteManagedUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -97,21 +95,24 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
       fullName: z.string().min(1).max(80),
       username: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/, "lowercase letters, numbers, . _ - only"),
       role: z.enum(["operator", "admin", "owner"]).default("operator"),
+      phone: z.string().min(8).max(20).regex(/^\+[1-9]\d{6,18}$/, "Phone must be E.164 e.g. +15551234567"),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
     await assertAdminOrOwner(context.supabase, context.userId);
     const email = usernameToEmail(data.username);
-    const tempPin = generateTempPin();
+    const tempPin = DEFAULT_TEMP_PIN;
 
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: tempPin,
       email_confirm: true,
+      phone: undefined,
       user_metadata: {
         full_name: data.fullName,
         role: data.role,
         must_change_pin: true,
+        phone: data.phone,
       },
     });
     if (error || !created.user) throw new Error(error?.message ?? "Invite failed");
@@ -120,6 +121,7 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
       id: created.user.id,
       full_name: data.fullName,
       email,
+      phone: data.phone,
       must_change_pin: true,
     });
     await supabaseAdmin.from("user_roles").delete().eq("user_id", created.user.id);
@@ -134,14 +136,22 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
       action: "user.invite",
       targetId: created.user.id,
       targetLabel: data.username,
-      details: { fullName: data.fullName, role: data.role },
+      details: { fullName: data.fullName, role: data.role, phone: data.phone },
     });
+
+    // Send SMS invite via Twilio
+    const origin = process.env.PUBLIC_APP_URL || "https://stock-buddy-727.lovable.app";
+    const loginUrl = `${origin}/login`;
+    const smsBody = `Stock Bot invite\nLogin: ${loginUrl}\nUsername: ${data.username}\nTemp PIN: ${tempPin}\nYou'll be asked to change your PIN on first sign-in.`;
+    const sms = await sendSmsTo(data.phone, smsBody).catch((e) => ({ sent: false, reason: "exception", detail: e?.message }));
 
     return {
       id: created.user.id,
       username: data.username,
       email,
       tempPin,
+      phone: data.phone,
+      sms,
     };
   });
 
