@@ -34,7 +34,7 @@ function UsersPage() {
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteManagedUser);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["managed-users"],
     queryFn: () => list(),
     enabled: role === "admin" || role === "owner",
@@ -91,6 +91,8 @@ function UsersPage() {
       />
 
       <InviteResultDialog invited={invited} onClose={() => setInvited(null)} />
+
+      {error && <ServerHealthBanner errorMessage={(error as any)?.message ?? String(error)} />}
 
       <Card className="card-elevated p-0 overflow-hidden">
         {isLoading ? (
