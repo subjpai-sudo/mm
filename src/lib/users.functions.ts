@@ -13,7 +13,7 @@ import { sendSmsTo } from "./notifications.functions";
 export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, phone, created_at, must_change_pin")
@@ -47,7 +47,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     const email = usernameToEmail(data.username);
 
     const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
@@ -99,7 +99,7 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     const email = usernameToEmail(data.username);
     const tempPin = DEFAULT_TEMP_PIN;
 
@@ -206,7 +206,7 @@ export const resetUserPin = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     const { error } = await supabaseAdmin.auth.admin.updateUserById(data.userId, {
       password: data.pin,
     });
@@ -229,7 +229,7 @@ export const setUserRole = createServerFn({ method: "POST" })
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     await supabaseAdmin.from("user_roles").delete().eq("user_id", data.userId);
     const { error } = await supabaseAdmin.from("user_roles").insert({
       user_id: data.userId,
@@ -250,7 +250,7 @@ export const deleteManagedUser = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => z.object({ userId: z.string().uuid() }).parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.supabase, context.userId);
+    await assertAdminOrOwner(context.userId);
     if (data.userId === context.userId) throw new Error("Cannot delete yourself");
     const { error } = await supabaseAdmin.auth.admin.deleteUser(data.userId);
     if (error) throw new Error(error.message);

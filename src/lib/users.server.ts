@@ -6,19 +6,20 @@ export function usernameToEmail(u: string) {
   return `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
 }
 
-export async function assertAdminOrOwner(supabase: any, userId: string) {
-  // Use admin client to avoid any RLS/session edge cases when checking role.
+export async function assertAdminOrOwner(userId: string) {
   const { data, error } = await supabaseAdmin
     .from("user_roles")
     .select("role")
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .in("role", ["admin", "owner"])
+    .limit(1)
+    .maybeSingle();
   if (error) {
     console.error("assertAdminOrOwner role lookup failed", { userId, error });
     throw new Error("Forbidden: role lookup failed");
   }
-  const roles = (data ?? []).map((r: any) => r.role);
-  if (!roles.includes("admin") && !roles.includes("owner")) {
-    console.warn("assertAdminOrOwner denied", { userId, roles });
+  if (!data?.role) {
+    console.warn("assertAdminOrOwner denied", { userId, role: null });
     throw new Error("Forbidden: admin or owner only");
   }
 }
