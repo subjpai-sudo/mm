@@ -28,14 +28,14 @@ export const getBackupDownloadUrl = createServerFn({ method: "POST" })
 export const runBackupNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+    await assertAdmin(context.userId, context.supabase);
     return runBackup(`manual:${context.userId}`);
   });
 
 export const runMirrorNow = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+    await assertAdmin(context.userId, context.supabase);
     return runMirror(`manual:${context.userId}`);
   });
 
