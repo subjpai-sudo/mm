@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   listManagedUsers, createManagedUser, resetUserPin,
-  setUserRole, deleteManagedUser,
+  setUserRole, deleteManagedUser, inviteManagedUser,
 } from "@/lib/users.functions";
 import { useAuth, type Role } from "@/lib/auth";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -20,7 +20,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserPlus, KeyRound, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, KeyRound, Trash2, Loader2, Mail, Copy, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/users")({ component: UsersPage });
 
@@ -29,6 +29,7 @@ function UsersPage() {
   const qc = useQueryClient();
   const list = useServerFn(listManagedUsers);
   const create = useServerFn(createManagedUser);
+  const invite = useServerFn(inviteManagedUser);
   const reset = useServerFn(resetUserPin);
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteManagedUser);
@@ -45,6 +46,17 @@ function UsersPage() {
     mutationFn: (input: { fullName: string; username: string; pin: string; role: Role }) =>
       create({ data: input }),
     onSuccess: (r) => { toast.success(`Created ${r.username}`); refresh(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const [invited, setInvited] = useState<{ username: string; tempPin: string } | null>(null);
+  const inviteMut = useMutation({
+    mutationFn: (input: { fullName: string; username: string; role: Role }) =>
+      invite({ data: input }),
+    onSuccess: (r) => {
+      toast.success(`Invited @${r.username}`);
+      setInvited({ username: r.username, tempPin: r.tempPin });
+      refresh();
+    },
     onError: (e: any) => toast.error(e.message),
   });
   const resetMut = useMutation({
@@ -70,8 +82,15 @@ function UsersPage() {
       <PageHeader
         title="Users"
         subtitle="Issue username + PIN logins. Everyone defaults to Operator."
-        actions={<CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <InviteUserDialog onSubmit={(v) => inviteMut.mutateAsync(v)} busy={inviteMut.isPending} />
+            <CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />
+          </div>
+        }
       />
+
+      <InviteResultDialog invited={invited} onClose={() => setInvited(null)} />
 
       <Card className="card-elevated p-0 overflow-hidden">
         {isLoading ? (
@@ -85,7 +104,14 @@ function UsersPage() {
             {data!.map((u) => (
               <div key={u.id} className="p-4 flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{u.full_name ?? u.username}</div>
+                  <div className="font-medium truncate flex items-center gap-2">
+                    {u.full_name ?? u.username}
+                    {(u as any).must_change_pin && (
+                      <Badge variant="outline" className="text-[9px] gap-1 border-warning/40 text-warning">
+                        <ShieldAlert className="size-3" /> Temp PIN
+                      </Badge>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground font-mono truncate">@{u.username}</div>
                 </div>
                 <Select
@@ -231,4 +257,117 @@ function ResetPinDialog({ onSubmit, busy }: { onSubmit: (pin: string) => Promise
 
 function slugify(s: string) {
   return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "");
+}
+
+function InviteUserDialog({
+  onSubmit, busy,
+}: { onSubmit: (v: { fullName: string; username: string; role: Role }) => Promise<any>; busy: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [role, setRole] = useState<Role>("operator");
+
+  function onName(v: string) {
+    setFullName(v);
+    if (!username || username === slugify(fullName)) setUsername(slugify(v));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    await onSubmit({ fullName, username, role });
+    setOpen(false);
+    setFullName(""); setUsername(""); setRole("operator");
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Mail className="size-4" /> Invite
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Invite user</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-2">
+          A temporary PIN will be generated. The new user must change it on first sign-in.
+        </p>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <Label>Full name</Label>
+            <Input required value={fullName} onChange={(e) => onName(e.target.value)} placeholder="Jane Doe" />
+          </div>
+          <div>
+            <Label>Username (login)</Label>
+            <Input
+              required value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              pattern="[a-z0-9._-]+"
+              placeholder="jane.doe"
+            />
+          </div>
+          <div>
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="operator">Operator (default)</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="owner">Owner</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={busy} className="gradient-primary text-primary-foreground border-0">
+              {busy && <Loader2 className="size-4 animate-spin" />} Generate invite
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InviteResultDialog({
+  invited, onClose,
+}: { invited: { username: string; tempPin: string } | null; onClose: () => void }) {
+  const open = invited !== null;
+  const loginUrl = typeof window !== "undefined" ? `${window.location.origin}/login` : "/login";
+  const shareText = invited
+    ? `Sign in at ${loginUrl}\nUsername: ${invited.username}\nTemporary PIN: ${invited.tempPin}\n(You will be asked to change the PIN on first sign-in.)`
+    : "";
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Invite ready</DialogTitle></DialogHeader>
+        {invited && (
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Share these one-time credentials with <span className="font-mono">@{invited.username}</span>.
+              They will be required to set a new PIN on first sign-in.
+            </p>
+            <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Login URL</span><span className="font-mono text-xs">{loginUrl}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">{invited.username}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Temporary PIN</span><span className="font-mono text-base font-semibold tracking-wider">{invited.tempPin}</span></div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button" variant="outline" className="flex-1"
+                onClick={() => { navigator.clipboard.writeText(shareText); toast.success("Copied to clipboard"); }}
+              >
+                <Copy className="size-4" /> Copy invite
+              </Button>
+              <Button type="button" className="flex-1 gradient-primary text-primary-foreground border-0" onClick={onClose}>
+                Done
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center">
+              This PIN won't be shown again. Reset it from the user list if lost.
+            </p>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 }

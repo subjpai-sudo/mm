@@ -8,35 +8,40 @@ interface AuthCtx {
   user: User | null;
   session: Session | null;
   role: Role | null;
+  mustChangePin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx>({
-  user: null, session: null, role: null, loading: true, signOut: async () => {},
+  user: null, session: null, role: null, mustChangePin: false, loading: true,
+  signOut: async () => {}, refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role | null>(null);
+  const [mustChangePin, setMustChangePin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  async function loadProfileFor(userId: string) {
+    const [{ data: roleRow }, { data: profile }] = await Promise.all([
+      supabase.from("user_roles").select("role").eq("user_id", userId)
+        .order("role").limit(1).maybeSingle(),
+      supabase.from("profiles").select("must_change_pin").eq("id", userId).maybeSingle(),
+    ]);
+    setRole((roleRow?.role as Role) ?? "operator");
+    setMustChangePin(Boolean(profile?.must_change_pin));
+    setLoading(false);
+  }
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (!s) { setRole(null); setLoading(false); return; }
+      if (!s) { setRole(null); setMustChangePin(false); setLoading(false); return; }
       // defer role fetch to avoid deadlock
-      setTimeout(async () => {
-        const { data } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", s.user.id)
-          .order("role")
-          .limit(1)
-          .maybeSingle();
-        setRole((data?.role as Role) ?? "operator");
-        setLoading(false);
-      }, 0);
+      setTimeout(() => { loadProfileFor(s.user.id); }, 0);
     });
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -48,8 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={{
       user: session?.user ?? null,
-      session, role, loading,
+      session, role, mustChangePin, loading,
       signOut: async () => { await supabase.auth.signOut(); },
+      refreshProfile: async () => { if (session?.user.id) await loadProfileFor(session.user.id); },
     }}>{children}</Ctx.Provider>
   );
 }

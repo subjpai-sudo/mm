@@ -213,18 +213,21 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          must_change_pin: boolean
         }
         Insert: {
           created_at?: string
           email?: string | null
           full_name?: string | null
           id: string
+          must_change_pin?: boolean
         }
         Update: {
           created_at?: string
           email?: string | null
           full_name?: string | null
           id?: string
+          must_change_pin?: boolean
         }
         Relationships: []
       }

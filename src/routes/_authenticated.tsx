@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, useNavigate, Link, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate, Link, useLocation, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +36,7 @@ const ROLE_META: Record<Role, { label: string; icon: any; cls: string }> = {
 };
 
 function ProtectedLayout() {
-  const { session, loading, role, user, signOut } = useAuth();
+  const { session, loading, role, user, signOut, mustChangePin } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -73,6 +73,11 @@ function ProtectedLayout() {
 
   if (loading || !session || !role) {
     return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading…</div>;
+  }
+
+  // Force PIN change before accessing any other page
+  if (mustChangePin && location.pathname !== "/change-pin") {
+    return <Navigate to="/change-pin" />;
   }
 
   const allowed = new Set(NAV_BY_ROLE[role]);
