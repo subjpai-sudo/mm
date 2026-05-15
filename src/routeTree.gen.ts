@@ -27,6 +27,7 @@ import { Route as AuthenticatedChangePinRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as ApiPublicHooksNightlyBackupRouteImport } from './routes/api/public/hooks/nightly-backup'
+import { Route as ApiPublicHooksMirrorSyncRouteImport } from './routes/api/public/hooks/mirror-sync'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -120,6 +121,12 @@ const ApiPublicHooksNightlyBackupRoute =
     path: '/api/public/hooks/nightly-backup',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksMirrorSyncRoute =
+  ApiPublicHooksMirrorSyncRouteImport.update({
+    id: '/api/public/hooks/mirror-sync',
+    path: '/api/public/hooks/mirror-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -138,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRoutesByTo {
@@ -157,6 +165,7 @@ export interface FileRoutesByTo {
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRoutesById {
@@ -178,6 +187,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRouteTypes {
@@ -199,6 +209,7 @@ export interface FileRouteTypes {
     | '/stock-out'
     | '/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -218,6 +229,7 @@ export interface FileRouteTypes {
     | '/stock-out'
     | '/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   id:
     | '__root__'
@@ -238,6 +250,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesById: FileRoutesById
 }
@@ -246,6 +259,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicServerHealthRoute: typeof ApiPublicServerHealthRoute
+  ApiPublicHooksMirrorSyncRoute: typeof ApiPublicHooksMirrorSyncRoute
   ApiPublicHooksNightlyBackupRoute: typeof ApiPublicHooksNightlyBackupRoute
 }
 
@@ -377,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksNightlyBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/mirror-sync': {
+      id: '/api/public/hooks/mirror-sync'
+      path: '/api/public/hooks/mirror-sync'
+      fullPath: '/api/public/hooks/mirror-sync'
+      preLoaderRoute: typeof ApiPublicHooksMirrorSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -421,6 +442,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicServerHealthRoute: ApiPublicServerHealthRoute,
+  ApiPublicHooksMirrorSyncRoute: ApiPublicHooksMirrorSyncRoute,
   ApiPublicHooksNightlyBackupRoute: ApiPublicHooksNightlyBackupRoute,
 }
 export const routeTree = rootRouteImport
