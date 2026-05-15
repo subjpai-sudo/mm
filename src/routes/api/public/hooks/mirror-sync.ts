@@ -60,6 +60,17 @@ async function runMirror(triggeredBy: string) {
     prepare: false,
   });
 
+  const sourceDbUrl = process.env.SUPABASE_DB_URL?.trim();
+  const sourceSql = sourceDbUrl
+    ? postgres(sourceDbUrl, {
+        ssl: "require",
+        max: 1,
+        idle_timeout: 5,
+        connect_timeout: 15,
+        prepare: false,
+      })
+    : null;
+
   const rowsSynced: Record<string, number> = {};
   try {
     // Pull data from source
@@ -71,8 +82,39 @@ async function runMirror(triggeredBy: string) {
       rowsSynced[t] = dump[t].length;
     }
 
+    // Pull auth.users + auth.identities from source via direct SQL
+    // (admin REST API doesn't expose password hashes / ids).
+    let authUsers: any[] = [];
+    let authIdentities: any[] = [];
+    if (sourceSql) {
+      try {
+        authUsers = await sourceSql`SELECT * FROM auth.users`;
+        authIdentities = await sourceSql`SELECT * FROM auth.identities`;
+        rowsSynced["auth.users"] = authUsers.length;
+        rowsSynced["auth.identities"] = authIdentities.length;
+      } catch (e) {
+        // Source DB not reachable for direct SQL — skip auth mirror but keep going
+        rowsSynced["auth.users"] = -1;
+      }
+    }
+
     // Push: TRUNCATE in reverse order, INSERT in dep order, all in one transaction
     await sql.begin(async (tx) => {
+      // Auth tables first: delete identities then users (FK), then re-insert users then identities.
+      if (authUsers.length) {
+        await tx.unsafe(`DELETE FROM auth.identities`);
+        await tx.unsafe(`DELETE FROM auth.users`);
+        const CHUNK = 200;
+        for (let i = 0; i < authUsers.length; i += CHUNK) {
+          const slice = authUsers.slice(i, i + CHUNK);
+          await tx`insert into auth.users ${tx(slice)}`;
+        }
+        for (let i = 0; i < authIdentities.length; i += CHUNK) {
+          const slice = authIdentities.slice(i, i + CHUNK);
+          await tx`insert into auth.identities ${tx(slice)}`;
+        }
+      }
+
       // Truncate children first
       for (const t of [...TABLES].reverse()) {
         await tx.unsafe(`TRUNCATE TABLE public.${t} RESTART IDENTITY CASCADE`);
@@ -117,6 +159,7 @@ async function runMirror(triggeredBy: string) {
     return { ok: false as const, error: message, rows_synced: rowsSynced };
   } finally {
     await sql.end({ timeout: 5 }).catch(() => {});
+    if (sourceSql) await sourceSql.end({ timeout: 5 }).catch(() => {});
   }
 }
 
