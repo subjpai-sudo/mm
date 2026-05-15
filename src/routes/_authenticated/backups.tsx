@@ -18,6 +18,15 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
+async function toError(e: unknown): Promise<Error> {
+  if (e instanceof Response) {
+    const text = await e.text().catch(() => e.statusText);
+    return new Error(text || `Request failed (${e.status})`);
+  }
+  if (e instanceof Error) return e;
+  return new Error(typeof e === "string" ? e : "Unknown error");
+}
+
 export const Route = createFileRoute("/_authenticated/backups")({
   component: BackupsPage,
   errorComponent: ({ error, reset }) => {
