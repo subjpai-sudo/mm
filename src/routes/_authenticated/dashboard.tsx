@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, FolderTree, Activity, Truck, Store, ChevronDown } from "lucide-react";
+import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, Activity, Truck, Store, ChevronDown, PackageCheck, Container } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,12 @@ function Dashboard() {
       .not("barcode_registered_at", "is", null)
       .order("barcode_registered_at", { ascending: false }).limit(15)).data ?? [],
   });
+  const { data: shipments = [] } = useQuery({
+    queryKey: ["shipments"],
+    queryFn: async () => (await supabase.from("order_requests").select("id, status, arrived_at")).data ?? [],
+  });
+  const pendingShipmentCount = shipments.filter((s: any) => !s.arrived_at && (s.status === "approved" || s.status === "backordered")).length;
+  const containersCount = shipments.filter((s: any) => !s.arrived_at && s.status !== "declined").length;
 
   const total = products.length;
   const out = products.filter((p: any) => p.stock <= 0).length;
@@ -104,15 +110,6 @@ function Dashboard() {
 
   const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
 
-  // Group products by main category for breakdown
-  const mainCats = categories.filter((c: any) => !c.parent_id);
-  const breakdown = mainCats.map((mc: any) => {
-    const childIds = new Set(categories.filter((c: any) => c.parent_id === mc.id).map((c: any) => c.id));
-    childIds.add(mc.id);
-    const items = products.filter((p: any) => childIds.has(p.category_id));
-    return { name: mc.name, count: items.length, units: items.reduce((s: number, p: any) => s + (p.stock || 0), 0) };
-  }).filter((g: any) => g.count > 0).sort((a: any, b: any) => b.count - a.count);
-
   // Combined activity feed: stock movements + barcode registrations
   const activity = [
     ...movements.map((m: any) => ({
@@ -136,29 +133,16 @@ function Dashboard() {
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
 
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-4">
+      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 auto-rows-fr mb-6">
         <StatCard label="Total products" value={total} icon={Boxes} tone="primary" to="/products" search={{ filter: "all" }} />
-        <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At or below threshold" to="/products" search={{ filter: "low" }} />
+        <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At/below threshold" to="/products" search={{ filter: "low" }} />
         <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" to="/products" search={{ filter: "out" }} />
         <StatCard label="In-stock rate" value={`${inStockRate}%`} icon={TrendingUp} tone="success" />
-        <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="Across all products" />
-        <StatCard label="24h activity" value={`+${stockedIn24} / -${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
+        <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="All products" />
+        <StatCard label="24h activity" value={`+${stockedIn24}/-${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
+        <StatCard label="Pending shipment" value={pendingShipmentCount} icon={PackageCheck} tone="success" hint="Approved & backordered" to="/shipments" />
+        <StatCard label="Containers" value={containersCount} icon={Container} tone="primary" hint="In transit" to="/shipments" />
       </div>
-
-      {breakdown.length > 0 && (
-        <Card className="card-elevated p-5 mb-6">
-          <div className="flex items-center gap-2 mb-3 text-sm font-semibold"><FolderTree className="size-4 text-primary" />Catalog breakdown</div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {breakdown.map((g: any) => (
-              <div key={g.name} className="rounded-xl border border-border bg-secondary/40 p-3">
-                <div className="text-xs text-muted-foreground uppercase tracking-wider">{g.name}</div>
-                <div className="text-2xl font-bold mt-1">{g.count}</div>
-                <div className="text-xs text-muted-foreground">{g.units.toLocaleString()} units in stock</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
 
       {destEntries.length > 0 && (
         <Card className="card-elevated p-5 mb-6">

@@ -114,10 +114,16 @@ export type Database = {
       }
       order_requests: {
         Row: {
+          arrived_at: string | null
+          category_id: string | null
+          container_date: string | null
           created_at: string
           created_by: string | null
+          decided_by: string | null
+          expected_arrival_date: string | null
           id: string
           notes: string | null
+          product_id: string | null
           product_name: string
           quantity: number
           status: Database["public"]["Enums"]["order_status"]
@@ -125,10 +131,16 @@ export type Database = {
           viber_message: string | null
         }
         Insert: {
+          arrived_at?: string | null
+          category_id?: string | null
+          container_date?: string | null
           created_at?: string
           created_by?: string | null
+          decided_by?: string | null
+          expected_arrival_date?: string | null
           id?: string
           notes?: string | null
+          product_id?: string | null
           product_name: string
           quantity: number
           status?: Database["public"]["Enums"]["order_status"]
@@ -136,17 +148,38 @@ export type Database = {
           viber_message?: string | null
         }
         Update: {
+          arrived_at?: string | null
+          category_id?: string | null
+          container_date?: string | null
           created_at?: string
           created_by?: string | null
+          decided_by?: string | null
+          expected_arrival_date?: string | null
           id?: string
           notes?: string | null
+          product_id?: string | null
           product_name?: string
           quantity?: number
           status?: Database["public"]["Enums"]["order_status"]
           type?: Database["public"]["Enums"]["order_type"]
           viber_message?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "order_requests_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_requests_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       products: {
         Row: {
@@ -309,7 +342,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "operator" | "owner"
       movement_type: "in" | "out"
-      order_status: "pending" | "approved" | "declined"
+      order_status: "pending" | "approved" | "declined" | "backordered"
       order_type: "restock" | "new_order"
     }
     CompositeTypes: {
@@ -440,7 +473,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "operator", "owner"],
       movement_type: ["in", "out"],
-      order_status: ["pending", "approved", "declined"],
+      order_status: ["pending", "approved", "declined", "backordered"],
       order_type: ["restock", "new_order"],
     },
   },
