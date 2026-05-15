@@ -83,6 +83,39 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_log: {
+        Row: {
+          error: string | null
+          file_path: string | null
+          finished_at: string | null
+          id: string
+          size_bytes: number | null
+          started_at: string
+          status: string
+          triggered_by: string
+        }
+        Insert: {
+          error?: string | null
+          file_path?: string | null
+          finished_at?: string | null
+          id?: string
+          size_bytes?: number | null
+          started_at?: string
+          status?: string
+          triggered_by?: string
+        }
+        Update: {
+          error?: string | null
+          file_path?: string | null
+          finished_at?: string | null
+          id?: string
+          size_bytes?: number | null
+          started_at?: string
+          status?: string
+          triggered_by?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string
@@ -111,6 +144,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mirror_sync_log: {
+        Row: {
+          error: string | null
+          finished_at: string | null
+          id: string
+          rows_synced: Json | null
+          started_at: string
+          status: string
+          triggered_by: string
+        }
+        Insert: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_synced?: Json | null
+          started_at?: string
+          status?: string
+          triggered_by?: string
+        }
+        Update: {
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          rows_synced?: Json | null
+          started_at?: string
+          status?: string
+          triggered_by?: string
+        }
+        Relationships: []
       }
       order_requests: {
         Row: {
