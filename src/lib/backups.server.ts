@@ -1,5 +1,6 @@
-import postgres from "postgres";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 
 const BACKUP_TABLES = [
   "app_settings",
@@ -25,8 +26,9 @@ const MIRROR_TABLES = [
   "audit_logs",
 ] as const;
 
-export async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
+export async function assertAdmin(userId: string, client?: SupabaseClient<Database>) {
+  const lookupClient = client ?? supabaseAdmin;
+  const { data, error } = await lookupClient
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
@@ -149,6 +151,7 @@ export async function runBackup(triggeredBy: string) {
 }
 
 export async function runMirror(triggeredBy: string) {
+  const { default: postgres } = await import("postgres");
   const startedAt = new Date().toISOString();
   const { data: logRow } = await supabaseAdmin
     .from("mirror_sync_log")
