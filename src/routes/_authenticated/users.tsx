@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { UserPlus, KeyRound, Trash2, Loader2, Mail, Copy, ShieldAlert } from "lucide-react";
-import { Badge as BadgeUI } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/users")({ component: UsersPage });
 
@@ -108,9 +107,9 @@ function UsersPage() {
                   <div className="font-medium truncate flex items-center gap-2">
                     {u.full_name ?? u.username}
                     {(u as any).must_change_pin && (
-                      <BadgeUI variant="outline" className="text-[9px] gap-1 border-warning/40 text-warning">
+                      <Badge variant="outline" className="text-[9px] gap-1 border-warning/40 text-warning">
                         <ShieldAlert className="size-3" /> Temp PIN
-                      </BadgeUI>
+                      </Badge>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground font-mono truncate">@{u.username}</div>
