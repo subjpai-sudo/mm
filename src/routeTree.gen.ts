@@ -25,6 +25,7 @@ import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -107,6 +108,11 @@ const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
+  id: '/api/public/server-health',
+  path: '/api/public/server-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -124,6 +130,7 @@ export interface FileRoutesByFullPath {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/api/public/server-health': typeof ApiPublicServerHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -141,6 +148,7 @@ export interface FileRoutesByTo {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/api/public/server-health': typeof ApiPublicServerHealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/api/public/server-health': typeof ApiPublicServerHealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/api/public/server-health'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -196,6 +206,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/api/public/server-health'
   id:
     | '__root__'
     | '/'
@@ -214,12 +225,14 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
+    | '/api/public/server-health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPublicServerHealthRoute: typeof ApiPublicServerHealthRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -336,6 +349,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/server-health': {
+      id: '/api/public/server-health'
+      path: '/api/public/server-health'
+      fullPath: '/api/public/server-health'
+      preLoaderRoute: typeof ApiPublicServerHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -379,6 +399,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPublicServerHealthRoute: ApiPublicServerHealthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
