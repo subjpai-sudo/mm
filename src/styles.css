@@ -102,8 +102,9 @@
   --gradient-success: linear-gradient(135deg, oklch(0.62 0.15 155), oklch(0.7 0.13 165));
   --gradient-warning: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.7 0.2 35));
   --gradient-card: linear-gradient(180deg, oklch(1 0 0 / 0.85), oklch(0.99 0.003 170 / 0.7));
-  --gradient-hero: radial-gradient(circle at 15% 0%, oklch(0.55 0.11 170 / 0.08), transparent 55%),
-                   radial-gradient(circle at 90% 100%, oklch(0.62 0.15 155 / 0.06), transparent 55%);
+  --gradient-hero:
+    radial-gradient(circle at 15% 0%, oklch(0.55 0.11 170 / 0.08), transparent 55%),
+    radial-gradient(circle at 90% 100%, oklch(0.62 0.15 155 / 0.06), transparent 55%);
 
   --shadow-glow: 0 0 40px -10px oklch(0.36 0.07 175 / 0.25);
   --shadow-card: 0 4px 20px -8px oklch(0.18 0.02 180 / 0.08), 0 1px 3px -1px oklch(0.18 0.02 180 / 0.05);
@@ -111,7 +112,9 @@
 }
 
 @layer base {
-  * { border-color: var(--color-border); }
+  * {
+    border-color: var(--color-border);
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -121,18 +124,31 @@
     font-feature-settings: "cv11", "ss01";
   }
 }
-
+@layer base {
+  /* ...the rest of your base...*/
+  #lovable-badge {
+    display: none !important;
+  }
+}
 @layer utilities {
-  .gradient-primary { background-image: var(--gradient-primary); }
-  .gradient-success { background-image: var(--gradient-success); }
-  .gradient-warning { background-image: var(--gradient-warning); }
+  .gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+  .gradient-success {
+    background-image: var(--gradient-success);
+  }
+  .gradient-warning {
+    background-image: var(--gradient-warning);
+  }
   .text-gradient {
     background-image: var(--gradient-primary);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
-  .glow { box-shadow: var(--shadow-glow); }
+  .glow {
+    box-shadow: var(--shadow-glow);
+  }
   .card-elevated {
     background: var(--gradient-card);
     backdrop-filter: blur(20px);
