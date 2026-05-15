@@ -51,9 +51,9 @@ function OrderRequest() {
     },
     onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
-      if (r?.sent) toast.success("Request sent to Owner via Viber");
-      else if (r?.reason === "viber-not-configured") toast.success("Request saved. Configure Viber in Settings to notify the owner.");
-      else toast.success("Request saved. Viber delivery failed — check Settings.");
+      if (r?.sent) toast.success("Request sent to Owner via SMS");
+      else if (r?.reason === "twilio-not-configured") toast.success("Request saved. Configure Twilio sender + owner phone in Settings.");
+      else toast.success(`Request saved. SMS delivery failed${r?.reason ? ` (${r.reason})` : ""} — check Settings.`);
       setProductName(""); setQty("10"); setNotes(""); setCustomMsg(null); setEditTemplate(false);
     },
     onError: (e: any) => toast.error(e.message),

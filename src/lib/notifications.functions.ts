@@ -4,19 +4,18 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const TWILIO_GATEWAY = "https://connector-gateway.lovable.dev/twilio";
 
-async function sendOwnerSms(text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
+export async function sendSmsTo(to: string, text: string): Promise<{ sent: boolean; reason?: string; detail?: any }> {
   const { data: settings } = await supabaseAdmin
     .from("app_settings")
-    .select("twilio_from, owner_phone")
+    .select("twilio_from")
     .eq("id", 1)
     .maybeSingle();
   const lovableKey = process.env.LOVABLE_API_KEY;
   const twilioKey = process.env.TWILIO_API_KEY;
   if (!lovableKey) return { sent: false, reason: "lovable-key-missing" };
   if (!twilioKey) return { sent: false, reason: "twilio-key-missing" };
-  if (!settings?.twilio_from || !settings?.owner_phone) {
-    return { sent: false, reason: "twilio-not-configured" };
-  }
+  if (!settings?.twilio_from) return { sent: false, reason: "twilio-not-configured" };
+  if (!to) return { sent: false, reason: "no-recipient" };
   try {
     const res = await fetch(`${TWILIO_GATEWAY}/Messages.json`, {
       method: "POST",
@@ -26,7 +25,7 @@ async function sendOwnerSms(text: string): Promise<{ sent: boolean; reason?: str
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        To: settings.owner_phone,
+        To: to,
         From: settings.twilio_from,
         Body: text,
       }),
@@ -37,6 +36,16 @@ async function sendOwnerSms(text: string): Promise<{ sent: boolean; reason?: str
   } catch (e: any) {
     return { sent: false, reason: "twilio-exception", detail: e?.message };
   }
+}
+
+async function sendOwnerSms(text: string) {
+  const { data: settings } = await supabaseAdmin
+    .from("app_settings")
+    .select("owner_phone")
+    .eq("id", 1)
+    .maybeSingle();
+  if (!settings?.owner_phone) return { sent: false, reason: "twilio-not-configured" };
+  return sendSmsTo(settings.owner_phone, text);
 }
 
 export const sendViberTest = createServerFn({ method: "POST" })

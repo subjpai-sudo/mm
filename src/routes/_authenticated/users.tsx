@@ -94,13 +94,14 @@ function UsersPage() {
     onSuccess: (r) => { toast.success(`Created ${r.username}`); refresh(); },
     onError: (e: any) => toast.error(e.message),
   });
-  const [invited, setInvited] = useState<{ username: string; tempPin: string } | null>(null);
+  const [invited, setInvited] = useState<{ username: string; tempPin: string; phone: string; sms: any } | null>(null);
   const inviteMut = useMutation({
-    mutationFn: (input: { fullName: string; username: string; role: Role }) =>
+    mutationFn: (input: { fullName: string; username: string; role: Role; phone: string }) =>
       invite({ data: input }),
     onSuccess: (r) => {
-      toast.success(`Invited @${r.username}`);
-      setInvited({ username: r.username, tempPin: r.tempPin });
+      if (r.sms?.sent) toast.success(`Invited @${r.username} — SMS sent to ${r.phone}`);
+      else toast.warning(`Invited @${r.username} — SMS failed (${r.sms?.reason ?? "unknown"})`);
+      setInvited({ username: r.username, tempPin: r.tempPin, phone: r.phone, sms: r.sms });
       refresh();
     },
     onError: (e: any) => toast.error(e.message),
@@ -309,11 +310,12 @@ function slugify(s: string) {
 
 function InviteUserDialog({
   onSubmit, busy,
-}: { onSubmit: (v: { fullName: string; username: string; role: Role }) => Promise<any>; busy: boolean }) {
+}: { onSubmit: (v: { fullName: string; username: string; role: Role; phone: string }) => Promise<any>; busy: boolean }) {
   const [open, setOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<Role>("operator");
+  const [phone, setPhone] = useState("");
 
   function onName(v: string) {
     setFullName(v);
@@ -322,9 +324,9 @@ function InviteUserDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    await onSubmit({ fullName, username, role });
+    await onSubmit({ fullName, username, role, phone });
     setOpen(false);
-    setFullName(""); setUsername(""); setRole("operator");
+    setFullName(""); setUsername(""); setRole("operator"); setPhone("");
   }
 
   return (
@@ -337,7 +339,7 @@ function InviteUserDialog({
       <DialogContent>
         <DialogHeader><DialogTitle>Invite user</DialogTitle></DialogHeader>
         <p className="text-xs text-muted-foreground -mt-2">
-          A temporary PIN will be generated. The new user must change it on first sign-in.
+          We'll text the login link and a temporary PIN of <span className="font-mono">0000</span> to the phone below. The user must change the PIN on first sign-in.
         </p>
         <form onSubmit={submit} className="space-y-4">
           <div>
@@ -354,6 +356,16 @@ function InviteUserDialog({
             />
           </div>
           <div>
+            <Label>Mobile phone (E.164)</Label>
+            <Input
+              required value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/[^\d+]/g, ""))}
+              placeholder="+15558675310"
+              inputMode="tel"
+            />
+            <p className="text-[10px] text-muted-foreground mt-1">Include country code, e.g. +63 for PH, +1 for US.</p>
+          </div>
+          <div>
             <Label>Role</Label>
             <Select value={role} onValueChange={(v) => setRole(v as Role)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -366,7 +378,7 @@ function InviteUserDialog({
           </div>
           <DialogFooter>
             <Button type="submit" disabled={busy} className="gradient-primary text-primary-foreground border-0">
-              {busy && <Loader2 className="size-4 animate-spin" />} Generate invite
+              {busy && <Loader2 className="size-4 animate-spin" />} Send SMS invite
             </Button>
           </DialogFooter>
         </form>
@@ -377,7 +389,7 @@ function InviteUserDialog({
 
 function InviteResultDialog({
   invited, onClose,
-}: { invited: { username: string; tempPin: string } | null; onClose: () => void }) {
+}: { invited: { username: string; tempPin: string; phone: string; sms: any } | null; onClose: () => void }) {
   const open = invited !== null;
   const loginUrl = typeof window !== "undefined" ? `${window.location.origin}/login` : "/login";
   const shareText = invited
@@ -391,12 +403,14 @@ function InviteResultDialog({
         {invited && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Share these one-time credentials with <span className="font-mono">@{invited.username}</span>.
-              They will be required to set a new PIN on first sign-in.
+              {invited.sms?.sent
+                ? <>SMS sent to <span className="font-mono">{invited.phone}</span>. Share again below if needed.</>
+                : <>SMS delivery failed (<span className="font-mono">{invited.sms?.reason ?? "unknown"}</span>). Share these credentials manually.</>}
             </p>
             <div className="rounded-lg border border-border bg-muted/40 p-4 space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-muted-foreground">Login URL</span><span className="font-mono text-xs">{loginUrl}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Username</span><span className="font-mono">{invited.username}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Phone</span><span className="font-mono">{invited.phone}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Temporary PIN</span><span className="font-mono text-base font-semibold tracking-wider">{invited.tempPin}</span></div>
             </div>
             <div className="flex gap-2">
