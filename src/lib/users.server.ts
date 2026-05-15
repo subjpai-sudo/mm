@@ -22,23 +22,15 @@ export async function assertAdminOrOwner(
   userId: string,
   client?: SupabaseClient<Database>,
 ) {
-  if (client) {
-    const scoped = await lookupAdminOrOwnerRole(client, userId);
-    if (scoped.data?.role) return;
-    if (scoped.error) {
-      console.warn("assertAdminOrOwner scoped lookup failed, retrying with admin client", {
-        userId,
-        error: scoped.error,
-      });
-    }
-  }
+  const lookupClient = client ?? supabaseAdmin;
+  const result = await lookupAdminOrOwnerRole(lookupClient, userId);
 
-  const admin = await lookupAdminOrOwnerRole(supabaseAdmin, userId);
-  if (admin.error) {
-    console.error("assertAdminOrOwner role lookup failed", { userId, error: admin.error });
+  if (result.error) {
+    console.error("assertAdminOrOwner role lookup failed", { userId, error: result.error });
     throw new Error("Forbidden: role lookup failed");
   }
-  if (!admin.data?.role) {
+
+  if (!result.data?.role) {
     console.warn("assertAdminOrOwner denied", { userId, role: null });
     throw new Error("Forbidden: admin or owner only");
   }

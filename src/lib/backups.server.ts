@@ -1,5 +1,6 @@
-import postgres from "postgres";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 
 const BACKUP_TABLES = [
   "app_settings",
@@ -25,8 +26,22 @@ const MIRROR_TABLES = [
   "audit_logs",
 ] as const;
 
-export async function assertAdmin(userId: string) {
-  const { data, error } = await supabaseAdmin
+function getDbClient(client?: SupabaseClient<Database>) {
+  return client ?? supabaseAdmin;
+}
+
+async function safeWriteBackupLog(logId: string | undefined, values: Record<string, unknown>) {
+  if (!logId) return;
+  try {
+    await supabaseAdmin.from("backup_log").update(values as never).eq("id", logId);
+  } catch (error) {
+    console.warn("backup log update skipped", { logId, error });
+  }
+}
+
+export async function assertAdmin(userId: string, client?: SupabaseClient<Database>) {
+  const lookupClient = client ?? supabaseAdmin;
+  const { data, error } = await lookupClient
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
@@ -37,14 +52,15 @@ export async function assertAdmin(userId: string) {
   if (!data) throw new Error("Forbidden: admin only");
 }
 
-export async function listBackupsOverview() {
-  const { data: files, error } = await supabaseAdmin.storage
+export async function listBackupsOverview(client?: SupabaseClient<Database>) {
+  const db = getDbClient(client);
+  const { data: files, error } = await db.storage
     .from("backups")
     .list("", { limit: 100, sortBy: { column: "name", order: "desc" } });
 
   if (error) throw new Error(error.message);
 
-  const { data: logs } = await supabaseAdmin
+  const { data: logs } = await db
     .from("backup_log")
     .select("*")
     .order("started_at", { ascending: false })
@@ -60,8 +76,8 @@ export async function listBackupsOverview() {
   };
 }
 
-export async function createBackupDownloadUrl(name: string) {
-  const { data: signed, error } = await supabaseAdmin.storage
+export async function createBackupDownloadUrl(name: string, client?: SupabaseClient<Database>) {
+  const { data: signed, error } = await getDbClient(client).storage
     .from("backups")
     .createSignedUrl(name, 60 * 10);
 
@@ -69,8 +85,8 @@ export async function createBackupDownloadUrl(name: string) {
   return { url: signed.signedUrl };
 }
 
-export async function listMirrorLogsOverview() {
-  const { data, error } = await supabaseAdmin
+export async function listMirrorLogsOverview(client?: SupabaseClient<Database>) {
+  const { data, error } = await getDbClient(client)
     .from("mirror_sync_log")
     .select("*")
     .order("started_at", { ascending: false })
@@ -80,15 +96,16 @@ export async function listMirrorLogsOverview() {
   return { logs: data ?? [] };
 }
 
-export async function deleteBackupByName(name: string) {
-  const { error } = await supabaseAdmin.storage.from("backups").remove([name]);
+export async function deleteBackupByName(name: string, client?: SupabaseClient<Database>) {
+  const { error } = await getDbClient(client).storage.from("backups").remove([name]);
   if (error) throw new Error(error.message);
   return { ok: true };
 }
 
-export async function runBackup(triggeredBy: string) {
+export async function runBackup(triggeredBy: string, client?: SupabaseClient<Database>) {
+  const db = getDbClient(client);
   const startedAt = new Date().toISOString();
-  const { data: logRow } = await supabaseAdmin
+  const { data: logRow } = await db
     .from("backup_log")
     .insert({ status: "running", triggered_by: triggeredBy, started_at: startedAt })
     .select("id")
@@ -99,7 +116,7 @@ export async function runBackup(triggeredBy: string) {
   try {
     const dump: Record<string, unknown[]> = {};
     for (const table of BACKUP_TABLES) {
-      const { data, error } = await supabaseAdmin.from(table as any).select("*");
+      const { data, error } = await db.from(table as any).select("*");
       if (error) throw new Error(`${table}: ${error.message}`);
       dump[table] = data ?? [];
     }
@@ -114,7 +131,7 @@ export async function runBackup(triggeredBy: string) {
     const stamp = startedAt.replace(/[:.]/g, "-");
     const filePath = `backup-${stamp}.json`;
 
-    const { error: uploadError } = await supabaseAdmin.storage
+    const { error: uploadError } = await db.storage
       .from("backups")
       .upload(filePath, body, {
         contentType: "application/json",
@@ -123,32 +140,27 @@ export async function runBackup(triggeredBy: string) {
 
     if (uploadError) throw new Error(`storage upload: ${uploadError.message}`);
 
-    if (logId) {
-      await supabaseAdmin
-        .from("backup_log")
-        .update({
-          status: "success",
-          finished_at: new Date().toISOString(),
-          file_path: filePath,
-          size_bytes: sizeBytes,
-        })
-        .eq("id", logId);
-    }
+    await safeWriteBackupLog(logId, {
+      status: "success",
+      finished_at: new Date().toISOString(),
+      file_path: filePath,
+      size_bytes: sizeBytes,
+    });
 
     return { ok: true as const, file_path: filePath, size_bytes: sizeBytes };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    if (logId) {
-      await supabaseAdmin
-        .from("backup_log")
-        .update({ status: "error", finished_at: new Date().toISOString(), error: message })
-        .eq("id", logId);
-    }
+    await safeWriteBackupLog(logId, {
+      status: "error",
+      finished_at: new Date().toISOString(),
+      error: message,
+    });
     return { ok: false as const, error: message };
   }
 }
 
 export async function runMirror(triggeredBy: string) {
+  const { default: postgres } = await import("postgres");
   const startedAt = new Date().toISOString();
   const { data: logRow } = await supabaseAdmin
     .from("mirror_sync_log")
