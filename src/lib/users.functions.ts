@@ -42,6 +42,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
       username: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/, "lowercase letters, numbers, . _ - only"),
       pin: z.string().min(4).max(12).regex(/^\d+$/, "PIN must be digits"),
       role: z.enum(["operator", "admin", "owner"]).default("operator"),
+      mustChangePin: z.boolean().optional().default(false),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
@@ -52,7 +53,11 @@ export const createManagedUser = createServerFn({ method: "POST" })
       email,
       password: data.pin,
       email_confirm: true,
-      user_metadata: { full_name: data.fullName, role: data.role },
+      user_metadata: {
+        full_name: data.fullName,
+        role: data.role,
+        must_change_pin: data.mustChangePin,
+      },
     });
     if (error || !created.user) throw new Error(error?.message ?? "Create failed");
 
@@ -60,6 +65,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
       id: created.user.id,
       full_name: data.fullName,
       email,
+      must_change_pin: data.mustChangePin,
     });
     await supabaseAdmin.from("user_roles").delete().eq("user_id", created.user.id);
     await supabaseAdmin.from("user_roles").insert({
@@ -77,6 +83,108 @@ export const createManagedUser = createServerFn({ method: "POST" })
     });
 
     return { id: created.user.id, username: data.username, email };
+  });
+
+function generateTempPin() {
+  // 8-digit numeric temporary PIN
+  return Array.from({ length: 8 }, () => Math.floor(Math.random() * 10)).join("");
+}
+
+export const inviteManagedUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      fullName: z.string().min(1).max(80),
+      username: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/, "lowercase letters, numbers, . _ - only"),
+      role: z.enum(["operator", "admin", "owner"]).default("operator"),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdminOrOwner(context.supabase, context.userId);
+    const email = usernameToEmail(data.username);
+    const tempPin = generateTempPin();
+
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password: tempPin,
+      email_confirm: true,
+      user_metadata: {
+        full_name: data.fullName,
+        role: data.role,
+        must_change_pin: true,
+      },
+    });
+    if (error || !created.user) throw new Error(error?.message ?? "Invite failed");
+
+    await supabaseAdmin.from("profiles").upsert({
+      id: created.user.id,
+      full_name: data.fullName,
+      email,
+      must_change_pin: true,
+    });
+    await supabaseAdmin.from("user_roles").delete().eq("user_id", created.user.id);
+    await supabaseAdmin.from("user_roles").insert({
+      user_id: created.user.id,
+      role: data.role,
+    });
+
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: context.claims?.email ?? null,
+      action: "user.invite",
+      targetId: created.user.id,
+      targetLabel: data.username,
+      details: { fullName: data.fullName, role: data.role },
+    });
+
+    return {
+      id: created.user.id,
+      username: data.username,
+      email,
+      tempPin,
+    };
+  });
+
+export const changeOwnPin = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({
+      currentPin: z.string().min(4).max(12).regex(/^\d+$/),
+      newPin: z.string().min(6).max(12).regex(/^\d+$/, "PIN must be digits"),
+    }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.currentPin === data.newPin) {
+      throw new Error("New PIN must be different from current PIN");
+    }
+    // Verify current PIN by attempting a sign-in with admin client
+    const email = context.claims?.email;
+    if (!email) throw new Error("No email on session");
+
+    const verify = await supabaseAdmin.auth.signInWithPassword({
+      email,
+      password: data.currentPin,
+    });
+    if (verify.error) throw new Error("Current PIN is incorrect");
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(context.userId, {
+      password: data.newPin,
+    });
+    if (error) throw new Error(error.message);
+
+    await supabaseAdmin
+      .from("profiles")
+      .update({ must_change_pin: false })
+      .eq("id", context.userId);
+
+    await writeAudit({
+      actorId: context.userId,
+      actorEmail: email,
+      action: "user.change_own_pin",
+      targetId: context.userId,
+    });
+
+    return { ok: true };
   });
 
 export const resetUserPin = createServerFn({ method: "POST" })
