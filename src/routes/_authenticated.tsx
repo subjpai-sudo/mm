@@ -7,7 +7,7 @@ import {
   LayoutDashboard, PackagePlus, PackageMinus, Boxes,
   ShoppingCart, ClipboardList, BarChart3, Settings as SettingsIcon,
   LogOut, Shield, UserCog, Eye, Menu, Activity, Users as UsersIcon,
-  ScrollText, PackageCheck,
+  ScrollText, PackageCheck, Database,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ const NAV = [
   { id: "users", to: "/users", label: "Users", icon: UsersIcon },
   { id: "audit", to: "/audit", label: "Audit Log", icon: ScrollText },
   { id: "health", to: "/health", label: "Health", icon: Activity },
+  { id: "backups", to: "/backups", label: "Backups", icon: Database },
 ] as const;
 
 const ROLE_META: Record<Role, { label: string; icon: any; cls: string }> = {
