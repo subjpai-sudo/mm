@@ -26,6 +26,19 @@ const MIRROR_TABLES = [
   "audit_logs",
 ] as const;
 
+function getDbClient(client?: SupabaseClient<Database>) {
+  return client ?? supabaseAdmin;
+}
+
+async function safeWriteBackupLog(logId: string | undefined, values: Record<string, unknown>) {
+  if (!logId) return;
+  try {
+    await supabaseAdmin.from("backup_log").update(values as never).eq("id", logId);
+  } catch (error) {
+    console.warn("backup log update skipped", { logId, error });
+  }
+}
+
 export async function assertAdmin(userId: string, client?: SupabaseClient<Database>) {
   const lookupClient = client ?? supabaseAdmin;
   const { data, error } = await lookupClient
@@ -39,14 +52,15 @@ export async function assertAdmin(userId: string, client?: SupabaseClient<Databa
   if (!data) throw new Error("Forbidden: admin only");
 }
 
-export async function listBackupsOverview() {
-  const { data: files, error } = await supabaseAdmin.storage
+export async function listBackupsOverview(client?: SupabaseClient<Database>) {
+  const db = getDbClient(client);
+  const { data: files, error } = await db.storage
     .from("backups")
     .list("", { limit: 100, sortBy: { column: "name", order: "desc" } });
 
   if (error) throw new Error(error.message);
 
-  const { data: logs } = await supabaseAdmin
+  const { data: logs } = await db
     .from("backup_log")
     .select("*")
     .order("started_at", { ascending: false })
@@ -62,8 +76,8 @@ export async function listBackupsOverview() {
   };
 }
 
-export async function createBackupDownloadUrl(name: string) {
-  const { data: signed, error } = await supabaseAdmin.storage
+export async function createBackupDownloadUrl(name: string, client?: SupabaseClient<Database>) {
+  const { data: signed, error } = await getDbClient(client).storage
     .from("backups")
     .createSignedUrl(name, 60 * 10);
 
@@ -71,8 +85,8 @@ export async function createBackupDownloadUrl(name: string) {
   return { url: signed.signedUrl };
 }
 
-export async function listMirrorLogsOverview() {
-  const { data, error } = await supabaseAdmin
+export async function listMirrorLogsOverview(client?: SupabaseClient<Database>) {
+  const { data, error } = await getDbClient(client)
     .from("mirror_sync_log")
     .select("*")
     .order("started_at", { ascending: false })
@@ -82,8 +96,8 @@ export async function listMirrorLogsOverview() {
   return { logs: data ?? [] };
 }
 
-export async function deleteBackupByName(name: string) {
-  const { error } = await supabaseAdmin.storage.from("backups").remove([name]);
+export async function deleteBackupByName(name: string, client?: SupabaseClient<Database>) {
+  const { error } = await getDbClient(client).storage.from("backups").remove([name]);
   if (error) throw new Error(error.message);
   return { ok: true };
 }
