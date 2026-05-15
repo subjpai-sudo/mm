@@ -5,7 +5,7 @@ import { assertAdminOrOwner, supabaseAdmin } from "./users.server";
 export const listAuditLogs = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdminOrOwner(context.userId);
+    await assertAdminOrOwner(context.userId, context.supabase);
     const { data, error } = await supabaseAdmin
       .from("audit_logs")
       .select("*")
