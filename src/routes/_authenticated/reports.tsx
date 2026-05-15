@@ -70,6 +70,7 @@ function Reports() {
             lowList={lowList as any}
             outList={outList as any}
             movements={{ inQty, outQty, total: movements.length }}
+            rawMovements={movements as any}
           />
         ) : undefined}
       />

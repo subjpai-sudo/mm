@@ -16,8 +16,7 @@ async function assertAdmin(userId: string) {
 
 export const listBackups = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+  .handler(async () => {
     const { data: files, error } = await supabaseAdmin.storage
       .from("backups")
       .list("", { limit: 100, sortBy: { column: "name", order: "desc" } });
@@ -67,8 +66,7 @@ export const runMirrorNow = createServerFn({ method: "POST" })
 
 export const listMirrorLogs = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await assertAdmin(context.userId);
+  .handler(async () => {
     const { data, error } = await supabaseAdmin
       .from("mirror_sync_log")
       .select("*")
