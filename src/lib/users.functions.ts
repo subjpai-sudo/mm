@@ -8,7 +8,7 @@ import {
   supabaseAdmin,
   writeAudit,
 } from "./users.server";
-import { sendSmsTo } from "./notifications.functions";
+import { sendSmsTo } from "./notifications.server";
 
 export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
