@@ -26,6 +26,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
+import { Route as ApiPublicHooksNightlyBackupRouteImport } from './routes/api/public/hooks/nightly-backup'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -113,6 +114,12 @@ const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
   path: '/api/public/server-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksNightlyBackupRoute =
+  ApiPublicHooksNightlyBackupRouteImport.update({
+    id: '/api/public/hooks/nightly-backup',
+    path: '/api/public/hooks/nightly-backup',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByFullPath {
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -149,6 +157,7 @@ export interface FileRoutesByTo {
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -169,6 +178,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -189,6 +199,7 @@ export interface FileRouteTypes {
     | '/stock-out'
     | '/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/nightly-backup'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/stock-out'
     | '/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/nightly-backup'
   id:
     | '__root__'
     | '/'
@@ -226,6 +238,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
     | '/api/public/server-health'
+    | '/api/public/hooks/nightly-backup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -233,6 +246,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicServerHealthRoute: typeof ApiPublicServerHealthRoute
+  ApiPublicHooksNightlyBackupRoute: typeof ApiPublicHooksNightlyBackupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -356,6 +370,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicServerHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/nightly-backup': {
+      id: '/api/public/hooks/nightly-backup'
+      path: '/api/public/hooks/nightly-backup'
+      fullPath: '/api/public/hooks/nightly-backup'
+      preLoaderRoute: typeof ApiPublicHooksNightlyBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -400,6 +421,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicServerHealthRoute: ApiPublicServerHealthRoute,
+  ApiPublicHooksNightlyBackupRoute: ApiPublicHooksNightlyBackupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
