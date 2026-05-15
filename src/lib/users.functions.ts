@@ -143,7 +143,7 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
     const origin = process.env.PUBLIC_APP_URL || "https://stock-buddy-727.lovable.app";
     const loginUrl = `${origin}/login`;
     const smsBody = `Stock Bot invite\nLogin: ${loginUrl}\nUsername: ${data.username}\nTemp PIN: ${tempPin}\nYou'll be asked to change your PIN on first sign-in.`;
-    const sms = await sendSmsTo(data.phone, smsBody).catch((e) => ({ sent: false, reason: "exception", detail: e?.message }));
+    const sms = await sendSmsTo(data.phone, smsBody).catch((e: any) => ({ sent: false, reason: "exception", detail: e?.message }));
 
     return {
       id: created.user.id,
