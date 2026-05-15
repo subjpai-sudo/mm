@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FileText, Copy, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,102 +23,201 @@ type Product = {
 };
 
 type Movements = { inQty: number; outQty: number; total: number };
+type RawMovement = {
+  id: string;
+  type: "in" | "out";
+  quantity: number;
+  destination: string | null;
+  created_at: string;
+  products?: { name: string | null } | null;
+};
+
+type SectionId = "summary" | "low" | "out" | "all" | "insights" | "destinations";
+const SECTIONS: { id: SectionId; label: string; desc: string }[] = [
+  { id: "summary", label: "Summary", desc: "Totals and key metrics" },
+  { id: "low", label: "Low stock products", desc: "At or below threshold" },
+  { id: "out", label: "Out of stock products", desc: "Zero stock items" },
+  { id: "all", label: "All products + stock counts", desc: "Full catalog with status" },
+  { id: "insights", label: "Insights", desc: "Top movers, stock health, alerts" },
+  { id: "destinations", label: "Movement destinations", desc: "Where stock is going" },
+];
 
 export function ReportPdfDialog({
-  products, lowList, outList, movements,
+  products, lowList, outList, movements, rawMovements = [],
 }: {
   products: Product[];
   lowList: Product[];
   outList: Product[];
   movements: Movements;
+  rawMovements?: RawMovement[];
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
+  const [selected, setSelected] = useState<Record<SectionId, boolean>>({
+    summary: true, low: true, out: true, all: true, insights: true, destinations: true,
+  });
   const sendSms = useServerFn(sendReportLinkSms);
 
   const today = format(new Date(), "yyyy-MM-dd");
+  const anySelected = Object.values(selected).some(Boolean);
+  const toggle = (id: SectionId) => setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const setAll = (v: boolean) =>
+    setSelected({ summary: v, low: v, out: v, all: v, insights: v, destinations: v });
 
   function buildPdf(): Blob {
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const generatedAt = format(new Date(), "PPpp");
     const totalStockUnits = products.reduce((a, p) => a + (p.stock ?? 0), 0);
+    let firstPage = true;
+    const newSection = (title: string, sub?: string) => {
+      if (!firstPage) doc.addPage();
+      firstPage = false;
+      doc.setFontSize(20); doc.setTextColor(0); doc.text(title, 40, 60);
+      if (sub) {
+        doc.setFontSize(10); doc.setTextColor(120); doc.text(sub, 40, 80); doc.setTextColor(0);
+      }
+    };
 
-    // ---- Page 1: Summary ----
-    doc.setFontSize(20); doc.text("Stock Report", 40, 60);
-    doc.setFontSize(10); doc.setTextColor(120);
-    doc.text(`Generated: ${generatedAt}`, 40, 80);
-    doc.setTextColor(0);
+    if (selected.summary) {
+      newSection("Stock Report — Summary", `Generated: ${generatedAt}`);
+      autoTable(doc, {
+        startY: 110,
+        head: [["Metric", "Value"]],
+        body: [
+          ["Total products", String(products.length)],
+          ["Total stock units on hand", String(totalStockUnits)],
+          ["Low stock items", String(lowList.length)],
+          ["Out of stock items", String(outList.length)],
+          ["Total stock-in (last 500 movements)", String(movements.inQty)],
+          ["Total stock-out (last 500 movements)", String(movements.outQty)],
+          ["Net movement", String(movements.inQty - movements.outQty)],
+        ],
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { fontSize: 11 },
+      });
+    }
 
-    autoTable(doc, {
-      startY: 110,
-      head: [["Metric", "Value"]],
-      body: [
-        ["Total products", String(products.length)],
-        ["Total stock units on hand", String(totalStockUnits)],
-        ["Low stock items", String(lowList.length)],
-        ["Out of stock items", String(outList.length)],
-        ["Total stock-in (last 500 movements)", String(movements.inQty)],
-        ["Total stock-out (last 500 movements)", String(movements.outQty)],
-        ["Net movement", String(movements.inQty - movements.outQty)],
-      ],
-      headStyles: { fillColor: [37, 99, 235] },
-      styles: { fontSize: 11 },
-    });
+    if (selected.low) {
+      newSection("Low Stock", `${lowList.length} item(s) at or below threshold`);
+      autoTable(doc, {
+        startY: 100,
+        head: [["Product", "SKU", "Category", "Stock", "Threshold"]],
+        body: lowList.length
+          ? lowList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.stock), String(p.low_stock_threshold)])
+          : [["—", "—", "—", "—", "—"]],
+        headStyles: { fillColor: [202, 138, 4] },
+      });
+    }
 
-    // ---- Page 2: Low stock ----
-    doc.addPage();
-    doc.setFontSize(16); doc.text("Low Stock", 40, 50);
-    doc.setFontSize(10); doc.setTextColor(120);
-    doc.text(`${lowList.length} item(s) at or below threshold`, 40, 68);
-    doc.setTextColor(0);
-    autoTable(doc, {
-      startY: 90,
-      head: [["Product", "SKU", "Category", "Stock", "Threshold"]],
-      body: lowList.length
-        ? lowList.map((p) => [
-            p.name, p.sku ?? "—", p.categories?.name ?? "—",
-            String(p.stock), String(p.low_stock_threshold),
-          ])
-        : [["—", "—", "—", "—", "—"]],
-      headStyles: { fillColor: [202, 138, 4] },
-    });
+    if (selected.out) {
+      newSection("Out of Stock", `${outList.length} item(s) with zero stock`);
+      autoTable(doc, {
+        startY: 100,
+        head: [["Product", "SKU", "Category", "Threshold"]],
+        body: outList.length
+          ? outList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.low_stock_threshold)])
+          : [["—", "—", "—", "—"]],
+        headStyles: { fillColor: [220, 38, 38] },
+      });
+    }
 
-    // ---- Page 3: Out of stock ----
-    doc.addPage();
-    doc.setFontSize(16); doc.text("Out of Stock", 40, 50);
-    doc.setFontSize(10); doc.setTextColor(120);
-    doc.text(`${outList.length} item(s) with zero stock`, 40, 68);
-    doc.setTextColor(0);
-    autoTable(doc, {
-      startY: 90,
-      head: [["Product", "SKU", "Category", "Threshold"]],
-      body: outList.length
-        ? outList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.low_stock_threshold)])
-        : [["—", "—", "—", "—"]],
-      headStyles: { fillColor: [220, 38, 38] },
-    });
+    if (selected.all) {
+      newSection("All Products — Stock Counts", `${products.length} product(s), total ${totalStockUnits} units`);
+      autoTable(doc, {
+        startY: 100,
+        head: [["Product", "SKU", "Category", "Stock", "Threshold", "Status"]],
+        body: products.map((p) => [
+          p.name, p.sku ?? "—", p.categories?.name ?? "—",
+          String(p.stock), String(p.low_stock_threshold),
+          p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK",
+        ]),
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { fontSize: 9 },
+      });
+    }
 
-    // ---- Page 4: All products with stock ----
-    doc.addPage();
-    doc.setFontSize(16); doc.text("All Products – Stock Counts", 40, 50);
-    doc.setFontSize(10); doc.setTextColor(120);
-    doc.text(`${products.length} product(s), total ${totalStockUnits} units`, 40, 68);
-    doc.setTextColor(0);
-    autoTable(doc, {
-      startY: 90,
-      head: [["Product", "SKU", "Category", "Stock", "Threshold", "Status"]],
-      body: products.map((p) => [
-        p.name, p.sku ?? "—", p.categories?.name ?? "—",
-        String(p.stock), String(p.low_stock_threshold),
-        p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK",
-      ]),
-      headStyles: { fillColor: [37, 99, 235] },
-      styles: { fontSize: 9 },
-    });
+    if (selected.insights) {
+      // Top moved products by quantity
+      const moveByProduct = new Map<string, { name: string; in: number; out: number }>();
+      for (const m of rawMovements) {
+        const name = m.products?.name ?? "—";
+        const cur = moveByProduct.get(name) ?? { name, in: 0, out: 0 };
+        if (m.type === "in") cur.in += m.quantity; else cur.out += m.quantity;
+        moveByProduct.set(name, cur);
+      }
+      const topOut = [...moveByProduct.values()].sort((a, b) => b.out - a.out).slice(0, 10);
+      const topIn = [...moveByProduct.values()].sort((a, b) => b.in - a.in).slice(0, 10);
+      const healthy = products.length - lowList.length - outList.length;
+      const stockHealthPct = products.length ? Math.round((healthy / products.length) * 100) : 0;
+
+      newSection("Insights", `Stock health: ${stockHealthPct}% healthy · ${lowList.length} low · ${outList.length} out`);
+      autoTable(doc, {
+        startY: 100,
+        head: [["Indicator", "Value"]],
+        body: [
+          ["Healthy products", `${healthy} (${stockHealthPct}%)`],
+          ["Low stock products", String(lowList.length)],
+          ["Out of stock products", String(outList.length)],
+          ["Total movements analysed", String(rawMovements.length)],
+          ["Net stock change", String(movements.inQty - movements.outQty)],
+          ["Avg stock per product", products.length ? (totalStockUnits / products.length).toFixed(1) : "0"],
+        ],
+        headStyles: { fillColor: [99, 102, 241] },
+        styles: { fontSize: 11 },
+      });
+      autoTable(doc, {
+        head: [["Top 10 — Most Stock OUT", "Qty"]],
+        body: topOut.length ? topOut.map((p) => [p.name, String(p.out)]) : [["—", "—"]],
+        headStyles: { fillColor: [220, 38, 38] },
+        styles: { fontSize: 10 },
+      });
+      autoTable(doc, {
+        head: [["Top 10 — Most Stock IN", "Qty"]],
+        body: topIn.length ? topIn.map((p) => [p.name, String(p.in)]) : [["—", "—"]],
+        headStyles: { fillColor: [22, 163, 74] },
+        styles: { fontSize: 10 },
+      });
+    }
+
+    if (selected.destinations) {
+      const byDest = new Map<string, { qty: number; count: number; products: Set<string> }>();
+      for (const m of rawMovements) {
+        if (m.type !== "out") continue;
+        const dest = (m.destination ?? "").trim() || "Unspecified";
+        const cur = byDest.get(dest) ?? { qty: 0, count: 0, products: new Set() };
+        cur.qty += m.quantity;
+        cur.count += 1;
+        if (m.products?.name) cur.products.add(m.products.name);
+        byDest.set(dest, cur);
+      }
+      const rows = [...byDest.entries()]
+        .map(([dest, v]) => ({ dest, qty: v.qty, count: v.count, products: v.products.size }))
+        .sort((a, b) => b.qty - a.qty);
+      const totalOut = rows.reduce((a, r) => a + r.qty, 0);
+
+      newSection("Movement Destinations", `Where ${totalOut} unit(s) of stock-out went (last ${rawMovements.length} movements)`);
+      autoTable(doc, {
+        startY: 100,
+        head: [["Destination", "Total qty out", "Movements", "Distinct products", "Share"]],
+        body: rows.length
+          ? rows.map((r) => [
+              r.dest, String(r.qty), String(r.count), String(r.products),
+              totalOut ? `${((r.qty / totalOut) * 100).toFixed(1)}%` : "—",
+            ])
+          : [["—", "—", "—", "—", "—"]],
+        headStyles: { fillColor: [37, 99, 235] },
+        styles: { fontSize: 10 },
+      });
+    }
+
+    if (firstPage) {
+      // Nothing was added (shouldn't happen because button is disabled)
+      newSection("Stock Report", "No sections selected.");
+    }
 
     // Footer page numbers
     const pageCount = doc.getNumberOfPages();
@@ -191,19 +291,38 @@ export function ReportPdfDialog({
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Stock report (PDF)</DialogTitle>
+          <DialogTitle>Generate report (PDF)</DialogTitle>
           <DialogDescription>
-            Multi-page PDF: summary, low stock, out of stock, and full product list with stock counts.
+            Choose which sections to include. One PDF will be generated with only the selected sections.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="rounded-lg border border-border divide-y divide-border">
+            <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+              <span className="text-xs font-semibold uppercase text-muted-foreground">Sections</span>
+              <div className="flex gap-3 text-xs">
+                <button type="button" onClick={() => setAll(true)} className="text-primary hover:underline">All</button>
+                <button type="button" onClick={() => setAll(false)} className="text-muted-foreground hover:underline">None</button>
+              </div>
+            </div>
+            {SECTIONS.map((s) => (
+              <label key={s.id} className="flex items-start gap-3 px-3 py-2 cursor-pointer hover:bg-muted/30">
+                <Checkbox checked={selected[s.id]} onCheckedChange={() => toggle(s.id)} className="mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{s.label}</div>
+                  <div className="text-xs text-muted-foreground">{s.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+
           <div className="flex gap-2">
-            <Button onClick={generateAndUpload} disabled={busy} className="flex-1">
+            <Button onClick={generateAndUpload} disabled={busy || !anySelected} className="flex-1">
               {busy ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
               {url ? "Regenerate & upload" : "Generate & get link"}
             </Button>
-            <Button variant="secondary" onClick={downloadLocal}>
+            <Button variant="secondary" onClick={downloadLocal} disabled={!anySelected}>
               <Download className="size-4" />Download
             </Button>
           </div>
