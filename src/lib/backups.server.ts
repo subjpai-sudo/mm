@@ -183,7 +183,7 @@ export async function runMirror(triggeredBy: string) {
     return { ok: false as const, error: message };
   }
 
-  const sql = postgres(mirrorUrl, {
+  const sql = postgres(mirrorUrl!, {
     ssl: "require",
     max: 1,
     idle_timeout: 5,
