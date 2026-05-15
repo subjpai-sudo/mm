@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   listManagedUsers, createManagedUser, resetUserPin,
-  setUserRole, deleteManagedUser,
+  setUserRole, deleteManagedUser, inviteManagedUser,
 } from "@/lib/users.functions";
 import { useAuth, type Role } from "@/lib/auth";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -20,7 +20,8 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { UserPlus, KeyRound, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, KeyRound, Trash2, Loader2, Mail, Copy, ShieldAlert } from "lucide-react";
+import { Badge as BadgeUI } from "@/components/ui/badge";
 
 export const Route = createFileRoute("/_authenticated/users")({ component: UsersPage });
 
@@ -29,6 +30,7 @@ function UsersPage() {
   const qc = useQueryClient();
   const list = useServerFn(listManagedUsers);
   const create = useServerFn(createManagedUser);
+  const invite = useServerFn(inviteManagedUser);
   const reset = useServerFn(resetUserPin);
   const setRole = useServerFn(setUserRole);
   const del = useServerFn(deleteManagedUser);
@@ -45,6 +47,17 @@ function UsersPage() {
     mutationFn: (input: { fullName: string; username: string; pin: string; role: Role }) =>
       create({ data: input }),
     onSuccess: (r) => { toast.success(`Created ${r.username}`); refresh(); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const [invited, setInvited] = useState<{ username: string; tempPin: string } | null>(null);
+  const inviteMut = useMutation({
+    mutationFn: (input: { fullName: string; username: string; role: Role }) =>
+      invite({ data: input }),
+    onSuccess: (r) => {
+      toast.success(`Invited @${r.username}`);
+      setInvited({ username: r.username, tempPin: r.tempPin });
+      refresh();
+    },
     onError: (e: any) => toast.error(e.message),
   });
   const resetMut = useMutation({
@@ -70,8 +83,15 @@ function UsersPage() {
       <PageHeader
         title="Users"
         subtitle="Issue username + PIN logins. Everyone defaults to Operator."
-        actions={<CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <InviteUserDialog onSubmit={(v) => inviteMut.mutateAsync(v)} busy={inviteMut.isPending} />
+            <CreateUserDialog onSubmit={(v) => createMut.mutateAsync(v)} busy={createMut.isPending} />
+          </div>
+        }
       />
+
+      <InviteResultDialog invited={invited} onClose={() => setInvited(null)} />
 
       <Card className="card-elevated p-0 overflow-hidden">
         {isLoading ? (
@@ -85,7 +105,14 @@ function UsersPage() {
             {data!.map((u) => (
               <div key={u.id} className="p-4 flex flex-wrap items-center gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="font-medium truncate">{u.full_name ?? u.username}</div>
+                  <div className="font-medium truncate flex items-center gap-2">
+                    {u.full_name ?? u.username}
+                    {(u as any).must_change_pin && (
+                      <BadgeUI variant="outline" className="text-[9px] gap-1 border-warning/40 text-warning">
+                        <ShieldAlert className="size-3" /> Temp PIN
+                      </BadgeUI>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground font-mono truncate">@{u.username}</div>
                 </div>
                 <Select
