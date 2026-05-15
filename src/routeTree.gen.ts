@@ -22,6 +22,7 @@ import { Route as AuthenticatedOrderRequestRouteImport } from './routes/_authent
 import { Route as AuthenticatedOrderHistoryRouteImport } from './routes/_authenticated/order-history'
 import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 
 const LoginRoute = LoginRouteImport.update({
@@ -90,6 +91,11 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedChangePinRoute = AuthenticatedChangePinRouteImport.update({
+  id: '/change-pin',
+  path: '/change-pin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/health': typeof AuthenticatedHealthRoute
   '/order-history': typeof AuthenticatedOrderHistoryRoute
@@ -115,6 +122,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/health': typeof AuthenticatedHealthRoute
   '/order-history': typeof AuthenticatedOrderHistoryRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/change-pin': typeof AuthenticatedChangePinRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/health': typeof AuthenticatedHealthRoute
   '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/change-pin'
     | '/dashboard'
     | '/health'
     | '/order-history'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/change-pin'
     | '/dashboard'
     | '/health'
     | '/order-history'
@@ -180,6 +191,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audit'
+    | '/_authenticated/change-pin'
     | '/_authenticated/dashboard'
     | '/_authenticated/health'
     | '/_authenticated/order-history'
@@ -291,6 +303,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/change-pin': {
+      id: '/_authenticated/change-pin'
+      path: '/change-pin'
+      fullPath: '/change-pin'
+      preLoaderRoute: typeof AuthenticatedChangePinRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/audit': {
       id: '/_authenticated/audit'
       path: '/audit'
@@ -303,6 +322,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedChangePinRoute: typeof AuthenticatedChangePinRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
   AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
@@ -317,6 +337,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedChangePinRoute: AuthenticatedChangePinRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHealthRoute: AuthenticatedHealthRoute,
   AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
@@ -341,3 +362,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
