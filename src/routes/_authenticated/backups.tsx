@@ -18,6 +18,15 @@ import {
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
 
+async function toError(e: unknown): Promise<Error> {
+  if (e instanceof Response) {
+    const text = await e.text().catch(() => e.statusText);
+    return new Error(text || `Request failed (${e.status})`);
+  }
+  if (e instanceof Error) return e;
+  return new Error(typeof e === "string" ? e : "Unknown error");
+}
+
 export const Route = createFileRoute("/_authenticated/backups")({
   component: BackupsPage,
   errorComponent: ({ error, reset }) => {
@@ -60,8 +69,22 @@ function BackupsPage() {
   const getUrl = useServerFn(getBackupDownloadUrl);
   const remove = useServerFn(deleteBackup);
 
-  const backupsQ = useQuery({ queryKey: ["backups"], queryFn: () => fetchBackups(), retry: false });
-  const mirrorQ = useQuery({ queryKey: ["mirror-logs"], queryFn: () => fetchMirror(), retry: false });
+  const backupsQ = useQuery({
+    queryKey: ["backups"],
+    queryFn: async () => {
+      try { return await fetchBackups(); }
+      catch (e) { throw await toError(e); }
+    },
+    retry: false,
+  });
+  const mirrorQ = useQuery({
+    queryKey: ["mirror-logs"],
+    queryFn: async () => {
+      try { return await fetchMirror(); }
+      catch (e) { throw await toError(e); }
+    },
+    retry: false,
+  });
 
   const backupNow = useMutation({
     mutationFn: () => runBackup(),
