@@ -247,6 +247,7 @@ export type Database = {
           full_name: string | null
           id: string
           must_change_pin: boolean
+          phone: string | null
         }
         Insert: {
           created_at?: string
@@ -254,6 +255,7 @@ export type Database = {
           full_name?: string | null
           id: string
           must_change_pin?: boolean
+          phone?: string | null
         }
         Update: {
           created_at?: string
@@ -261,6 +263,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           must_change_pin?: boolean
+          phone?: string | null
         }
         Relationships: []
       }
