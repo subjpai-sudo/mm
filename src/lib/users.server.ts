@@ -1,4 +1,6 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 
 export const USERNAME_DOMAIN = "stockflow.local";
 
@@ -6,19 +8,37 @@ export function usernameToEmail(u: string) {
   return `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
 }
 
-export async function assertAdminOrOwner(userId: string) {
-  const { data, error } = await supabaseAdmin
+async function lookupAdminOrOwnerRole(client: SupabaseClient<Database>, userId: string) {
+  return client
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
     .in("role", ["admin", "owner"])
     .limit(1)
     .maybeSingle();
-  if (error) {
-    console.error("assertAdminOrOwner role lookup failed", { userId, error });
+}
+
+export async function assertAdminOrOwner(
+  userId: string,
+  client?: SupabaseClient<Database>,
+) {
+  if (client) {
+    const scoped = await lookupAdminOrOwnerRole(client, userId);
+    if (scoped.data?.role) return;
+    if (scoped.error) {
+      console.warn("assertAdminOrOwner scoped lookup failed, retrying with admin client", {
+        userId,
+        error: scoped.error,
+      });
+    }
+  }
+
+  const admin = await lookupAdminOrOwnerRole(supabaseAdmin, userId);
+  if (admin.error) {
+    console.error("assertAdminOrOwner role lookup failed", { userId, error: admin.error });
     throw new Error("Forbidden: role lookup failed");
   }
-  if (!data?.role) {
+  if (!admin.data?.role) {
     console.warn("assertAdminOrOwner denied", { userId, role: null });
     throw new Error("Forbidden: admin or owner only");
   }

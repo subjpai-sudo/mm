@@ -16,7 +16,7 @@ export const decideOrderRequest = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => decisionSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.userId);
+    await assertAdminOrOwner(context.userId, context.supabase);
     const patch: Record<string, unknown> = {
       status: data.decision,
       decided_by: context.userId,
@@ -60,7 +60,7 @@ export const updateShipment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => updateSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.userId);
+    await assertAdminOrOwner(context.userId, context.supabase);
     const { id, ...patch } = data;
     const { data: row, error } = await supabaseAdmin
       .from("order_requests")
@@ -150,7 +150,7 @@ export const logContainer = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => createContainerSchema.parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdminOrOwner(context.userId);
+    await assertAdminOrOwner(context.userId, context.supabase);
     const { data: row, error } = await supabaseAdmin
       .from("order_requests")
       .insert({
