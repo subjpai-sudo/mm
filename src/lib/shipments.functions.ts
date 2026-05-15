@@ -28,7 +28,7 @@ export const decideOrderRequest = createServerFn({ method: "POST" })
 
     const { data: row, error } = await supabaseAdmin
       .from("order_requests")
-      .update(patch)
+      .update(patch as any)
       .eq("id", data.id)
       .select()
       .single();
@@ -64,7 +64,7 @@ export const updateShipment = createServerFn({ method: "POST" })
     const { id, ...patch } = data;
     const { data: row, error } = await supabaseAdmin
       .from("order_requests")
-      .update(patch)
+      .update(patch as any)
       .eq("id", id)
       .select()
       .single();
