@@ -332,7 +332,21 @@ function ShipmentsPage() {
             products={products}
             catMap={catMap}
             renderActions={(r) => canDecide ? (
-              <DecideRow row={r} categories={categories} products={products} onDecide={(decision, extras) => decide.mutate({ id: r.id, decision, ...extras })} />
+              <div className="flex items-center gap-1">
+                <Button size="sm" className="bg-success text-success-foreground hover:bg-success/90 h-8"
+                  onClick={() => decide.mutate({ id: r.id, decision: "approved" })}>
+                  <Check className="size-3.5" />Accept
+                </Button>
+                <Button size="sm" className="bg-warning text-warning-foreground hover:bg-warning/90 h-8"
+                  onClick={() => decide.mutate({ id: r.id, decision: "backordered" })}>
+                  <Clock className="size-3.5" />Backorder
+                </Button>
+                <Button size="sm" variant="destructive" className="h-8"
+                  onClick={() => decide.mutate({ id: r.id, decision: "declined" })}>
+                  <X className="size-3.5" />Decline
+                </Button>
+                <DecideRow row={r} categories={categories} products={products} onDecide={(decision, extras) => decide.mutate({ id: r.id, decision, ...extras })} />
+              </div>
             ) : <span className="text-xs text-muted-foreground">Owner / Admin only</span>}
           />
         </TabsContent>

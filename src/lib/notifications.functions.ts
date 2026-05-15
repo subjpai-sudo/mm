@@ -57,6 +57,23 @@ export const sendOrderRequestAlert = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ message: z.string().min(1).max(1500) }).parse(input))
   .handler(async ({ data }) => sendOwnerSms(data.message));
 
+export const sendReportLinkSms = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z
+      .object({
+        phone: z.string().regex(/^\+[1-9]\d{1,14}$/, "Phone must be E.164 (e.g. +15551234567)"),
+        url: z.string().url().max(500),
+        label: z.string().min(1).max(120).optional(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) =>
+    sendSmsTo(
+      data.phone,
+      `📊 ${data.label ?? "Stock Report"}\nDownload: ${data.url}`,
+    ),
+  );
+
 export const checkLowStockAlert = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ productId: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
