@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Clock, X, PackageCheck, Container, Plus } from "lucide-react";
+import { Check, Clock, X, PackageCheck, Container, Plus, Search, FolderTree, ChevronRight, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { decideOrderRequest, markShipmentArrived, logContainer, updateShipment } from "@/lib/shipments.functions";
@@ -36,6 +36,133 @@ type Row = {
   expected_arrival_date: string | null;
   arrived_at: string | null;
 };
+
+type Cat = { id: string; name: string; parent_id: string | null };
+
+/**
+ * One-dropdown cascading category picker.
+ * Shows current path as breadcrumb chips. The single Select shows children
+ * of the deepest selected node (or roots if none). Picking an item drills
+ * deeper. "Use this" confirms current selection. Always optional.
+ */
+function CategoryCascadePicker({
+  categories, value, onChange, placeholder = "Pick category (optional)",
+}: {
+  categories: Cat[];
+  value: string | null;
+  onChange: (id: string | null) => void;
+  placeholder?: string;
+}) {
+  const byId = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+  const childrenOf = useMemo(() => {
+    const m = new Map<string | null, Cat[]>();
+    for (const c of categories) {
+      const k = c.parent_id;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k)!.push(c);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
+    return m;
+  }, [categories]);
+
+  // Build the selected path from the value (for chips)
+  const path = useMemo(() => {
+    const out: Cat[] = [];
+    let cur = value ? byId.get(value) : undefined;
+    while (cur) { out.unshift(cur); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+    return out;
+  }, [value, byId]);
+
+  // The "current level" we're browsing — children of the deepest selection,
+  // or roots if nothing selected.
+  const [browseParent, setBrowseParent] = useState<string | null>(value ?? null);
+  // Sync browseParent when value changes externally.
+  const browseKey = value ?? null;
+  if (browseParent !== browseKey && browseParent === null && value) setBrowseParent(value);
+
+  const currentChildren = childrenOf.get(browseParent) ?? [];
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 min-h-[28px]">
+        {path.length === 0 && <span className="text-xs text-muted-foreground">No category selected</span>}
+        {path.map((c, i) => (
+          <span key={c.id} className="inline-flex items-center gap-1">
+            {i > 0 && <ChevronRight className="size-3 text-muted-foreground" />}
+            <button
+              type="button"
+              onClick={() => { onChange(c.id); setBrowseParent(c.id); }}
+              className="px-2 py-0.5 rounded-full bg-secondary text-xs hover:bg-secondary/80"
+            >
+              {c.name}
+            </button>
+          </span>
+        ))}
+        {(path.length > 0 || browseParent) && (
+          <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+            onClick={() => { onChange(null); setBrowseParent(null); }}>
+            <RotateCcw className="size-3" />Reset
+          </Button>
+        )}
+      </div>
+      <Select
+        value=""
+        onValueChange={(v) => {
+          if (!v) return;
+          onChange(v);
+          // If the picked item has children, drill into it; otherwise stay.
+          const hasKids = (childrenOf.get(v) ?? []).length > 0;
+          setBrowseParent(hasKids ? v : v);
+        }}
+      >
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder={
+            browseParent
+              ? `Pick under "${byId.get(browseParent)?.name ?? "…"}"…`
+              : placeholder
+          } />
+        </SelectTrigger>
+        <SelectContent>
+          {currentChildren.length === 0 && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              {browseParent ? "No further sub-categories" : "No categories yet"}
+            </div>
+          )}
+          {currentChildren.map((c) => {
+            const hasKids = (childrenOf.get(c.id) ?? []).length > 0;
+            return (
+              <SelectItem key={c.id} value={c.id}>
+                <span className="flex items-center gap-2">
+                  <span>{c.name}</span>
+                  {hasKids && <span className="text-[10px] text-muted-foreground">({(childrenOf.get(c.id) ?? []).length})</span>}
+                </span>
+              </SelectItem>
+            );
+          })}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+/**
+ * Returns set of category ids matching the picked category and all descendants.
+ * Used by the filter bar so picking "Myanmar" matches its sub-categories too.
+ */
+function descendantIds(rootId: string, cats: Cat[]): Set<string> {
+  const set = new Set<string>([rootId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const c of cats) {
+      if (c.parent_id && set.has(c.parent_id) && !set.has(c.id)) {
+        set.add(c.id);
+        added = true;
+      }
+    }
+  }
+  return set;
+}
 
 function StatusBadge({ status, arrived }: { status: string; arrived: boolean }) {
   if (arrived) return <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><PackageCheck className="size-3 mr-1" />Arrived</Badge>;
@@ -67,7 +194,8 @@ function ShipmentsPage() {
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
-    queryFn: async () => (await supabase.from("categories").select("id, name").order("name")).data ?? [],
+    queryFn: async () =>
+      ((await supabase.from("categories").select("id, name, parent_id").order("name")).data ?? []) as Cat[],
   });
 
   const decideFn = useServerFn(decideOrderRequest);
@@ -96,10 +224,36 @@ function ShipmentsPage() {
     onError: (e: any) => toast.error(e.message ?? "Failed"),
   });
 
-  const pendingDecision = rows.filter(r => r.status === "pending");
-  const pendingShipment = rows.filter(r => !r.arrived_at && (r.status === "approved" || r.status === "backordered"));
-  const arrived = rows.filter(r => r.arrived_at);
-  const declined = rows.filter(r => r.status === "declined");
+  // ---- Filters ----
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "backordered" | "declined" | "arrived">("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [filterCategoryId, setFilterCategoryId] = useState<string | null>(null);
+
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const catSet = filterCategoryId ? descendantIds(filterCategoryId, categories) : null;
+    const fromTs = dateFrom ? new Date(dateFrom).getTime() : null;
+    const toTs = dateTo ? new Date(dateTo).getTime() + 86_400_000 : null; // inclusive end of day
+    return rows.filter((r) => {
+      if (q && !r.product_name.toLowerCase().includes(q)) return false;
+      if (catSet && (!r.category_id || !catSet.has(r.category_id))) return false;
+      if (fromTs && new Date(r.created_at).getTime() < fromTs) return false;
+      if (toTs && new Date(r.created_at).getTime() > toTs) return false;
+      if (statusFilter === "arrived" && !r.arrived_at) return false;
+      if (statusFilter !== "all" && statusFilter !== "arrived" && r.status !== statusFilter) return false;
+      return true;
+    });
+  }, [rows, search, statusFilter, dateFrom, dateTo, filterCategoryId, categories]);
+
+  const pendingDecision = filteredRows.filter(r => r.status === "pending");
+  const pendingShipment = filteredRows.filter(r => !r.arrived_at && (r.status === "approved" || r.status === "backordered"));
+  const arrived = filteredRows.filter(r => r.arrived_at);
+  const declined = filteredRows.filter(r => r.status === "declined");
+
+  const activeFilterCount =
+    (search ? 1 : 0) + (statusFilter !== "all" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0) + (filterCategoryId ? 1 : 0);
 
   const catMap = new Map(categories.map((c: any) => [c.id, c.name]));
 
@@ -110,6 +264,58 @@ function ShipmentsPage() {
         subtitle="Approve requests, track containers, mark arrivals."
         actions={canDecide ? <LogContainerDialog onSubmit={(v) => log.mutate(v)} categories={categories} products={products} /> : undefined}
       />
+
+      <Card className="card-elevated p-3 md:p-4 mb-4">
+        <div className="grid gap-3 md:grid-cols-12">
+          <div className="md:col-span-4">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Search product</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+              <Input className="pl-8" placeholder="Search by product name…"
+                value={search} onChange={(e) => setSearch(e.target.value)} />
+            </div>
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Status</Label>
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Accepted</SelectItem>
+                <SelectItem value="backordered">Backordered</SelectItem>
+                <SelectItem value="declined">Declined</SelectItem>
+                <SelectItem value="arrived">Arrived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">From</Label>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          </div>
+          <div className="md:col-span-2">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">To</Label>
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          </div>
+          <div className="md:col-span-2 flex items-end">
+            <Button variant="ghost" className="w-full" disabled={activeFilterCount === 0}
+              onClick={() => { setSearch(""); setStatusFilter("all"); setDateFrom(""); setDateTo(""); setFilterCategoryId(null); }}>
+              <RotateCcw className="size-4" />Clear ({activeFilterCount})
+            </Button>
+          </div>
+          <div className="md:col-span-12">
+            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+              <FolderTree className="size-3" />Category (cascading)
+            </Label>
+            <CategoryCascadePicker
+              categories={categories}
+              value={filterCategoryId}
+              onChange={setFilterCategoryId}
+              placeholder="Pick top-level category (e.g. Myanmar, Rice…)"
+            />
+          </div>
+        </div>
+      </Card>
 
       <Tabs defaultValue="pending-shipment">
         <TabsList>
@@ -216,7 +422,7 @@ function ShipmentTable({
 }
 
 function DecideRow({ row, categories, products, onDecide }: {
-  row: Row; categories: any[]; products: any[];
+  row: Row; categories: Cat[]; products: any[];
   onDecide: (decision: "approved" | "backordered" | "declined", extras: any) => void;
 }) {
   const [containerDate, setContainerDate] = useState(row.container_date ?? "");
@@ -263,14 +469,12 @@ function DecideRow({ row, categories, products, onDecide }: {
             </Select>
           </div>
           <div>
-            <Label className="text-xs">Category</Label>
-            <Select value={categoryId} onValueChange={(v) => setCategoryId(v === "__none" ? "" : v)}>
-              <SelectTrigger><SelectValue placeholder="Select category (optional)" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none">— None —</SelectItem>
-                {categories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Label className="text-xs">Category (optional)</Label>
+            <CategoryCascadePicker
+              categories={categories}
+              value={categoryId || null}
+              onChange={(id) => setCategoryId(id ?? "")}
+            />
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
@@ -326,7 +530,7 @@ function ArrivedDialog({ row, products, onConfirm }: {
 }
 
 function LogContainerDialog({ onSubmit, categories, products }: {
-  onSubmit: (vars: any) => void; categories: any[]; products: any[];
+  onSubmit: (vars: any) => void; categories: Cat[]; products: any[];
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -367,14 +571,12 @@ function LogContainerDialog({ onSubmit, categories, products }: {
               </Select>
             </div>
             <div>
-              <Label className="text-xs">Category</Label>
-              <Select value={categoryId} onValueChange={(v) => setCategoryId(v === "__none" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">— None —</SelectItem>
-                  {categories.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Category (optional)</Label>
+              <CategoryCascadePicker
+                categories={categories}
+                value={categoryId || null}
+                onChange={(id) => setCategoryId(id ?? "")}
+              />
             </div>
             <div>
               <Label className="text-xs">Container date</Label>
