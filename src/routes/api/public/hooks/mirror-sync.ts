@@ -29,9 +29,20 @@ async function runMirror(triggeredBy: string) {
     .single();
   const logId = logRow?.id as string | undefined;
 
-  const mirrorUrl = process.env.MIRROR_DB_URL;
-  if (!mirrorUrl) {
-    const message = "MIRROR_DB_URL is not configured";
+  const mirrorUrl = process.env.MIRROR_DB_URL?.trim();
+  const isValidPgUrl = (() => {
+    if (!mirrorUrl) return false;
+    try {
+      const u = new URL(mirrorUrl);
+      return u.protocol === "postgres:" || u.protocol === "postgresql:";
+    } catch {
+      return false;
+    }
+  })();
+  if (!isValidPgUrl) {
+    const message = !mirrorUrl
+      ? "MIRROR_DB_URL is not configured"
+      : "MIRROR_DB_URL is not a valid postgres:// connection string";
     if (logId) {
       await supabaseAdmin
         .from("mirror_sync_log")
@@ -41,7 +52,7 @@ async function runMirror(triggeredBy: string) {
     return { ok: false as const, error: message };
   }
 
-  const sql = postgres(mirrorUrl, {
+  const sql = postgres(mirrorUrl!, {
     ssl: "require",
     max: 1,
     idle_timeout: 5,
