@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export const useAuth = () => useContext(Ctx);
 
 export const NAV_BY_ROLE: Record<Role, string[]> = {
-  admin: ["dashboard", "stock-in", "stock-out", "products", "order-request", "shipments", "order-history", "reports", "settings", "users", "audit", "health"],
+  admin: ["dashboard", "stock-in", "stock-out", "products", "order-request", "shipments", "order-history", "reports", "settings", "users", "audit", "health", "backups"],
   operator: ["dashboard", "stock-in", "stock-out", "products", "reports"],
   owner: ["dashboard", "stock-in", "stock-out", "products", "shipments", "order-history", "reports", "users", "audit", "health"],
 };
