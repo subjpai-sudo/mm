@@ -134,6 +134,10 @@ function BackupsPage() {
         </div>
       </div>
 
+      <Card className="card-elevated p-4 text-sm text-muted-foreground">
+        Backup listing and downloads work with your signed-in session. Creating backups needs the admin backend key on Cloudflare, and mirror sync also needs both source and target database connection strings available to that deployment.
+      </Card>
+
       {/* Mirror panel */}
       <Card className="card-elevated p-5">
         <div className="flex items-start gap-3 mb-4">
