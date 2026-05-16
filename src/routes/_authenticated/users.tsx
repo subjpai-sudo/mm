@@ -64,6 +64,9 @@ function ServerHealthBanner({ errorMessage }: { errorMessage: string }) {
           </p>
         </div>
       )}
+      <p className="text-[11px] text-muted-foreground">
+        For self-hosted Cloudflare, the users page can load with normal signed-in access, but creating, deleting, resetting PINs, and mirror sync still need the admin backend key configured on that deployment.
+      </p>
     </Card>
   );
 }
