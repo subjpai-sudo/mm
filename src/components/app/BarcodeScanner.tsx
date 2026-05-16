@@ -85,6 +85,23 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
   const [hasPermissionMemory, setHasPermissionMemory] = useState(false);
 
   useEffect(() => {
+    if (!open || !navigator.permissions?.query) return;
+    let alive = true;
+    navigator.permissions
+      .query({ name: "camera" as PermissionName })
+      .then((permission) => {
+        if (!alive) return;
+        setHasPermissionMemory(permission.state === "granted" || wasCameraGranted());
+      })
+      .catch(() => {
+        if (alive) setHasPermissionMemory(wasCameraGranted());
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  useEffect(() => {
     if (!open) return;
     lockRef.current = false;
     lastDetectedRef.current = null;
