@@ -16,6 +16,11 @@ import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
 export const Route = createFileRoute("/_authenticated/stock-in")({ component: StockIn });
 
+function formatDetectedProductLabel(code: string, products: any[]) {
+  const match = products.find((x: any) => x.barcode === code || x.sku === code);
+  return match ? `${match.name} · ${code}` : code;
+}
+
 function StockIn() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -265,7 +270,13 @@ function StockIn() {
           )}
         </DialogContent>
       </Dialog>
-      <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
+      <BarcodeScanner
+        open={camOpen}
+        onClose={() => setCamOpen(false)}
+        onDetected={lookup}
+        keepOpenOnDetect
+        onDetectedLabel={(code) => formatDetectedProductLabel(code, products)}
+      />
 
       <Dialog open={!!notFound} onOpenChange={(v) => !v && setNotFound(null)}>
         <DialogContent className="max-w-lg">
