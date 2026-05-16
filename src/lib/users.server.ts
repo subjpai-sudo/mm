@@ -4,6 +4,10 @@ import type { Database } from "@/integrations/supabase/types";
 
 export const USERNAME_DOMAIN = "stockflow.local";
 
+function isServiceRoleConfigured() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
 export function usernameToEmail(u: string) {
   return `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
 }
@@ -22,7 +26,10 @@ export async function assertAdminOrOwner(
   userId: string,
   client?: SupabaseClient<Database>,
 ) {
-  const lookupClient = client ?? supabaseAdmin;
+  const lookupClient = client ?? (isServiceRoleConfigured() ? supabaseAdmin : undefined);
+  if (!lookupClient) {
+    throw new Error("Forbidden: admin lookup unavailable");
+  }
   const result = await lookupAdminOrOwnerRole(lookupClient, userId);
 
   if (result.error) {
