@@ -133,7 +133,6 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
           facingMode: { ideal: "environment" },
           width: { ideal: 1920 },
           height: { ideal: 1080 },
-          focusMode: { ideal: "continuous" } as any,
         },
         audio: false,
       });
