@@ -923,6 +923,12 @@ function RapidScanDialog({
   const [subCatId, setSubCatId] = useState<string>("all");
   const [sequenceMode, setSequenceMode] = useState(false);
 
+  const detectedLabelFor = (code: string) => {
+    const currentProduct = current;
+    if (!currentProduct) return code;
+    return `${currentProduct.name} · ${code}`;
+  };
+
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
 
@@ -1182,6 +1188,8 @@ function RapidScanDialog({
           open={scannerOpen}
           onClose={() => setScannerOpen(false)}
           onDetected={onDetected}
+          keepOpenOnDetect
+          onDetectedLabel={detectedLabelFor}
         />
       </DialogContent>
     </Dialog>
