@@ -19,6 +19,11 @@ export const Route = createFileRoute("/_authenticated/stock-out")({ component: S
 
 const DESTINATIONS = ["Delivery", "Shops"] as const;
 
+function formatDetectedProductLabel(code: string, products: any[]) {
+  const match = products.find((x: any) => x.barcode === code || x.sku === code);
+  return match ? `${match.name} · ${code}` : code;
+}
+
 function StockOut() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -249,7 +254,13 @@ function StockOut() {
           )}
         </DialogContent>
       </Dialog>
-      <BarcodeScanner open={camOpen} onClose={() => setCamOpen(false)} onDetected={lookup} />
+      <BarcodeScanner
+        open={camOpen}
+        onClose={() => setCamOpen(false)}
+        onDetected={lookup}
+        keepOpenOnDetect
+        onDetectedLabel={(code) => formatDetectedProductLabel(code, products)}
+      />
     </div>
   );
 }
