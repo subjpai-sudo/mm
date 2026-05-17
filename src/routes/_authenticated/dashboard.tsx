@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { formatDistanceToNow, format } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
+import { SHOPS, isShop } from "@/lib/shops";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -71,6 +72,15 @@ function Dashboard() {
   const destEntries = Object.entries(destTotals).sort((a, b) => b[1] - a[1]);
   const destMax = Math.max(1, ...destEntries.map(([, v]) => v));
   const totalOutQty = outMoves.reduce((s: number, m: any) => s + m.quantity, 0);
+
+  // Per-shop stock-out tracker
+  const shopTotals: Record<string, number> = Object.fromEntries(SHOPS.map((s) => [s, 0]));
+  for (const m of outMoves) {
+    if (isShop(m.destination)) shopTotals[m.destination] += m.quantity;
+  }
+  const shopEntries = Object.entries(shopTotals).sort((a, b) => b[1] - a[1]);
+  const shopMax = Math.max(1, ...shopEntries.map(([, v]) => v));
+  const shopTotal = shopEntries.reduce((s, [, v]) => s + v, 0);
 
   // Top products per destination
   const topByDest: Record<string, { id: string; name: string; qty: number; image?: string }[]> = {};
@@ -210,6 +220,37 @@ function Dashboard() {
           </div>
         </Card>
       )}
+
+      <Card className="card-elevated p-5 mb-6">
+        <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
+          <Store className="size-4 text-warning" /> Shops tracker
+          <span className="ml-auto text-xs text-muted-foreground font-normal">
+            {shopTotal.toLocaleString()} unit{shopTotal === 1 ? "" : "s"} delivered to shops
+          </span>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
+          {shopEntries.map(([name, qty]) => {
+            const pct = Math.round((qty / shopMax) * 100);
+            const share = shopTotal ? Math.round((qty / shopTotal) * 100) : 0;
+            return (
+              <div key={name}>
+                <div className="flex items-center gap-2 text-sm mb-1">
+                  <Store className="size-3.5 text-muted-foreground" />
+                  <span className="font-medium">{name}</span>
+                  <span className="ml-auto tabular-nums font-semibold">{qty.toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{share}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                  <div className="h-full gradient-warning rounded-full transition-all" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {shopTotal === 0 && (
+          <p className="text-xs text-muted-foreground mt-2">No shop deliveries logged yet. Use Stock Out → Shops to record one.</p>
+        )}
+      </Card>
 
       <Tabs defaultValue="activity">
         <TabsList>
