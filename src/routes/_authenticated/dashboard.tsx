@@ -137,7 +137,12 @@ function Dashboard() {
 
   const filteredActivity = destFilter === "all"
     ? activity
-    : activity.filter((a: any) => a.kind === "stock_out" && a.destination === destFilter);
+    : activity.filter((a: any) => {
+        if (a.kind !== "stock_out") return false;
+        if (destFilter === "Delivery") return a.destination === "Delivery";
+        if (destFilter === "Shops") return isShop(a.destination);
+        return false;
+      });
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
