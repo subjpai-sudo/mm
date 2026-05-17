@@ -22,6 +22,7 @@ import { LiveBadge } from "@/components/app/LiveBadge";
 import { useServerFn } from "@tanstack/react-start";
 import { fetchProductImage, bulkFetchProductImages } from "@/lib/product-images.functions";
 import { Sparkles, Globe } from "lucide-react";
+import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -55,6 +56,18 @@ function ProductsPage() {
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
   });
+  const { data: reportMovements = [] } = useQuery({
+    queryKey: ["movements-all"],
+    queryFn: async () => (await supabase.from("stock_movements").select("*, products(name)").order("created_at", { ascending: false }).limit(500)).data ?? [],
+  });
+  const productsWithCat = (products as any[]).map((p) => ({
+    ...p,
+    categories: p.categories ? { name: p.categories.name } : null,
+  }));
+  const reportLowList = productsWithCat.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold);
+  const reportOutList = productsWithCat.filter((p: any) => p.stock <= 0);
+  const reportInQty = (reportMovements as any[]).filter((m) => m.type === "in").reduce((a, m) => a + m.quantity, 0);
+  const reportOutQty = (reportMovements as any[]).filter((m) => m.type === "out").reduce((a, m) => a + m.quantity, 0);
   const [manageCats, setManageCats] = useState(false);
   const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
   // Default to collapsed so users pick one main category at a time
@@ -189,6 +202,13 @@ function ProductsPage() {
         actions={canEdit ? (
           <div className="flex gap-2 flex-wrap items-center">
             <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
+            <ReportPdfDialog
+              products={productsWithCat as any}
+              lowList={reportLowList as any}
+              outList={reportOutList as any}
+              movements={{ inQty: reportInQty, outQty: reportOutQty, total: reportMovements.length }}
+              rawMovements={reportMovements as any}
+            />
             <Button variant="secondary" disabled={bulkAutoFill.isPending}
               onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
               <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
