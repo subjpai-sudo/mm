@@ -115,6 +115,17 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Auto-start the camera as soon as the dialog opens if we previously
+  // got permission — keeps the scanner "always on" for the logged-in user.
+  useEffect(() => {
+    if (!open) return;
+    if (running) return;
+    if (!wasCameraGranted()) return;
+    const t = setTimeout(() => { start().catch(() => {}); }, 50);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   function emit(code: string) {
     if (lockRef.current || !code) return;
     const trimmed = code.trim();
