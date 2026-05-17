@@ -14,10 +14,12 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
+import { SHOPS } from "@/lib/shops";
 
 export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
 
-const DESTINATIONS = ["Delivery", "Shops"] as const;
+const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
+type DestKind = (typeof TOP_DESTINATIONS)[number];
 
 function formatDetectedProductLabel(code: string, products: any[]) {
   const match = products.find((x: any) => x.barcode === code || x.sku === code);
@@ -31,7 +33,8 @@ function StockOut() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
-  const [destination, setDestination] = useState<(typeof DESTINATIONS)[number]>("Delivery");
+  const [destKind, setDestKind] = useState<DestKind>("Delivery");
+  const [shop, setShop] = useState<string>(SHOPS[0]);
   const [camOpen, setCamOpen] = useState(false);
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
@@ -74,8 +77,11 @@ function StockOut() {
   const apply = useMutation({
     mutationFn: async () => {
       if (Number(qty) > selected.stock) throw new Error("Quantity exceeds available stock");
+      const finalDestination = destKind === "Shops" ? shop : "Delivery";
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id, reason: destination, destination,
+        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id,
+        reason: destKind === "Shops" ? `Shop · ${shop}` : "Delivery",
+        destination: finalDestination,
       });
       if (error) throw error;
       // Fire-and-forget low-stock alert. Don't block the UX if it fails.
@@ -226,14 +232,14 @@ function StockOut() {
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {DESTINATIONS.map(d => (
+                    {TOP_DESTINATIONS.map(d => (
                       <button
                         key={d}
                         type="button"
-                        onClick={() => setDestination(d)}
+                        onClick={() => setDestKind(d)}
                         className={cn(
                           "h-14 rounded-2xl border text-base font-semibold transition active:scale-[0.98]",
-                          destination === d
+                          destKind === d
                             ? "border-primary bg-primary text-primary-foreground shadow-md"
                             : "border-border bg-secondary/40 hover:bg-secondary"
                         )}
@@ -242,6 +248,28 @@ function StockOut() {
                       </button>
                     ))}
                   </div>
+                  {destKind === "Shops" && (
+                    <div className="mt-3">
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Choose shop</Label>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        {SHOPS.map((s) => (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => setShop(s)}
+                            className={cn(
+                              "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                              shop === s
+                                ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                                : "border-border bg-secondary/40 hover:bg-secondary"
+                            )}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <DialogFooter className="gap-2 sm:gap-2">
                   <Button variant="ghost" onClick={() => setSelected(null)} className="flex-1">Cancel</Button>
