@@ -63,9 +63,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export const useAuth = () => useContext(Ctx);
 
 export const NAV_BY_ROLE: Record<Role, string[]> = {
-  admin: ["dashboard", "stock-in", "stock-out", "products", "order-request", "shipments", "order-history", "reports", "settings", "users", "audit", "health", "backups"],
-  operator: ["dashboard", "stock-in", "stock-out", "products", "reports", "backups"],
-  owner: ["dashboard", "stock-in", "stock-out", "products", "shipments", "order-history", "reports", "users", "audit", "health", "backups"],
+  admin: ["dashboard", "stock-in", "stock-out", "products", "racks", "order-request", "shipments", "order-history", "reports", "settings", "users", "audit", "health", "backups"],
+  operator: ["dashboard", "stock-in", "stock-out", "products", "racks", "reports", "backups"],
+  owner: ["dashboard", "stock-in", "stock-out", "products", "racks", "shipments", "order-history", "reports", "users", "audit", "health", "backups"],
 };
 
 export function canAccess(role: Role | null, page: string) {
