@@ -18,6 +18,7 @@ import { Route as AuthenticatedStockInRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedShipmentsRouteImport } from './routes/_authenticated/shipments'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
+import { Route as AuthenticatedRacksRouteImport } from './routes/_authenticated/racks'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
 import { Route as AuthenticatedOrderRequestRouteImport } from './routes/_authenticated/order-request'
 import { Route as AuthenticatedOrderHistoryRouteImport } from './routes/_authenticated/order-history'
@@ -72,6 +73,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
 const AuthenticatedReportsRoute = AuthenticatedReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedRacksRoute = AuthenticatedRacksRouteImport.update({
+  id: '/racks',
+  path: '/racks',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/racks': typeof AuthenticatedRacksRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
+  '/racks': typeof AuthenticatedRacksRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -189,6 +197,7 @@ export interface FileRoutesById {
   '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
   '/_authenticated/order-request': typeof AuthenticatedOrderRequestRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
+  '/_authenticated/racks': typeof AuthenticatedRacksRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shipments': typeof AuthenticatedShipmentsRoute
@@ -212,6 +221,7 @@ export interface FileRouteTypes {
     | '/order-history'
     | '/order-request'
     | '/products'
+    | '/racks'
     | '/reports'
     | '/settings'
     | '/shipments'
@@ -233,6 +243,7 @@ export interface FileRouteTypes {
     | '/order-history'
     | '/order-request'
     | '/products'
+    | '/racks'
     | '/reports'
     | '/settings'
     | '/shipments'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/_authenticated/order-history'
     | '/_authenticated/order-request'
     | '/_authenticated/products'
+    | '/_authenticated/racks'
     | '/_authenticated/reports'
     | '/_authenticated/settings'
     | '/_authenticated/shipments'
@@ -338,6 +350,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof AuthenticatedReportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/racks': {
+      id: '/_authenticated/racks'
+      path: '/racks'
+      fullPath: '/racks'
+      preLoaderRoute: typeof AuthenticatedRacksRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/products': {
@@ -429,6 +448,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
   AuthenticatedOrderRequestRoute: typeof AuthenticatedOrderRequestRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
+  AuthenticatedRacksRoute: typeof AuthenticatedRacksRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRoute
@@ -446,6 +466,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
   AuthenticatedOrderRequestRoute: AuthenticatedOrderRequestRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
+  AuthenticatedRacksRoute: AuthenticatedRacksRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShipmentsRoute: AuthenticatedShipmentsRoute,

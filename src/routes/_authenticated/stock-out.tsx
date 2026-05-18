@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Boxes, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package } from "lucide-react";
+import { ScanLine, Search, Boxes, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +20,7 @@ export const Route = createFileRoute("/_authenticated/stock-out")({ component: S
 
 const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
 type DestKind = (typeof TOP_DESTINATIONS)[number];
+type Unit = "pcs" | "boxes";
 
 function formatDetectedProductLabel(code: string, products: any[]) {
   const match = products.find((x: any) => x.barcode === code || x.sku === code);
@@ -33,8 +34,9 @@ function StockOut() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
+  const [unit, setUnit] = useState<Unit>("pcs");
   const [destKind, setDestKind] = useState<DestKind>("Delivery");
-  const [shop, setShop] = useState<string>(SHOPS[0]);
+  const [shop, setShop] = useState<string | null>(null);
   const [camOpen, setCamOpen] = useState(false);
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
@@ -61,6 +63,10 @@ function StockOut() {
   function lookup(code: string) {
     const v = code.trim();
     if (!v) return;
+    if (destKind === "Shops" && !shop) {
+      toast.error("Pick a shop first");
+      return;
+    }
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
     setSelected(p); setScan("");
@@ -76,11 +82,15 @@ function StockOut() {
 
   const apply = useMutation({
     mutationFn: async () => {
-      if (Number(qty) > selected.stock) throw new Error("Quantity exceeds available stock");
-      const finalDestination = destKind === "Shops" ? shop : "Delivery";
+      const qtyNum = Number(qty);
+      if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
+      if (qtyNum > selected.stock) throw new Error("Quantity exceeds available stock");
+      const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
+      const unitLabel = unit === "boxes" ? "boxes" : "pcs";
+      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: Number(qty), user_id: user?.id,
-        reason: destKind === "Shops" ? `Shop · ${shop}` : "Delivery",
+        product_id: selected.id, type: "out", quantity: qtyNum, user_id: user?.id,
+        reason: `${reasonBase} · ${qtyNum} ${unitLabel}`,
         destination: finalDestination,
       });
       if (error) throw error;
@@ -90,7 +100,7 @@ function StockOut() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
-      toast.success(`Removed ${qty} × ${selected.name}`);
+      toast.success(`Removed ${qty} ${unit} × ${selected.name}`);
       setSelected(null); setQty("1");
     },
     onError: (e: any) => toast.error(e.message),
@@ -101,10 +111,57 @@ function StockOut() {
       <PageHeader title="Stock Out" subtitle="Issue inventory with reason logging." />
 
       <div className="space-y-3 sm:space-y-4">
+        {/* Destination is chosen FIRST */}
+        <Card className="card-elevated p-3 sm:p-4 space-y-3">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {TOP_DESTINATIONS.map((d) => {
+              const Icon = d === "Delivery" ? Truck : Store;
+              const active = destKind === d;
+              return (
+                <button key={d} type="button"
+                  onClick={() => { setDestKind(d); if (d === "Delivery") setShop(null); }}
+                  className={cn(
+                    "h-16 rounded-2xl border flex items-center justify-center gap-2 text-base font-semibold transition active:scale-[0.98]",
+                    active
+                      ? "border-primary bg-primary text-primary-foreground shadow-md"
+                      : "border-border bg-secondary/40 hover:bg-secondary",
+                  )}>
+                  <Icon className="size-5" /> {d}
+                </button>
+              );
+            })}
+          </div>
+          {destKind === "Shops" && (
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Choose shop</Label>
+              <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {SHOPS.map((s) => (
+                  <button key={s} type="button" onClick={() => setShop(s)}
+                    className={cn(
+                      "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                      shop === s
+                        ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                        : "border-border bg-secondary/40 hover:bg-secondary",
+                    )}>
+                    {s}
+                  </button>
+                ))}
+              </div>
+              {!shop && <p className="text-[11px] text-warning mt-1.5 font-medium">Pick a shop before scanning.</p>}
+            </div>
+          )}
+          {(destKind === "Delivery" || (destKind === "Shops" && shop)) && (
+            <Button onClick={() => setCamOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
+              <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : "→ Delivery"}
+            </Button>
+          )}
+        </Card>
+
         <Card className="card-elevated p-3 sm:p-4 relative overflow-hidden space-y-3">
           <div className="absolute -top-20 -right-20 size-60 rounded-full bg-destructive/20 blur-3xl pointer-events-none" />
           <div className="relative">
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Scan zone</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Manual scan / search</Label>
             <div className="mt-2 flex gap-2">
               <div className="relative flex-1">
                 <ScanLine className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-destructive" />
@@ -197,84 +254,59 @@ function StockOut() {
       </div>
 
       <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setQty("1"); } }}>
-        <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
+        <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {selected && (
             <>
-              <div className="relative w-full aspect-square bg-secondary">
+              <div className="relative w-full aspect-[4/3] sm:aspect-square bg-secondary shrink-0">
                 {selected.image_url ? (
                   <img src={selected.image_url} alt={selected.name} className="w-full h-full object-contain" />
                 ) : (
-                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-20" /></div>
+                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
                 )}
-                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+                <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
                   Stock: <span className="font-bold">{selected.stock}</span>
                 </div>
+                <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-semibold border border-border">
+                  → {destKind === "Shops" ? shop : "Delivery"}
+                </div>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-4 sm:p-5 space-y-4">
                 <div>
-                  <DialogTitle className="text-xl font-bold leading-tight break-words">{selected.name}</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl font-bold leading-tight break-words">{selected.name}</DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                     <span>SKU <span className="font-mono text-foreground">{selected.sku ?? "—"}</span></span>
                     <span>Barcode <span className="font-mono text-foreground">{selected.barcode ?? "—"}</span></span>
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove</Label>
-                  <div className="mt-2 flex items-center gap-3">
-                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
-                    <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
-                      className="h-16 text-center text-2xl font-bold rounded-2xl" />
-                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
-                  </div>
-                </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {TOP_DESTINATIONS.map(d => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setDestKind(d)}
+                    {(["pcs", "boxes"] as Unit[]).map((u) => (
+                      <button key={u} type="button" onClick={() => setUnit(u)}
                         className={cn(
-                          "h-14 rounded-2xl border text-base font-semibold transition active:scale-[0.98]",
-                          destKind === d
-                            ? "border-primary bg-primary text-primary-foreground shadow-md"
-                            : "border-border bg-secondary/40 hover:bg-secondary"
-                        )}
-                      >
-                        {d}
+                          "h-11 rounded-xl border text-sm font-semibold capitalize transition active:scale-[0.98]",
+                          unit === u ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-secondary/40 hover:bg-secondary",
+                        )}>
+                        {u}
                       </button>
                     ))}
                   </div>
-                  {destKind === "Shops" && (
-                    <div className="mt-3">
-                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Choose shop</Label>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        {SHOPS.map((s) => (
-                          <button
-                            key={s}
-                            type="button"
-                            onClick={() => setShop(s)}
-                            className={cn(
-                              "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
-                              shop === s
-                                ? "border-warning bg-warning text-warning-foreground shadow-sm"
-                                : "border-border bg-secondary/40 hover:bg-secondary"
-                            )}
-                          >
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
-                <DialogFooter className="gap-2 sm:gap-2">
-                  <Button variant="ghost" onClick={() => setSelected(null)} className="flex-1">Cancel</Button>
-                  <Button className="gradient-warning text-warning-foreground border-0 flex-1" onClick={() => apply.mutate()}>
-                    Confirm stock out
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove ({unit})</Label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
+                    <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
+                      className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
+                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                      onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
+                  <Button variant="ghost" onClick={() => setSelected(null)} className="flex-1 h-12">Cancel</Button>
+                  <Button className="gradient-warning text-warning-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
+                    OK · Remove {qty} {unit}
                   </Button>
                 </DialogFooter>
               </div>
