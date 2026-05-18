@@ -30,6 +30,7 @@ function StockIn() {
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
+  const [unit, setUnit] = useState<"pcs" | "boxes">("pcs");
   const [destination, setDestination] = useState<"Delivery" | "Shops">("Delivery");
   const [camOpen, setCamOpen] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
@@ -74,15 +75,18 @@ function StockIn() {
 
   const apply = useMutation({
     mutationFn: async () => {
+      const qtyNum = Number(qty);
+      if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: confirm.id, type: "in", quantity: Number(qty), user_id: user?.id, reason: "Stock In", destination,
+        product_id: confirm.id, type: "in", quantity: qtyNum, user_id: user?.id,
+        reason: `Stock In · ${qtyNum} ${unit}`, destination,
       });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
-      toast.success(`Added ${qty} × ${confirm.name}`);
+      toast.success(`Added ${qty} ${unit} × ${confirm.name}`);
       setConfirm(null); setQty("1");
     },
     onError: (e: any) => toast.error(e.message),
@@ -207,35 +211,49 @@ function StockIn() {
       </div>
 
       <Dialog open={!!confirm} onOpenChange={(v) => !v && setConfirm(null)}>
-        <DialogContent className="max-w-md p-0 overflow-hidden gap-0">
+        <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {confirm && (
             <>
-              <div className="relative w-full aspect-square bg-secondary">
+              <div className="relative w-full aspect-[4/3] sm:aspect-square bg-secondary shrink-0">
                 {confirm.image_url ? (
                   <img src={confirm.image_url} alt={confirm.name} className="w-full h-full object-contain" />
                 ) : (
-                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-20" /></div>
+                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
                 )}
-                <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+                <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
                   Stock: <span className="font-bold">{confirm.stock}</span>
                 </div>
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-4 sm:p-5 space-y-4">
                 <div>
-                  <DialogTitle className="text-xl font-bold leading-tight break-words">{confirm.name}</DialogTitle>
+                  <DialogTitle className="text-lg sm:text-xl font-bold leading-tight break-words">{confirm.name}</DialogTitle>
                   <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                     <span>SKU <span className="font-mono text-foreground">{confirm.sku ?? "—"}</span></span>
                     <span>Barcode <span className="font-mono text-foreground">{confirm.barcode ?? "—"}</span></span>
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {(["pcs", "boxes"] as const).map((u) => (
+                      <button key={u} type="button" onClick={() => setUnit(u)}
+                        className={cn(
+                          "h-11 rounded-xl border text-sm font-semibold capitalize transition active:scale-[0.98]",
+                          unit === u ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-secondary/40 hover:bg-secondary",
+                        )}>
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add ({unit})</Label>
                   <div className="mt-2 flex items-center gap-3">
-                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
                       onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
                     <Input type="number" inputMode="numeric" min="1" value={qty} onChange={e => setQty(e.target.value)}
-                      className="h-16 text-center text-2xl font-bold rounded-2xl" />
-                    <Button variant="secondary" size="icon" className="size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                      className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
+                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
                       onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
                   </div>
                 </div>
@@ -259,10 +277,10 @@ function StockIn() {
                     ))}
                   </div>
                 </div>
-                <DialogFooter className="gap-2 sm:gap-2">
-                  <Button variant="ghost" onClick={() => setConfirm(null)} className="flex-1">Cancel</Button>
-                  <Button className="gradient-success text-success-foreground border-0 flex-1" onClick={() => apply.mutate()}>
-                    Add to stock
+                <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
+                  <Button variant="ghost" onClick={() => setConfirm(null)} className="flex-1 h-12">Cancel</Button>
+                  <Button className="gradient-success text-success-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
+                    OK · Add {qty} {unit}
                   </Button>
                 </DialogFooter>
               </div>
