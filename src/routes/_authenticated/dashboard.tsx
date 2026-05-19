@@ -4,7 +4,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, PackageX, TrendingUp, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, Activity, Truck, Store, ChevronDown, PackageCheck, Container } from "lucide-react";
+import { Boxes, AlertTriangle, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, Activity, Truck, Store, Warehouse } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { formatDistanceToNow, format } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
 import { SHOPS, isShop } from "@/lib/shops";
+import { RACK_IDS } from "./racks";
+import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
@@ -52,9 +54,14 @@ function Dashboard() {
   const total = products.length;
   const out = products.filter((p: any) => p.stock <= 0).length;
   const low = products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length;
-  const inStockRate = total ? Math.round(((total - out) / total) * 100) : 0;
   const lowList = products.filter((p: any) => p.stock <= p.low_stock_threshold);
-  const totalUnits = products.reduce((s: number, p: any) => s + (p.stock || 0), 0);
+
+  // Racks occupancy: distinct racks with at least 1 product
+  const racksWithItems = new Set(
+    (products as any[]).map((p) => (p.rack ?? "").trim()).filter(Boolean),
+  );
+  const racksUsed = racksWithItems.size;
+  const racksTotal = RACK_IDS.length;
 
   // Activity in last 24h / 7d
   const now = Date.now();
@@ -78,9 +85,8 @@ function Dashboard() {
   for (const m of outMoves) {
     if (isShop(m.destination)) shopTotals[m.destination] += m.quantity;
   }
-  const shopEntries = Object.entries(shopTotals).sort((a, b) => b[1] - a[1]);
-  const shopMax = Math.max(1, ...shopEntries.map(([, v]) => v));
-  const shopTotal = shopEntries.reduce((s, [, v]) => s + v, 0);
+  const shopTotal = Object.values(shopTotals).reduce((a, b) => a + b, 0);
+  const topShop = Object.entries(shopTotals).sort((a, b) => b[1] - a[1])[0];
 
   // Top products per destination
   const topByDest: Record<string, { id: string; name: string; qty: number; image?: string }[]> = {};
@@ -148,114 +154,26 @@ function Dashboard() {
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
 
-      <div className="grid gap-4 grid-cols-2 md:grid-cols-4 auto-rows-fr mb-6">
-        <StatCard label="Total products" value={total} icon={Boxes} tone="primary" to="/products" search={{ filter: "all" }} />
-        <StatCard label="Low stock" value={low} icon={AlertTriangle} tone="warning" hint="At/below threshold" to="/products" search={{ filter: "low" }} />
-        <StatCard label="Out of stock" value={out} icon={PackageX} tone="destructive" to="/products" search={{ filter: "out" }} />
-        <StatCard label="In-stock rate" value={`${inStockRate}%`} icon={TrendingUp} tone="success" />
-        <StatCard label="Total units" value={totalUnits.toLocaleString()} icon={Boxes} tone="primary" hint="All products" />
-        <StatCard label="24h activity" value={`+${stockedIn24}/-${stockedOut24}`} icon={Activity} tone="warning" hint="Units in / out" />
-        <StatCard label="Pending shipment" value={pendingShipmentCount} icon={PackageCheck} tone="success" hint="Approved & backordered" to="/shipments" />
-        <StatCard label="Containers" value={containersCount} icon={Container} tone="primary" hint="In transit" to="/shipments" />
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+        <StatCard label="Total products" value={total} icon={Boxes} tone="primary" hint={`${stockedIn24}/${stockedOut24} in/out 24h`} to="/products" search={{ filter: "all" }} />
+        <DashCard
+          to="/racks"
+          tone="primary"
+          icon={Warehouse}
+          label="Racks"
+          value={`${racksUsed}/${racksTotal}`}
+          hint="In use"
+        />
+        <StatCard label="Low stock" value={low + out} icon={AlertTriangle} tone={out > 0 ? "destructive" : "warning"} hint={`${out} out · ${low} low`} to="/products" search={{ filter: "low" }} />
+        <DashCard
+          to="/shops"
+          tone="warning"
+          icon={Store}
+          label="Shop tracker"
+          value={shopTotal.toLocaleString()}
+          hint={topShop && topShop[1] > 0 ? `Top: ${topShop[0]}` : "No deliveries yet"}
+        />
       </div>
-
-      {destEntries.length > 0 && (
-        <Card className="card-elevated p-5 mb-6">
-          <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
-            <Truck className="size-4 text-primary" />Stock-out destinations
-            <span className="ml-auto text-xs text-muted-foreground font-normal">Last {outMoves.length} movements</span>
-          </div>
-          <div className="space-y-3">
-            {destEntries.map(([name, qty]) => {
-              const pct = Math.round((qty / destMax) * 100);
-              const share = totalOutQty ? Math.round((qty / totalOutQty) * 100) : 0;
-              const Icon = name === "Delivery" ? Truck : name === "Shops" ? Store : Boxes;
-              const isOpen = openDest === name;
-              const top = topByDest[name] ?? [];
-              return (
-                <div key={name} className="rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setOpenDest(isOpen ? null : name)}
-                    className="w-full flex items-center gap-2 text-sm mb-1 text-left"
-                  >
-                    <Icon className="size-4 text-muted-foreground" />
-                    <span className="font-medium">{name}</span>
-                    <ChevronDown className={`size-3.5 text-muted-foreground transition-transform ${isOpen ? "" : "-rotate-90"}`} />
-                    <span className="ml-auto tabular-nums font-semibold">{qty.toLocaleString()}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{share}%</span>
-                  </button>
-                  <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                    <div className="h-full gradient-warning rounded-full transition-all" style={{ width: `${pct}%` }} />
-                  </div>
-                  {isOpen && (
-                    <div className="mt-2 ml-6 rounded-lg border border-border bg-secondary/30 divide-y divide-border">
-                      {top.length === 0 && <div className="p-3 text-xs text-muted-foreground">No products</div>}
-                      {top.map((p, i) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => setDrill({ destination: name, productId: p.id, productName: p.name, image: p.image })}
-                          className="w-full flex items-center gap-2 p-2 text-sm text-left hover:bg-secondary/60 transition"
-                        >
-                          <span className="text-xs text-muted-foreground w-5 tabular-nums">#{i + 1}</span>
-                          {p.image ? (
-                            <img src={p.image} alt="" className="size-7 rounded object-cover border border-border" />
-                          ) : (
-                            <div className="size-7 rounded bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-3" /></div>
-                          )}
-                          <span className="truncate flex-1">{p.name}</span>
-                          <span className="tabular-nums font-semibold">{p.qty}</span>
-                        </button>
-                      ))}
-                      {(name === "Delivery" || name === "Shops") && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setDestFilter(name as "Delivery" | "Shops"); }}
-                          className="w-full text-xs text-primary hover:underline p-2 text-left"
-                        >
-                          Filter activity by {name} →
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      <Card className="card-elevated p-5 mb-6">
-        <div className="flex items-center gap-2 mb-4 text-sm font-semibold">
-          <Store className="size-4 text-warning" /> Shops tracker
-          <span className="ml-auto text-xs text-muted-foreground font-normal">
-            {shopTotal.toLocaleString()} unit{shopTotal === 1 ? "" : "s"} delivered to shops
-          </span>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3">
-          {shopEntries.map(([name, qty]) => {
-            const pct = Math.round((qty / shopMax) * 100);
-            const share = shopTotal ? Math.round((qty / shopTotal) * 100) : 0;
-            return (
-              <div key={name}>
-                <div className="flex items-center gap-2 text-sm mb-1">
-                  <Store className="size-3.5 text-muted-foreground" />
-                  <span className="font-medium">{name}</span>
-                  <span className="ml-auto tabular-nums font-semibold">{qty.toLocaleString()}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums w-10 text-right">{share}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                  <div className="h-full gradient-warning rounded-full transition-all" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        {shopTotal === 0 && (
-          <p className="text-xs text-muted-foreground mt-2">No shop deliveries logged yet. Use Stock Out → Shops to record one.</p>
-        )}
-      </Card>
 
       <Tabs defaultValue="activity">
         <TabsList>
@@ -436,4 +354,29 @@ export function StockStatus({ stock, threshold }: { stock: number; threshold: nu
   if (stock <= 0) return <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15">Out of stock</Badge>;
   if (stock <= threshold) return <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">Low stock</Badge>;
   return <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">In stock</Badge>;
+}
+
+function DashCard({
+  to, tone, icon: Icon, label, value, hint,
+}: { to: string; tone: "primary" | "warning"; icon: any; label: string; value: string | number; hint?: string }) {
+  const toneCls = tone === "warning"
+    ? "from-warning/30 to-warning/0 text-warning"
+    : "from-primary/30 to-primary/0 text-primary";
+  return (
+    <Link to={to as any} className="block focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-2xl">
+      <Card className="card-elevated relative overflow-hidden p-5 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] transition-all">
+        <div className={`absolute -top-12 -right-12 size-32 rounded-full bg-gradient-to-br blur-2xl opacity-60 ${toneCls}`} />
+        <div className="relative flex items-start justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+            <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+            {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+          </div>
+          <div className={`size-10 rounded-xl grid place-items-center bg-secondary/60 border border-border ${toneCls.split(" ").pop()}`}>
+            <Icon className="size-5" />
+          </div>
+        </div>
+      </Card>
+    </Link>
+  );
 }
