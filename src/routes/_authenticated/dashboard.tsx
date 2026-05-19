@@ -355,3 +355,28 @@ export function StockStatus({ stock, threshold }: { stock: number; threshold: nu
   if (stock <= threshold) return <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15">Low stock</Badge>;
   return <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">In stock</Badge>;
 }
+
+function DashCard({
+  to, tone, icon: Icon, label, value, hint,
+}: { to: string; tone: "primary" | "warning"; icon: any; label: string; value: string | number; hint?: string }) {
+  const toneCls = tone === "warning"
+    ? "from-warning/30 to-warning/0 text-warning"
+    : "from-primary/30 to-primary/0 text-primary";
+  return (
+    <Link to={to as any} className="block focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-2xl">
+      <Card className="card-elevated relative overflow-hidden p-5 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] transition-all">
+        <div className={`absolute -top-12 -right-12 size-32 rounded-full bg-gradient-to-br blur-2xl opacity-60 ${toneCls}`} />
+        <div className="relative flex items-start justify-between">
+          <div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+            <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
+            {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+          </div>
+          <div className={`size-10 rounded-xl grid place-items-center bg-secondary/60 border border-border ${toneCls.split(" ").pop()}`}>
+            <Icon className="size-5" />
+          </div>
+        </div>
+      </Card>
+    </Link>
+  );
+}
