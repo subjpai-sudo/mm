@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,13 @@ import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { SHOPS } from "@/lib/shops";
 
-export const Route = createFileRoute("/_authenticated/stock-out")({ component: StockOut });
+type StockOutSearch = { barcode?: string };
+export const Route = createFileRoute("/_authenticated/stock-out")({
+  component: StockOut,
+  validateSearch: (s: Record<string, unknown>): StockOutSearch => ({
+    barcode: typeof s.barcode === "string" && s.barcode.length ? s.barcode : undefined,
+  }),
+});
 
 const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
 type DestKind = (typeof TOP_DESTINATIONS)[number];
@@ -39,6 +45,8 @@ function formatDetectedProductLabel(code: string, products: any[]) {
 function StockOut() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const routeSearch = Route.useSearch();
+  const nav = Route.useNavigate();
   const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
