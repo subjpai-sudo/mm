@@ -94,13 +94,13 @@ const CATALOG_REF = "https://catalog-58ec8.web.app/";
 
 function buildPrompt(p: { name: string; brand?: string | null; size?: string | null; origin?: string | null }) {
   const parts = [
-    `Generate a high-resolution (1024x1024) professional product photograph of "${p.name}"`,
+    `Ultra high-resolution 2048x2048 professional product photograph of "${p.name}"`,
     p.brand ? `by ${p.brand}` : "",
     p.size ? `, size ${p.size}` : "",
     p.origin ? `, origin ${p.origin}` : "",
-    `. Studio lighting, pure clean white background, centered, sharp focus, true-to-life packaging colors and labels.`,
+    `. Bright studio lighting, pure clean white background (#FFFFFF), product perfectly centered, fills 85% of frame, tack-sharp focus, photorealistic, true-to-life packaging colors, crisp readable labels.`,
     `Match real retail packaging style used on the City Star catalog (${CATALOG_REF}) so it looks consistent with other items from the same brand/company.`,
-    `No text overlays, no watermarks, no shadows behind product.`,
+    `No text overlays, no watermarks, no props, no shadows, no reflections, no people, square framing.`,
   ];
   return parts.filter(Boolean).join(" ");
 }
@@ -175,7 +175,7 @@ export const bulkGenerateProductImagesAI = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       mode: z.enum(["missing", "all"]).default("missing"),
-      limit: z.number().int().min(1).max(50).default(20),
+      limit: z.number().int().min(1).max(200).default(50),
     }).parse(d ?? {})
   )
   .handler(async ({ data }) => {
