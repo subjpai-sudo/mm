@@ -37,6 +37,12 @@ type BarcodeDetectorCtor = new (options?: {
   formats?: string[];
 }) => BarcodeDetectorLike;
 
+type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
+  focusMode?: string[];
+  exposureMode?: string[];
+  whiteBalanceMode?: string[];
+};
+
 declare global {
   interface Window {
     BarcodeDetector?: BarcodeDetectorCtor;
@@ -223,7 +229,8 @@ export function BarcodeScanner({
     if (!track?.applyConstraints) return;
 
     try {
-      const capabilities = track.getCapabilities?.();
+      const capabilities =
+        track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
       if (!capabilities) return;
 
       const advanced: Record<string, unknown> = {};
