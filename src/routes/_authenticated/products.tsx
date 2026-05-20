@@ -434,6 +434,13 @@ function ProductsPage() {
         />
       )}
 
+      {bulkShelfOpen && (
+        <BulkAssignShelfDialog
+          products={products}
+          onClose={() => { setBulkShelfOpen(false); qc.invalidateQueries({ queryKey: ["products"] }); }}
+        />
+      )}
+
       {editing && (
         <ProductEditDialog
           product={editing}
