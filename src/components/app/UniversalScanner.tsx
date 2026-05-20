@@ -41,11 +41,12 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
 
   function parseRackCode(raw: string) {
     const normalized = raw.trim().replace(/^https?:\/\/[^/]+\//i, "").replace(/^#/, "");
-    const prefixed = normalized.match(/^RACK:([A-Za-z0-9_-]+)$/i);
+    const compact = normalized.replace(/\s+/g, "");
+    const prefixed = compact.match(/^RACK:([A-Za-z0-9_-]+)$/i);
     if (prefixed) return prefixed[1].toUpperCase();
-    const plain = normalized.match(/^(R\d+[A-Za-z0-9_-]*)$/i);
+    const plain = compact.match(/^(R\d+[A-Za-z0-9_-]*)$/i);
     if (plain) return plain[1].toUpperCase();
-    const route = normalized.match(/racks\/?(print\?ids=)?(R\d+[A-Za-z0-9_-]*)/i);
+    const route = compact.match(/racks\/?(?:print\?ids=)?(R\d+[A-Za-z0-9_-]*)/i);
     if (route) return route[2].toUpperCase();
     return null;
   }
