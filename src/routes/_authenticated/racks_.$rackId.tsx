@@ -7,11 +7,13 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse } from "lucide-react";
+import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 
-export const Route = createFileRoute("/_authenticated/racks/$rackId")({ component: RackDetail });
+export const Route = createFileRoute("/_authenticated/racks_/$rackId")({ component: RackDetail });
 
 const SHELVES = ["upper", "mid", "down"] as const;
 type Shelf = (typeof SHELVES)[number];
@@ -32,6 +34,7 @@ function RackDetail() {
   const qc = useQueryClient();
   const [addingTo, setAddingTo] = useState<Shelf | null>(null);
   const [q, setQ] = useState("");
+  useRealtimeSync({ silent: true });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -47,6 +50,36 @@ function RackDetail() {
     }
     return result;
   }, [products, rackId]);
+
+  const productIdsInRack = useMemo(() => {
+    return (products as any[]).filter((p) => (p.rack ?? "").trim() === rackId).map((p) => p.id);
+  }, [products, rackId]);
+
+  const { data: movements = [] } = useQuery({
+    queryKey: ["movements-by-rack", rackId, productIdsInRack.length],
+    enabled: productIdsInRack.length > 0,
+    queryFn: async () => (await supabase
+      .from("stock_movements")
+      .select("id, type, quantity, created_at, product_id")
+      .in("product_id", productIdsInRack)
+      .order("created_at", { ascending: false })
+      .limit(40)).data ?? [],
+  });
+
+  const movementsByShelf = useMemo(() => {
+    const result: Record<Shelf, any[]> = { upper: [], mid: [], down: [] };
+    const productShelf = new Map<string, Shelf>();
+    for (const p of products as any[]) {
+      if ((p.rack ?? "").trim() !== rackId) continue;
+      const s: Shelf = (p.shelf && SHELVES.includes(p.shelf)) ? p.shelf : "mid";
+      productShelf.set(p.id, s);
+    }
+    for (const m of movements as any[]) {
+      const s = productShelf.get(m.product_id);
+      if (s) result[s].push(m);
+    }
+    return result;
+  }, [movements, products, rackId]);
 
   const pickable = useMemo(() => {
     const v = q.toLowerCase();
@@ -73,15 +106,21 @@ function RackDetail() {
       </Link>
       <PageHeader
         title={`Rack ${rackId}`}
-        subtitle="Upper, mid, and down shelves — tap a shelf to add products."
+        subtitle="3D shelf view with live in/out activity per level."
       />
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {SHELVES.map((s) => {
           const items = byShelf[s];
+          const recent = movementsByShelf[s];
+          const inCount = recent.filter((m) => m.type === "in").reduce((a, m) => a + (m.quantity ?? 0), 0);
+          const outCount = recent.filter((m) => m.type === "out").reduce((a, m) => a + (m.quantity ?? 0), 0);
+          const productMap = new Map((products as any[]).map((p) => [p.id, p]));
           return (
-            <Card key={s} className="card-elevated p-3 sm:p-4">
-              <div className="flex items-center justify-between mb-3 gap-2">
+            <Card key={s} className="card-elevated p-3 sm:p-4 relative overflow-hidden">
+              {/* 3D isometric shelf base */}
+              <div className="absolute inset-x-3 bottom-2 h-3 rounded-md bg-gradient-to-r from-foreground/10 via-foreground/20 to-foreground/10 blur-sm pointer-events-none" />
+              <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="size-9 rounded-xl bg-secondary border border-border grid place-items-center shrink-0">
                     <Warehouse className="size-4 text-primary" />
@@ -91,24 +130,56 @@ function RackDetail() {
                     <div className="text-xs text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}</div>
                   </div>
                 </div>
-                <Button size="sm" onClick={() => { setAddingTo(s); setQ(""); }} className="gradient-primary text-primary-foreground border-0">
-                  <Plus className="size-4" /> Add
-                </Button>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-success/15 text-success border border-success/30">
+                    <ArrowUpRight className="size-3" /> +{inCount}
+                  </span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
+                    <ArrowDownRight className="size-3" /> -{outCount}
+                  </span>
+                  <Button size="sm" onClick={() => { setAddingTo(s); setQ(""); }} className="gradient-primary text-primary-foreground border-0">
+                    <Plus className="size-4" /> Add
+                  </Button>
+                </div>
+              </div>
+
+              {/* Live movement tracker line */}
+              <div className="mb-3 flex items-center gap-1 overflow-x-auto pb-1">
+                {recent.length === 0 ? (
+                  <span className="text-[10px] text-muted-foreground italic">No recent activity</span>
+                ) : recent.slice(0, 18).map((m: any) => {
+                  const tone = m.type === "in"
+                    ? "bg-success/80 hover:bg-success"
+                    : (productMap.get(m.product_id)?.stock ?? 0) <= 0
+                      ? "bg-destructive/80 hover:bg-destructive"
+                      : (productMap.get(m.product_id)?.stock ?? 0) <= 5
+                        ? "bg-warning/80 hover:bg-warning"
+                        : "bg-destructive/60 hover:bg-destructive/80";
+                  return (
+                    <div key={m.id} title={`${productMap.get(m.product_id)?.name ?? "?"} · ${m.type === "in" ? "+" : "-"}${m.quantity} · ${formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}`}
+                      className={cn("h-2 rounded-full shrink-0 transition", tone)}
+                      style={{ width: Math.min(40, 6 + (m.quantity ?? 1) * 2) + "px" }} />
+                  );
+                })}
               </div>
 
               {items.length === 0 ? (
                 <button
                   onClick={() => { setAddingTo(s); setQ(""); }}
-                  className="w-full rounded-xl border-2 border-dashed border-border bg-secondary/20 hover:bg-secondary/40 transition p-6 text-sm text-muted-foreground"
+                  className="w-full rounded-xl border-2 border-dashed border-border bg-gradient-to-b from-secondary/10 to-secondary/30 hover:bg-secondary/40 transition p-8 text-sm text-muted-foreground"
+                  style={{ transform: "perspective(900px) rotateX(8deg)" }}
                 >
                   Empty shelf — tap to load products
                 </button>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                <div
+                  className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 p-2 rounded-xl bg-gradient-to-b from-secondary/40 to-secondary/10 border border-border/60 shadow-inner"
+                  style={{ transform: "perspective(1100px) rotateX(6deg)", transformOrigin: "center top" }}
+                >
                   {items.map((p) => (
                     <div key={p.id}
                       className={cn(
-                        "relative rounded-lg border-2 p-2 min-h-[120px] flex flex-col gap-1.5",
+                        "relative rounded-lg border-2 p-2 min-h-[120px] flex flex-col gap-1.5 bg-card shadow-md hover:-translate-y-0.5 hover:shadow-lg transition",
                         stockColor(p),
                       )}>
                       <span className={cn("absolute top-1.5 right-1.5 size-2.5 rounded-full ring-2 ring-background", stockDot(p))} />
@@ -136,6 +207,8 @@ function RackDetail() {
                   ))}
                 </div>
               )}
+              {/* 3D shelf plank */}
+              <div className="mt-1 h-2 rounded-b-md bg-gradient-to-b from-border to-foreground/20" />
             </Card>
           );
         })}

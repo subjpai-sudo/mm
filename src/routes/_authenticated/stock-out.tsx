@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Boxes, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap } from "lucide-react";
+import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -21,6 +21,15 @@ export const Route = createFileRoute("/_authenticated/stock-out")({ component: S
 const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
 type DestKind = (typeof TOP_DESTINATIONS)[number];
 type Unit = "pcs" | "boxes";
+type ScanRow = {
+  productId: string;
+  name: string;
+  image_url: string | null;
+  stock: number;
+  barcode: string | null;
+  qty: string;
+  unit: Unit;
+};
 
 function formatDetectedProductLabel(code: string, products: any[]) {
   const match = products.find((x: any) => x.barcode === code || x.sku === code);
@@ -40,6 +49,7 @@ function StockOut() {
   const [camOpen, setCamOpen] = useState(false);
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
+  const [scanned, setScanned] = useState<ScanRow[]>([]);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -69,8 +79,64 @@ function StockOut() {
     }
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
-    setSelected(p); setScan("");
+    setScan("");
+    // If scanner is open, treat as mass scan: push to list, increment if exists.
+    if (camOpen) {
+      setScanned((rows) => {
+        const idx = rows.findIndex((r) => r.productId === p.id);
+        if (idx >= 0) {
+          const next = [...rows];
+          next[idx] = { ...next[idx], qty: String((Number(next[idx].qty) || 0) + 1) };
+          return next;
+        }
+        return [...rows, {
+          productId: p.id, name: p.name, image_url: p.image_url ?? null,
+          stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+        }];
+      });
+      toast.success(`Added ${p.name}`, { duration: 1200 });
+      return;
+    }
+    setSelected(p);
   }
+
+  function updateRow(productId: string, patch: Partial<ScanRow>) {
+    setScanned((rows) => rows.map((r) => r.productId === productId ? { ...r, ...patch } : r));
+  }
+  function removeRow(productId: string) {
+    setScanned((rows) => rows.filter((r) => r.productId !== productId));
+  }
+
+  const submitAll = useMutation({
+    mutationFn: async () => {
+      if (scanned.length === 0) throw new Error("Nothing scanned yet");
+      const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
+      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
+      const rows = scanned.map((r) => {
+        const q = Number(r.qty);
+        if (!q || q < 1) throw new Error(`Set quantity for ${r.name}`);
+        if (q > r.stock) throw new Error(`${r.name}: qty exceeds stock (${r.stock})`);
+        return {
+          product_id: r.productId, type: "out" as const, quantity: q, user_id: user?.id,
+          reason: `${reasonBase} · ${q} ${r.unit}`, destination: finalDestination,
+        };
+      });
+      const { error } = await supabase.from("stock_movements").insert(rows);
+      if (error) throw error;
+      for (const r of scanned) {
+        checkLowStockAlert({ data: { productId: r.productId } }).catch(() => {});
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["movements-recent"] });
+      qc.invalidateQueries({ queryKey: ["shop-movements"] });
+      toast.success(`Submitted ${scanned.length} item${scanned.length === 1 ? "" : "s"}`);
+      setScanned([]);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
   const onScan = () => lookup(scan);
   const filtered = products.filter((p: any) => {
     if (child && p.category_id !== child.id) return false;
@@ -157,6 +223,61 @@ function StockOut() {
             </Button>
           )}
         </Card>
+
+        {scanned.length > 0 && (
+          <Card className="card-elevated p-3 sm:p-4 space-y-2 border-warning/40">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-lg gradient-warning grid place-items-center">
+                <Zap className="size-4 text-warning-foreground" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-sm">Scanned items · {scanned.length}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  → {destKind === "Shops" ? shop : "Delivery"} · set quantity then submit
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setScanned([])} className="text-muted-foreground">
+                <Trash2 className="size-4" /> Clear
+              </Button>
+            </div>
+            <div className="divide-y divide-border max-h-[55vh] overflow-y-auto -mx-1">
+              {scanned.map((r) => (
+                <div key={r.productId} className="flex items-center gap-2 py-2 px-1">
+                  {r.image_url ? (
+                    <img src={r.image_url} alt="" className="size-12 rounded-lg object-cover border border-border shrink-0" />
+                  ) : (
+                    <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-5" /></div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate">{r.name}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {r.stock}</div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button type="button" onClick={() => updateRow(r.productId, { unit: r.unit === "pcs" ? "boxes" : "pcs" })}
+                      className={cn("h-9 px-2 rounded-lg border text-[11px] font-bold uppercase",
+                        r.unit === "boxes" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary border-border")}>
+                      {r.unit}
+                    </button>
+                    <Input
+                      type="number" inputMode="numeric" min="1" max={r.stock}
+                      value={r.qty}
+                      onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
+                      className="h-9 w-16 text-center font-bold"
+                    />
+                    <button type="button" onClick={() => removeRow(r.productId)}
+                      className="size-9 rounded-lg bg-secondary text-muted-foreground hover:text-destructive grid place-items-center border border-border">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button onClick={() => submitAll.mutate()} disabled={submitAll.isPending}
+              className="w-full h-12 gradient-warning text-warning-foreground border-0 font-bold">
+              <CheckCircle2 className="size-5 mr-1" /> Submit all · {scanned.length}
+            </Button>
+          </Card>
+        )}
 
         <Card className="card-elevated p-3 sm:p-4 relative overflow-hidden space-y-3">
           <div className="absolute -top-20 -right-20 size-60 rounded-full bg-destructive/20 blur-3xl pointer-events-none" />

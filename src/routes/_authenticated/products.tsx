@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid, Zap, Check, SkipForward } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid, Zap, Check, SkipForward, Warehouse } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
@@ -23,6 +23,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { fetchProductImage, bulkFetchProductImages } from "@/lib/product-images.functions";
 import { Sparkles, Globe } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
+import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -44,6 +45,7 @@ function ProductsPage() {
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [rapidOpen, setRapidOpen] = useState(false);
+  const [bulkShelfOpen, setBulkShelfOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [viewing, setViewing] = useState<any | null>(null);
@@ -215,6 +217,9 @@ function ProductsPage() {
             </Button>
             <Button variant="secondary" onClick={() => setRapidOpen(true)}>
               <Zap className="size-4" /> Rapid scan
+            </Button>
+            <Button variant="secondary" onClick={() => setBulkShelfOpen(true)}>
+              <Warehouse className="size-4" /> Assign to shelf
             </Button>
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
@@ -426,6 +431,13 @@ function ProductsPage() {
           categories={categories}
           userId={user?.id}
           onClose={() => { setRapidOpen(false); qc.invalidateQueries({ queryKey: ["products"] }); }}
+        />
+      )}
+
+      {bulkShelfOpen && (
+        <BulkAssignShelfDialog
+          products={products}
+          onClose={() => { setBulkShelfOpen(false); qc.invalidateQueries({ queryKey: ["products"] }); }}
         />
       )}
 
