@@ -124,8 +124,16 @@ async function generateAndUpload(p: { name: string; brand?: string | null; size?
     }),
   });
 
-  if (res.status === 429) throw new Error("Rate limit hit — please retry shortly");
-  if (res.status === 402) throw new Error("AI credits exhausted — add credits in Settings → Workspace");
+  if (res.status === 429) {
+    const err: any = new Error("Rate limit hit — please retry shortly");
+    err.fatal = true;
+    throw err;
+  }
+  if (res.status === 402) {
+    const err: any = new Error("AI credits exhausted. Add credits in Lovable → Settings → Workspace → Usage.");
+    err.fatal = true;
+    throw err;
+  }
   if (!res.ok) throw new Error(`AI gateway error ${res.status}: ${await res.text().catch(() => "")}`);
 
   const json: any = await res.json();
@@ -189,6 +197,7 @@ export const bulkGenerateProductImagesAI = createServerFn({ method: "POST" })
 
     let updated = 0;
     const failures: { name: string; error: string }[] = [];
+    let fatal: string | null = null;
     for (const p of targets) {
       try {
         const url = await generateAndUpload(p as any);
@@ -200,7 +209,9 @@ export const bulkGenerateProductImagesAI = createServerFn({ method: "POST" })
         updated++;
       } catch (e: any) {
         failures.push({ name: p.name, error: e?.message ?? "unknown" });
+        if (e?.fatal) { fatal = e.message; break; }
       }
     }
+    if (fatal) throw new Error(fatal);
     return { updated, total: targets.length, failures };
   });
