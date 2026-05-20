@@ -134,42 +134,38 @@ function RacksIndex() {
             <div
               key={id}
               className={cn(
-                "group relative rounded-2xl border-2 p-4 transition hover:shadow-lg hover:-translate-y-0.5",
+                "group relative rounded-2xl border-2 p-3 sm:p-4 transition hover:shadow-lg hover:-translate-y-0.5 overflow-hidden",
                 tone,
               )}
             >
-              <div className="absolute right-2 top-2 z-10">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
-                  className="size-7 rounded-full bg-background/80 border border-border hover:bg-background"
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    setRenameRack(meta ?? { id: "", code: id, name: id });
-                  }}
-                >
-                  <PencilLine className="size-3.5" />
-                </Button>
-              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="absolute right-1.5 top-1.5 z-10 size-7 rounded-full bg-background/80 border border-border hover:bg-background"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setRenameRack(meta ?? { id: "", code: id, name: id });
+                }}
+              >
+                <PencilLine className="size-3.5" />
+              </Button>
               <Link
                 to="/racks/$rackId"
                 params={{ rackId: id }}
                 className="block active:scale-[0.98]"
               >
-              <div className="flex items-start justify-between mb-3 pr-9">
-                <div className="size-10 rounded-xl gradient-primary grid place-items-center">
+                <div className="size-9 rounded-xl gradient-primary grid place-items-center">
                   <Warehouse className="size-5 text-primary-foreground" />
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap mt-1">{items.length} item{items.length === 1 ? "" : "s"}</span>
-              </div>
-              <div className="font-bold text-lg tracking-tight">{formatRackLabel(id, meta?.name)}</div>
-              <div className="mt-2 flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1 text-success"><span className="size-1.5 rounded-full bg-success" />{ok}</span>
-                <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle className="size-3" />{low}</span>
-                <span className="inline-flex items-center gap-1 text-destructive"><PackageX className="size-3" />{out}</span>
-              </div>
+                <div className="mt-2.5 font-bold text-base sm:text-lg tracking-tight truncate pr-1">{formatRackLabel(id, meta?.name)}</div>
+                <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{items.length} item{items.length === 1 ? "" : "s"}</div>
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] flex-wrap">
+                  <span className="inline-flex items-center gap-1 text-success"><span className="size-1.5 rounded-full bg-success" />{ok}</span>
+                  <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle className="size-3" />{low}</span>
+                  <span className="inline-flex items-center gap-1 text-destructive"><PackageX className="size-3" />{out}</span>
+                </div>
               </Link>
             </div>
           );
