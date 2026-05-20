@@ -29,7 +29,7 @@ import { Route as AuthenticatedChangePinRouteImport } from './routes/_authentica
 import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
-import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks.$rackId'
+import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks_.$rackId'
 import { Route as ApiPublicHooksNightlyBackupRouteImport } from './routes/api/public/hooks/nightly-backup'
 import { Route as ApiPublicHooksMirrorSyncRouteImport } from './routes/api/public/hooks/mirror-sync'
 
@@ -136,9 +136,9 @@ const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
 } as any)
 const AuthenticatedRacksRackIdRoute =
   AuthenticatedRacksRackIdRouteImport.update({
-    id: '/$rackId',
-    path: '/$rackId',
-    getParentRoute: () => AuthenticatedRacksRoute,
+    id: '/racks_/$rackId',
+    path: '/racks/$rackId',
+    getParentRoute: () => AuthenticatedRoute,
   } as any)
 const ApiPublicHooksNightlyBackupRoute =
   ApiPublicHooksNightlyBackupRouteImport.update({
@@ -164,7 +164,7 @@ export interface FileRoutesByFullPath {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
-  '/racks': typeof AuthenticatedRacksRouteWithChildren
+  '/racks': typeof AuthenticatedRacksRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -188,7 +188,7 @@ export interface FileRoutesByTo {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
-  '/racks': typeof AuthenticatedRacksRouteWithChildren
+  '/racks': typeof AuthenticatedRacksRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -214,7 +214,7 @@ export interface FileRoutesById {
   '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
   '/_authenticated/order-request': typeof AuthenticatedOrderRequestRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
-  '/_authenticated/racks': typeof AuthenticatedRacksRouteWithChildren
+  '/_authenticated/racks': typeof AuthenticatedRacksRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shipments': typeof AuthenticatedShipmentsRoute
@@ -222,7 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
-  '/_authenticated/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
+  '/_authenticated/racks_/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
@@ -297,7 +297,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
-    | '/_authenticated/racks/$rackId'
+    | '/_authenticated/racks_/$rackId'
     | '/api/public/server-health'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
@@ -454,12 +454,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicServerHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/racks/$rackId': {
-      id: '/_authenticated/racks/$rackId'
-      path: '/$rackId'
+    '/_authenticated/racks_/$rackId': {
+      id: '/_authenticated/racks_/$rackId'
+      path: '/racks/$rackId'
       fullPath: '/racks/$rackId'
       preLoaderRoute: typeof AuthenticatedRacksRackIdRouteImport
-      parentRoute: typeof AuthenticatedRacksRoute
+      parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/hooks/nightly-backup': {
       id: '/api/public/hooks/nightly-backup'
@@ -478,17 +478,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedRacksRouteChildren {
-  AuthenticatedRacksRackIdRoute: typeof AuthenticatedRacksRackIdRoute
-}
-
-const AuthenticatedRacksRouteChildren: AuthenticatedRacksRouteChildren = {
-  AuthenticatedRacksRackIdRoute: AuthenticatedRacksRackIdRoute,
-}
-
-const AuthenticatedRacksRouteWithChildren =
-  AuthenticatedRacksRoute._addFileChildren(AuthenticatedRacksRouteChildren)
-
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
@@ -498,7 +487,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
   AuthenticatedOrderRequestRoute: typeof AuthenticatedOrderRequestRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
-  AuthenticatedRacksRoute: typeof AuthenticatedRacksRouteWithChildren
+  AuthenticatedRacksRoute: typeof AuthenticatedRacksRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRoute
@@ -506,6 +495,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedStockInRoute: typeof AuthenticatedStockInRoute
   AuthenticatedStockOutRoute: typeof AuthenticatedStockOutRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+  AuthenticatedRacksRackIdRoute: typeof AuthenticatedRacksRackIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -517,7 +507,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
   AuthenticatedOrderRequestRoute: AuthenticatedOrderRequestRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
-  AuthenticatedRacksRoute: AuthenticatedRacksRouteWithChildren,
+  AuthenticatedRacksRoute: AuthenticatedRacksRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShipmentsRoute: AuthenticatedShipmentsRoute,
@@ -525,6 +515,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedStockInRoute: AuthenticatedStockInRoute,
   AuthenticatedStockOutRoute: AuthenticatedStockOutRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
+  AuthenticatedRacksRackIdRoute: AuthenticatedRacksRackIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
