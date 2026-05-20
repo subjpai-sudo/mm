@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { PageHeader } from "@/components/app/PageHeader";
 import { LiveBadge } from "@/components/app/LiveBadge";
 import { UniversalScanner } from "@/components/app/UniversalScanner";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
