@@ -7,11 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight, Printer } from "lucide-react";
+import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight, Printer, PencilLine } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
+import { DEFAULT_RACK_CODES, formatRackLabel } from "@/lib/racks";
 
 export const Route = createFileRoute("/_authenticated/racks_/$rackId")({ component: RackDetail });
 
@@ -34,7 +35,14 @@ function RackDetail() {
   const qc = useQueryClient();
   const [addingTo, setAddingTo] = useState<Shelf | null>(null);
   const [q, setQ] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [rackNameDraft, setRackNameDraft] = useState(rackId);
   useRealtimeSync({ silent: true });
+
+  const { data: rackRecord } = useQuery({
+    queryKey: ["rack", rackId],
+    queryFn: async () => (await supabase.from("racks").select("id, code, name").eq("code", rackId).maybeSingle()).data,
+  });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -99,20 +107,49 @@ function RackDetail() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const renameRack = useMutation({
+    mutationFn: async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("Rack name is required");
+      if (rackRecord?.id) {
+        const { error } = await supabase.from("racks").update({ name: trimmed }).eq("id", rackRecord.id);
+        if (error) throw error;
+        return;
+      }
+      const { error } = await supabase.from("racks").insert({ code: rackId, name: trimmed });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rack", rackId] });
+      qc.invalidateQueries({ queryKey: ["racks"] });
+      setRenameOpen(false);
+      toast.success("Rack updated");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const printableLabel = formatRackLabel(rackId, rackRecord?.name);
+  const rackInDefaultSet = DEFAULT_RACK_CODES.includes(rackId);
+
   return (
     <div className="p-3 sm:p-6 md:p-10 max-w-6xl mx-auto">
       <Link to="/racks" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-3">
         <ChevronLeft className="size-4" /> All racks
       </Link>
       <PageHeader
-        title={`Rack ${rackId}`}
+        title={printableLabel}
         subtitle="3D shelf view with live in/out activity per level."
         actions={
-          <Link to="/racks/print" search={{ ids: rackId } as any}>
-            <Button variant="outline" className="gap-2">
-              <Printer className="size-4" /> Print QR label
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" className="gap-2" onClick={() => { setRackNameDraft(rackRecord?.name ?? rackId); setRenameOpen(true); }}>
+              <PencilLine className="size-4" /> {rackInDefaultSet ? "Rename rack" : "Set rack name"}
             </Button>
-          </Link>
+            <Link to="/racks/print" search={{ ids: rackId } as any}>
+              <Button variant="outline" className="gap-2">
+                <Printer className="size-4" /> Generate QR
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -264,6 +301,24 @@ function RackDetail() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddingTo(null)} className="w-full">Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename rack {rackId}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Rack name</label>
+            <Input value={rackNameDraft} onChange={(event) => setRackNameDraft(event.target.value)} placeholder="Cold room wall" />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRenameOpen(false)}>Cancel</Button>
+            <Button onClick={() => renameRack.mutate(rackNameDraft)} className="gradient-primary text-primary-foreground border-0">
+              {renameRack.isPending ? "Saving…" : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

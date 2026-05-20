@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Printer } from "lucide-react";
 import { RackQRLabel } from "@/components/app/RackQRLabel";
-import { RACK_IDS } from "./racks";
+import { DEFAULT_RACK_CODES } from "@/lib/racks";
 
 const search = z.object({
   ids: z.string().optional(), // comma-separated rack IDs; defaults to all
@@ -19,7 +19,7 @@ function PrintRackLabels() {
   const { ids } = Route.useSearch();
   const list: string[] = ids
     ? ids.split(",").map((s: string) => s.trim()).filter(Boolean)
-    : [...RACK_IDS];
+    : [...DEFAULT_RACK_CODES];
 
   useEffect(() => {
     document.title = `Print rack labels (${list.length})`;
