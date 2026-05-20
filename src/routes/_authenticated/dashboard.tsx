@@ -4,7 +4,10 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { StatCard } from "@/components/app/StatCard";
-import { Boxes, AlertTriangle, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, Activity, Truck, Store, Warehouse } from "lucide-react";
+import { Boxes, AlertTriangle, ArrowUpRight, ArrowDownRight, Barcode, ImageIcon, Activity, Truck, Store, Warehouse, PackagePlus, PackageMinus, ScanLine } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { UniversalScanner } from "@/components/app/UniversalScanner";
+import { AIInsightsPanel } from "@/components/app/AIInsightsPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +24,7 @@ export const Route = createFileRoute("/_authenticated/dashboard")({ component: D
 
 function Dashboard() {
   const { lastUpdated } = useRealtimeSync();
+  const [scanOpen, setScanOpen] = useState(false);
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],
@@ -154,6 +158,26 @@ function Dashboard() {
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
 
+      {/* Quick actions */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+        <Link to="/stock-in" className="block">
+          <button className="w-full h-14 sm:h-16 rounded-2xl border border-success/30 bg-success/10 hover:bg-success/15 text-success font-semibold inline-flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <PackagePlus className="size-5" /> <span className="hidden sm:inline">Stock In</span><span className="sm:hidden">In</span>
+          </button>
+        </Link>
+        <Link to="/stock-out" className="block">
+          <button className="w-full h-14 sm:h-16 rounded-2xl border border-destructive/30 bg-destructive/10 hover:bg-destructive/15 text-destructive font-semibold inline-flex items-center justify-center gap-2 transition active:scale-[0.98]">
+            <PackageMinus className="size-5" /> <span className="hidden sm:inline">Stock Out</span><span className="sm:hidden">Out</span>
+          </button>
+        </Link>
+        <button
+          onClick={() => setScanOpen(true)}
+          className="w-full h-14 sm:h-16 rounded-2xl gradient-primary text-primary-foreground font-semibold inline-flex items-center justify-center gap-2 transition active:scale-[0.98] shadow-[0_8px_24px_-12px_rgba(0,0,0,0.4)]"
+        >
+          <ScanLine className="size-5" /> <span className="hidden sm:inline">Scan QR / Barcode</span><span className="sm:hidden">Scan</span>
+        </button>
+      </div>
+
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
         <StatCard label="Total products" value={total} icon={Boxes} tone="primary" hint={`${stockedIn24}/${stockedOut24} in/out 24h`} to="/products" search={{ filter: "all" }} />
         <DashCard
@@ -173,6 +197,11 @@ function Dashboard() {
           value={shopTotal.toLocaleString()}
           hint={topShop && topShop[1] > 0 ? `Top: ${topShop[0]}` : "No deliveries yet"}
         />
+      </div>
+
+      {/* AI insights */}
+      <div className="mb-6">
+        <AIInsightsPanel />
       </div>
 
       <Tabs defaultValue="activity">
@@ -335,6 +364,7 @@ function Dashboard() {
           </div>
         </DialogContent>
       </Dialog>
+      <UniversalScanner open={scanOpen} onClose={() => setScanOpen(false)} />
     </div>
   );
 }
