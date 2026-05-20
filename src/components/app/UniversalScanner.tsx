@@ -10,8 +10,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  Package, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight,
-  Hash, Barcode as BarcodeIcon, Tag, Boxes, Clock, AlertTriangle, PackageX, MapPin, Search,
+  Package,
+  ImageIcon,
+  Warehouse,
+  ArrowUpRight,
+  ArrowDownRight,
+  Hash,
+  Barcode as BarcodeIcon,
+  Tag,
+  Boxes,
+  Clock,
+  AlertTriangle,
+  PackageX,
+  MapPin,
+  Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -41,7 +53,10 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
   const [loading, setLoading] = useState(false);
 
   function parseRackCode(raw: string) {
-    const normalized = raw.trim().replace(/^https?:\/\/[^/]+\//i, "").replace(/^#/, "");
+    const normalized = raw
+      .trim()
+      .replace(/^https?:\/\/[^/]+\//i, "")
+      .replace(/^#/, "");
     const compact = normalized.replace(/\s+/g, "");
     const prefixed = compact.match(/^RACK:([A-Za-z0-9_-]+)$/i);
     if (prefixed) return prefixed[1].toUpperCase();
@@ -66,18 +81,31 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
         return;
       }
       const { data: product } = await supabase
-        .from("products").select("*").eq("barcode", trimmed).maybeSingle();
+        .from("products")
+        .select("*")
+        .eq("barcode", trimmed)
+        .maybeSingle();
       if (!product) {
         setHit({ kind: "unknown", code: trimmed });
         return;
       }
       const [{ data: movements }, { data: rackRow }] = await Promise.all([
-        supabase.from("stock_movements").select("*").eq("product_id", product.id).order("created_at", { ascending: false }).limit(1),
+        supabase
+          .from("stock_movements")
+          .select("*")
+          .eq("product_id", product.id)
+          .order("created_at", { ascending: false })
+          .limit(1),
         product.rack
           ? supabase.from("racks").select("code, name").eq("code", product.rack).maybeSingle()
-          : Promise.resolve({ data: null }) as any,
+          : (Promise.resolve({ data: null }) as any),
       ]);
-      setHit({ kind: "product", product, lastMovement: movements?.[0] ?? null, rackMeta: rackRow ?? null });
+      setHit({
+        kind: "product",
+        product,
+        lastMovement: movements?.[0] ?? null,
+        rackMeta: rackRow ?? null,
+      });
       qc.invalidateQueries({ queryKey: ["products"] });
     } catch (e: any) {
       toast.error("Scan lookup failed", { description: e?.message });
@@ -92,15 +120,29 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
   }
 
   async function refreshAsProduct(barcode: string) {
-    const { data: product } = await supabase.from("products").select("*").eq("barcode", barcode).maybeSingle();
+    const { data: product } = await supabase
+      .from("products")
+      .select("*")
+      .eq("barcode", barcode)
+      .maybeSingle();
     if (!product) return;
     const [{ data: movements }, { data: rackRow }] = await Promise.all([
-      supabase.from("stock_movements").select("*").eq("product_id", product.id).order("created_at", { ascending: false }).limit(1),
+      supabase
+        .from("stock_movements")
+        .select("*")
+        .eq("product_id", product.id)
+        .order("created_at", { ascending: false })
+        .limit(1),
       product.rack
         ? supabase.from("racks").select("code, name").eq("code", product.rack).maybeSingle()
-        : Promise.resolve({ data: null }) as any,
+        : (Promise.resolve({ data: null }) as any),
     ]);
-    setHit({ kind: "product", product, lastMovement: movements?.[0] ?? null, rackMeta: rackRow ?? null });
+    setHit({
+      kind: "product",
+      product,
+      lastMovement: movements?.[0] ?? null,
+      rackMeta: rackRow ?? null,
+    });
     qc.invalidateQueries({ queryKey: ["products"] });
   }
 
@@ -131,14 +173,17 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
               onOpenStockIn={() => {
                 const bc = hit.product.barcode;
                 closeAll();
-                nav({ to: "/stock-in", search: bc ? { barcode: bc } as any : {} });
+                nav({ to: "/stock-in", search: bc ? ({ barcode: bc } as any) : {} });
               }}
               onOpenStockOut={() => {
                 const bc = hit.product.barcode;
                 closeAll();
-                nav({ to: "/stock-out", search: bc ? { barcode: bc } as any : {} });
+                nav({ to: "/stock-out", search: bc ? ({ barcode: bc } as any) : {} });
               }}
-              onOpenProducts={() => { closeAll(); nav({ to: "/products" }); }}
+              onOpenProducts={() => {
+                closeAll();
+                nav({ to: "/products" });
+              }}
               onScanAgain={() => setHit(null)}
             />
           )}
@@ -147,7 +192,10 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
             <RackCard
               hit={hit}
               onClose={closeAll}
-              onOpenRack={() => { closeAll(); nav({ to: "/racks/$rackId", params: { rackId: hit.code } }); }}
+              onOpenRack={() => {
+                closeAll();
+                nav({ to: "/racks/$rackId", params: { rackId: hit.code } });
+              }}
               onScanAgain={() => setHit(null)}
             />
           )}
@@ -166,7 +214,12 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
   );
 }
 
-function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
+function UnknownCard({
+  code,
+  onScanAgain,
+  onClose,
+  onRegistered,
+}: {
   code: string;
   onScanAgain: () => void;
   onClose: () => void;
@@ -177,15 +230,25 @@ function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
   const qc = useQueryClient();
   const { data: products = [] } = useQuery({
     queryKey: ["products-pick"],
-    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, image_url, stock").order("name")).data ?? [],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, name, sku, barcode, image_url, stock")
+          .order("name")
+      ).data ?? [],
     enabled: picking,
   });
   const filtered = (products as any[])
-    .filter((p) => !q || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase()))
+    .filter(
+      (p) =>
+        !q || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase()),
+    )
     .slice(0, 30);
   const assign = useMutation({
     mutationFn: async (productId: string) => {
-      const { error } = await supabase.from("products")
+      const { error } = await supabase
+        .from("products")
         .update({ barcode: code, barcode_registered_at: new Date().toISOString() })
         .eq("id", productId);
       if (error) throw error;
@@ -213,12 +276,21 @@ function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 pt-2">
-          <Button variant="outline" onClick={onScanAgain}>Scan again</Button>
-          <Button className="gradient-primary text-primary-foreground border-0" onClick={() => setPicking(true)}>
+          <Button variant="outline" onClick={onScanAgain}>
+            Scan again
+          </Button>
+          <Button
+            className="gradient-primary text-primary-foreground border-0"
+            onClick={() => setPicking(true)}
+          >
             Assign to product
           </Button>
         </div>
-        <Link to="/products" onClick={onClose} className="block text-xs text-muted-foreground hover:text-foreground">
+        <Link
+          to="/products"
+          onClick={onClose}
+          className="block text-xs text-muted-foreground hover:text-foreground"
+        >
           or create a new product →
         </Link>
       </div>
@@ -228,21 +300,38 @@ function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
   return (
     <div className="p-5 space-y-3">
       <div>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Register barcode</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+          Register barcode
+        </div>
         <div className="font-mono text-sm break-all">{code}</div>
-        <p className="text-xs text-muted-foreground mt-1">Pick the product this barcode belongs to.</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Pick the product this barcode belongs to.
+        </p>
       </div>
       <div className="relative">
         <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products…" className="pl-9" />
+        <Input
+          autoFocus
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search products…"
+          className="pl-9"
+        />
       </div>
       <div className="max-h-[45vh] overflow-y-auto -mx-1 px-1 space-y-1">
         {filtered.map((p) => (
-          <button key={p.id} disabled={assign.isPending}
+          <button
+            key={p.id}
+            disabled={assign.isPending}
             onClick={() => assign.mutate(p.id)}
-            className="w-full flex items-center gap-3 p-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/60 text-left disabled:opacity-50">
+            className="w-full flex items-center gap-3 p-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/60 text-left disabled:opacity-50"
+          >
             <div className="size-10 rounded-lg bg-secondary overflow-hidden grid place-items-center shrink-0">
-              {p.image_url ? <img src={p.image_url} alt={p.name} className="size-full object-cover" /> : <ImageIcon className="size-4 text-muted-foreground" />}
+              {p.image_url ? (
+                <img src={p.image_url} alt={p.name} className="size-full object-cover" />
+              ) : (
+                <ImageIcon className="size-4 text-muted-foreground" />
+              )}
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-sm truncate">{p.name}</div>
@@ -250,20 +339,35 @@ function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
                 {p.sku ?? "—"} · {p.barcode ?? "no barcode"}
               </div>
             </div>
-            <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">stock {p.stock}</span>
+            <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+              stock {p.stock}
+            </span>
           </button>
         ))}
-        {filtered.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products match.</p>}
+        {filtered.length === 0 && (
+          <p className="text-sm text-muted-foreground p-6 text-center">No products match.</p>
+        )}
       </div>
       <div className="grid grid-cols-2 gap-2 pt-1">
-        <Button variant="outline" onClick={() => setPicking(false)}>Back</Button>
-        <Button variant="ghost" onClick={onScanAgain}>Scan another</Button>
+        <Button variant="outline" onClick={() => setPicking(false)}>
+          Back
+        </Button>
+        <Button variant="ghost" onClick={onScanAgain}>
+          Scan another
+        </Button>
       </div>
     </div>
   );
 }
 
-function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProducts, onScanAgain }: {
+function ProductCard({
+  hit,
+  onClose,
+  onOpenStockIn,
+  onOpenStockOut,
+  onOpenProducts,
+  onScanAgain,
+}: {
   hit: ProductHit;
   onClose: () => void;
   onOpenStockIn: () => void;
@@ -273,11 +377,12 @@ function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProduc
 }) {
   const p = hit.product;
   const threshold = p.low_stock_threshold ?? 5;
-  const status = p.stock <= 0
-    ? { label: "Out of stock", tone: "bg-destructive/15 text-destructive", Icon: PackageX }
-    : p.stock <= threshold
-      ? { label: "Low stock", tone: "bg-warning/15 text-warning", Icon: AlertTriangle }
-      : { label: "In stock", tone: "bg-success/15 text-success", Icon: Boxes };
+  const status =
+    p.stock <= 0
+      ? { label: "Out of stock", tone: "bg-destructive/15 text-destructive", Icon: PackageX }
+      : p.stock <= threshold
+        ? { label: "Low stock", tone: "bg-warning/15 text-warning", Icon: AlertTriangle }
+        : { label: "In stock", tone: "bg-success/15 text-success", Icon: Boxes };
   const StatusIcon = status.Icon;
   return (
     <div>
@@ -289,13 +394,20 @@ function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProduc
             <ImageIcon className="size-12 opacity-50" />
           </div>
         )}
-        <div className={cn("absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md", status.tone)}>
+        <div
+          className={cn(
+            "absolute top-3 left-3 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold backdrop-blur-md",
+            status.tone,
+          )}
+        >
           <StatusIcon className="size-3.5" /> {status.label}
         </div>
       </div>
       <div className="p-5 space-y-4">
         <div>
-          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Product</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            Product
+          </div>
           <h3 className="text-xl font-bold tracking-tight leading-tight">{p.name}</h3>
         </div>
 
@@ -312,19 +424,32 @@ function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProduc
           </div>
           <div className="min-w-0 text-sm">
             <div className="font-semibold truncate">
-              {p.rack ? (hit.rackMeta?.name && hit.rackMeta.name.toUpperCase() !== p.rack.toUpperCase()
-                ? `${p.rack} · ${hit.rackMeta.name}` : p.rack) : "Unassigned"}
+              {p.rack
+                ? hit.rackMeta?.name && hit.rackMeta.name.toUpperCase() !== p.rack.toUpperCase()
+                  ? `${p.rack} · ${hit.rackMeta.name}`
+                  : p.rack
+                : "Unassigned"}
             </div>
-            <div className="text-xs text-muted-foreground">{p.shelf ? `Shelf: ${p.shelf}` : "No shelf set"}</div>
+            <div className="text-xs text-muted-foreground">
+              {p.shelf ? `Shelf: ${p.shelf}` : "No shelf set"}
+            </div>
           </div>
         </div>
 
         <div className="rounded-xl border border-border p-3 flex items-center gap-3">
-          <div className={cn(
-            "size-9 rounded-lg grid place-items-center shrink-0",
-            hit.lastMovement?.type === "in" ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive",
-          )}>
-            {hit.lastMovement?.type === "in" ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
+          <div
+            className={cn(
+              "size-9 rounded-lg grid place-items-center shrink-0",
+              hit.lastMovement?.type === "in"
+                ? "bg-success/15 text-success"
+                : "bg-destructive/15 text-destructive",
+            )}
+          >
+            {hit.lastMovement?.type === "in" ? (
+              <ArrowUpRight className="size-4" />
+            ) : (
+              <ArrowDownRight className="size-4" />
+            )}
           </div>
           <div className="min-w-0 text-sm flex-1">
             <div className="font-semibold">
@@ -342,15 +467,26 @@ function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProduc
         </div>
 
         <div className="grid grid-cols-3 gap-2 pt-1">
-          <Button onClick={onOpenStockIn} className="bg-success/15 text-success border-0 hover:bg-success/25">
+          <Button
+            onClick={onOpenStockIn}
+            className="bg-success/15 text-success border-0 hover:bg-success/25"
+          >
             <ArrowUpRight className="size-4 mr-1" /> In
           </Button>
-          <Button onClick={onOpenStockOut} className="bg-destructive/15 text-destructive border-0 hover:bg-destructive/25">
+          <Button
+            onClick={onOpenStockOut}
+            className="bg-destructive/15 text-destructive border-0 hover:bg-destructive/25"
+          >
             <ArrowDownRight className="size-4 mr-1" /> Out
           </Button>
-          <Button variant="outline" onClick={onScanAgain}>Scan next</Button>
+          <Button variant="outline" onClick={onScanAgain}>
+            Scan next
+          </Button>
         </div>
-        <button onClick={onOpenProducts} className="w-full text-center text-xs text-muted-foreground hover:text-foreground">
+        <button
+          onClick={onOpenProducts}
+          className="w-full text-center text-xs text-muted-foreground hover:text-foreground"
+        >
           Open product list →
         </button>
       </div>
@@ -358,14 +494,21 @@ function ProductCard({ hit, onClose, onOpenStockIn, onOpenStockOut, onOpenProduc
   );
 }
 
-function RackCard({ hit, onClose, onOpenRack, onScanAgain }: {
+function RackCard({
+  hit,
+  onClose,
+  onOpenRack,
+  onScanAgain,
+}: {
   hit: RackHit;
   onClose: () => void;
   onOpenRack: () => void;
   onScanAgain: () => void;
 }) {
-  const out = hit.items.filter(i => i.stock <= 0).length;
-  const low = hit.items.filter(i => i.stock > 0 && i.stock <= (i.low_stock_threshold ?? 5)).length;
+  const out = hit.items.filter((i) => i.stock <= 0).length;
+  const low = hit.items.filter(
+    (i) => i.stock > 0 && i.stock <= (i.low_stock_threshold ?? 5),
+  ).length;
   const ok = hit.items.length - out - low;
   return (
     <div>
@@ -377,14 +520,23 @@ function RackCard({ hit, onClose, onOpenRack, onScanAgain }: {
           <div className="min-w-0">
             <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">Rack</div>
             <h3 className="text-2xl font-bold leading-none">
-              {hit.code}{hit.name && hit.name.toUpperCase() !== hit.code ? <span className="opacity-80 font-normal"> · {hit.name}</span> : null}
+              {hit.code}
+              {hit.name && hit.name.toUpperCase() !== hit.code ? (
+                <span className="opacity-80 font-normal"> · {hit.name}</span>
+              ) : null}
             </h3>
           </div>
         </div>
         <div className="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-          <div className="rounded-xl bg-primary-foreground/15 py-2"><div className="text-lg font-bold">{ok}</div>ok</div>
-          <div className="rounded-xl bg-primary-foreground/15 py-2"><div className="text-lg font-bold">{low}</div>low</div>
-          <div className="rounded-xl bg-primary-foreground/15 py-2"><div className="text-lg font-bold">{out}</div>out</div>
+          <div className="rounded-xl bg-primary-foreground/15 py-2">
+            <div className="text-lg font-bold">{ok}</div>ok
+          </div>
+          <div className="rounded-xl bg-primary-foreground/15 py-2">
+            <div className="text-lg font-bold">{low}</div>low
+          </div>
+          <div className="rounded-xl bg-primary-foreground/15 py-2">
+            <div className="text-lg font-bold">{out}</div>out
+          </div>
         </div>
       </div>
       <div className="p-4 space-y-3 max-h-[55vh] overflow-y-auto">
@@ -399,23 +551,38 @@ function RackCard({ hit, onClose, onOpenRack, onScanAgain }: {
         )}
         <ul className="space-y-2">
           {hit.items.map((it) => {
-            const dot = it.stock <= 0 ? "bg-destructive" : it.stock <= (it.low_stock_threshold ?? 5) ? "bg-warning" : "bg-success";
+            const dot =
+              it.stock <= 0
+                ? "bg-destructive"
+                : it.stock <= (it.low_stock_threshold ?? 5)
+                  ? "bg-warning"
+                  : "bg-success";
             return (
-              <li key={it.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-border hover:bg-secondary/40 transition">
+              <li
+                key={it.id}
+                className="flex items-center gap-3 p-2.5 rounded-xl border border-border hover:bg-secondary/40 transition"
+              >
                 <div className="size-10 rounded-lg bg-secondary overflow-hidden shrink-0 grid place-items-center">
-                  {it.image_url
-                    ? <img src={it.image_url} alt={it.name} className="size-full object-cover" />
-                    : <ImageIcon className="size-4 text-muted-foreground" />}
+                  {it.image_url ? (
+                    <img src={it.image_url} alt={it.name} className="size-full object-cover" />
+                  ) : (
+                    <ImageIcon className="size-4 text-muted-foreground" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-medium text-sm truncate">{it.name}</div>
-                  <div className="text-[11px] text-muted-foreground font-mono truncate">{it.barcode ?? it.sku ?? "—"}</div>
+                  <div className="text-[11px] text-muted-foreground font-mono truncate">
+                    {it.barcode ?? it.sku ?? "—"}
+                  </div>
                 </div>
                 <div className="text-right">
                   <div className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                    <span className={cn("size-1.5 rounded-full", dot)} />{it.stock}
+                    <span className={cn("size-1.5 rounded-full", dot)} />
+                    {it.stock}
                   </div>
-                  {it.shelf && <div className="text-[10px] text-muted-foreground capitalize">{it.shelf}</div>}
+                  {it.shelf && (
+                    <div className="text-[10px] text-muted-foreground capitalize">{it.shelf}</div>
+                  )}
                 </div>
               </li>
             );
@@ -423,7 +590,9 @@ function RackCard({ hit, onClose, onOpenRack, onScanAgain }: {
         </ul>
       </div>
       <div className="p-3 border-t border-border grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={onScanAgain}>Scan next</Button>
+        <Button variant="outline" onClick={onScanAgain}>
+          Scan next
+        </Button>
         <Button onClick={onOpenRack} className="gradient-primary text-primary-foreground border-0">
           Open rack
         </Button>
@@ -432,13 +601,27 @@ function RackCard({ hit, onClose, onOpenRack, onScanAgain }: {
   );
 }
 
-function Metric({ label, value, sub, mono, Icon }: { label: string; value: string; sub?: string; mono?: boolean; Icon: any }) {
+function Metric({
+  label,
+  value,
+  sub,
+  mono,
+  Icon,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  mono?: boolean;
+  Icon: any;
+}) {
   return (
     <div className="rounded-xl border border-border p-3">
       <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground inline-flex items-center gap-1">
         <Icon className="size-3" /> {label}
       </div>
-      <div className={cn("font-semibold text-sm mt-0.5 truncate", mono && "font-mono")}>{value}</div>
+      <div className={cn("font-semibold text-sm mt-0.5 truncate", mono && "font-mono")}>
+        {value}
+      </div>
       {sub && <div className="text-[10px] text-muted-foreground">{sub}</div>}
     </div>
   );
