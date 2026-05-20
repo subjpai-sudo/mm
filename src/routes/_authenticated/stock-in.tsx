@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,13 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 
-export const Route = createFileRoute("/_authenticated/stock-in")({ component: StockIn });
+type StockInSearch = { barcode?: string };
+export const Route = createFileRoute("/_authenticated/stock-in")({
+  component: StockIn,
+  validateSearch: (s: Record<string, unknown>): StockInSearch => ({
+    barcode: typeof s.barcode === "string" && s.barcode.length ? s.barcode : undefined,
+  }),
+});
 
 function formatDetectedProductLabel(code: string, products: any[]) {
   const match = products.find((x: any) => x.barcode === code || x.sku === code);
@@ -24,6 +30,8 @@ function formatDetectedProductLabel(code: string, products: any[]) {
 function StockIn() {
   const { user } = useAuth();
   const qc = useQueryClient();
+  const search = Route.useSearch();
+  const nav = Route.useNavigate();
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
   const [scan, setScan] = useState("");
@@ -44,6 +52,16 @@ function StockIn() {
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
   });
+
+  // Auto-prefill from ?barcode=… when navigating from the scanner.
+  useEffect(() => {
+    if (!search.barcode || products.length === 0) return;
+    const p = (products as any[]).find((x) => x.barcode === search.barcode || x.sku === search.barcode);
+    if (p) setConfirm(p);
+    else setNotFound(search.barcode);
+    nav({ search: {}, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.barcode, products.length]);
 
   const parents = categories.filter((c: any) => !c.parent_id);
   const children = parent ? categories.filter((c: any) => c.parent_id === parent.id) : [];
