@@ -45,6 +45,7 @@ function ProductsPage() {
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [rapidOpen, setRapidOpen] = useState(false);
+  const [bulkShelfOpen, setBulkShelfOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
   const [viewing, setViewing] = useState<any | null>(null);
@@ -216,6 +217,9 @@ function ProductsPage() {
             </Button>
             <Button variant="secondary" onClick={() => setRapidOpen(true)}>
               <Zap className="size-4" /> Rapid scan
+            </Button>
+            <Button variant="secondary" onClick={() => setBulkShelfOpen(true)}>
+              <Warehouse className="size-4" /> Assign to shelf
             </Button>
             <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
             <Dialog open={open} onOpenChange={setOpen}>
