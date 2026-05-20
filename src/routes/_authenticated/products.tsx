@@ -155,19 +155,11 @@ function ProductsPage() {
 
   const generateAIFn = useServerFn(generateProductImageAI);
   const bulkGenerateAIFn = useServerFn(bulkGenerateProductImagesAI);
-  const bulkAIMissing = useMutation({
-    mutationFn: () => bulkGenerateAIFn({ data: { mode: "missing", limit: 20 } }),
-    onSuccess: (r: any) => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`AI generated ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}`);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "AI generation failed"),
-  });
   const bulkAIAll = useMutation({
-    mutationFn: () => bulkGenerateAIFn({ data: { mode: "all", limit: 20 } }),
+    mutationFn: () => bulkGenerateAIFn({ data: { mode: "all", limit: 50 } }),
     onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`AI regenerated ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}`);
+      toast.success(`AI generated ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}. Run again to continue.`);
     },
     onError: (e: any) => toast.error(e?.message ?? "AI regeneration failed"),
   });
@@ -234,13 +226,9 @@ function ProductsPage() {
               onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
               <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
             </Button>
-            <Button variant="secondary" disabled={bulkAIMissing.isPending}
-              onClick={() => { if (confirm("Use Gemini AI to generate product images for items missing one? (up to 20 per run)")) bulkAIMissing.mutate(); }}>
-              <Wand2 className="size-4" /> {bulkAIMissing.isPending ? "Generating…" : "Generate AI images"}
-            </Button>
-            <Button variant="outline" disabled={bulkAIAll.isPending}
-              onClick={() => { if (confirm("Regenerate AI images for ALL products (overwrites existing)? Runs 20 at a time.")) bulkAIAll.mutate(); }}>
-              <Wand2 className="size-4" /> {bulkAIAll.isPending ? "Regenerating…" : "Regenerate all (AI)"}
+            <Button className="gradient-primary text-primary-foreground border-0" disabled={bulkAIAll.isPending}
+              onClick={() => { if (confirm("Generate fresh AI images for every product (replaces existing)? Processes 50 per run — click again to continue.")) bulkAIAll.mutate(); }}>
+              <Wand2 className="size-4" /> {bulkAIAll.isPending ? "Generating…" : "Generate AI images (all)"}
             </Button>
             <Button variant="secondary" onClick={() => setRapidOpen(true)}>
               <Zap className="size-4" /> Rapid scan
