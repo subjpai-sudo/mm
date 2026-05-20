@@ -17,7 +17,9 @@ export const Route = createFileRoute("/_authenticated/racks/print")({
 
 function PrintRackLabels() {
   const { ids } = Route.useSearch();
-  const list = ids ? ids.split(",").map((s) => s.trim()).filter(Boolean) : [...RACK_IDS];
+  const list: string[] = ids
+    ? ids.split(",").map((s: string) => s.trim()).filter(Boolean)
+    : [...RACK_IDS];
 
   useEffect(() => {
     document.title = `Print rack labels (${list.length})`;
@@ -44,7 +46,7 @@ function PrintRackLabels() {
           Stick one on each rack. Scan with the floating scanner to open that rack instantly.
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-4 print:gap-3">
-          {list.map((id) => (
+          {list.map((id: string) => (
             <RackQRLabel key={id} rackId={id} />
           ))}
         </div>
