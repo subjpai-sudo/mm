@@ -155,6 +155,15 @@ function UsersPage() {
           <div className="divide-y">
             {data!.map((u) => (
               <div key={u.id} className="p-4 flex flex-wrap items-center gap-3">
+                <div className="size-10 rounded-full overflow-hidden border border-border bg-muted grid place-items-center shrink-0">
+                  {(u as any).avatar_url ? (
+                    <img src={(u as any).avatar_url} alt={u.full_name ?? u.username ?? ""} className="size-full object-cover" />
+                  ) : (
+                    <span className="text-xs font-semibold text-muted-foreground">
+                      {((u.full_name ?? u.username) ?? "?").slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="font-medium truncate flex items-center gap-2">
                     {u.full_name ?? u.username}
