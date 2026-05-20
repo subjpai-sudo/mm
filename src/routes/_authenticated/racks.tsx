@@ -4,7 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
-import { Warehouse, Package, AlertTriangle, PackageX } from "lucide-react";
+import { Warehouse, Package, AlertTriangle, PackageX, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/racks")({ component: RacksIndex });
@@ -37,7 +38,17 @@ function RacksIndex() {
 
   return (
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Racks" subtitle="Pick a rack to manage its shelves." />
+      <PageHeader
+        title="Racks"
+        subtitle="Pick a rack to manage its shelves."
+        actions={
+          <Link to="/racks/print">
+            <Button variant="outline" className="gap-2">
+              <Printer className="size-4" /> Print all QR labels
+            </Button>
+          </Link>
+        }
+      />
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
         {[...RACK_IDS, ...extraRacks].map((id) => {

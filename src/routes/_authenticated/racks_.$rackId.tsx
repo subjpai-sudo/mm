@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -107,6 +107,13 @@ function RackDetail() {
       <PageHeader
         title={`Rack ${rackId}`}
         subtitle="3D shelf view with live in/out activity per level."
+        actions={
+          <Link to="/racks/print" search={{ ids: rackId } as any}>
+            <Button variant="outline" className="gap-2">
+              <Printer className="size-4" /> Print QR label
+            </Button>
+          </Link>
+        }
       />
 
       <div className="space-y-4">

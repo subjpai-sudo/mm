@@ -30,6 +30,7 @@ import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks_.$rackId'
+import { Route as AuthenticatedRacksPrintRouteImport } from './routes/_authenticated/racks.print'
 import { Route as ApiPublicHooksNightlyBackupRouteImport } from './routes/api/public/hooks/nightly-backup'
 import { Route as ApiPublicHooksMirrorSyncRouteImport } from './routes/api/public/hooks/mirror-sync'
 
@@ -140,6 +141,11 @@ const AuthenticatedRacksRackIdRoute =
     path: '/racks/$rackId',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedRacksPrintRoute = AuthenticatedRacksPrintRouteImport.update({
+  id: '/print',
+  path: '/print',
+  getParentRoute: () => AuthenticatedRacksRoute,
+} as any)
 const ApiPublicHooksNightlyBackupRoute =
   ApiPublicHooksNightlyBackupRouteImport.update({
     id: '/api/public/hooks/nightly-backup',
@@ -164,7 +170,7 @@ export interface FileRoutesByFullPath {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
-  '/racks': typeof AuthenticatedRacksRoute
+  '/racks': typeof AuthenticatedRacksRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
@@ -188,7 +195,7 @@ export interface FileRoutesByTo {
   '/order-history': typeof AuthenticatedOrderHistoryRoute
   '/order-request': typeof AuthenticatedOrderRequestRoute
   '/products': typeof AuthenticatedProductsRoute
-  '/racks': typeof AuthenticatedRacksRoute
+  '/racks': typeof AuthenticatedRacksRouteWithChildren
   '/reports': typeof AuthenticatedReportsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/shipments': typeof AuthenticatedShipmentsRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
@@ -214,7 +222,7 @@ export interface FileRoutesById {
   '/_authenticated/order-history': typeof AuthenticatedOrderHistoryRoute
   '/_authenticated/order-request': typeof AuthenticatedOrderRequestRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
-  '/_authenticated/racks': typeof AuthenticatedRacksRoute
+  '/_authenticated/racks': typeof AuthenticatedRacksRouteWithChildren
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/shipments': typeof AuthenticatedShipmentsRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/_authenticated/racks/print': typeof AuthenticatedRacksPrintRoute
   '/_authenticated/racks_/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
@@ -248,6 +257,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
     | '/api/public/hooks/mirror-sync'
@@ -272,6 +282,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
     | '/api/public/hooks/mirror-sync'
@@ -297,6 +308,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
+    | '/_authenticated/racks/print'
     | '/_authenticated/racks_/$rackId'
     | '/api/public/server-health'
     | '/api/public/hooks/mirror-sync'
@@ -461,6 +473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRacksRackIdRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/racks/print': {
+      id: '/_authenticated/racks/print'
+      path: '/print'
+      fullPath: '/racks/print'
+      preLoaderRoute: typeof AuthenticatedRacksPrintRouteImport
+      parentRoute: typeof AuthenticatedRacksRoute
+    }
     '/api/public/hooks/nightly-backup': {
       id: '/api/public/hooks/nightly-backup'
       path: '/api/public/hooks/nightly-backup'
@@ -478,6 +497,17 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AuthenticatedRacksRouteChildren {
+  AuthenticatedRacksPrintRoute: typeof AuthenticatedRacksPrintRoute
+}
+
+const AuthenticatedRacksRouteChildren: AuthenticatedRacksRouteChildren = {
+  AuthenticatedRacksPrintRoute: AuthenticatedRacksPrintRoute,
+}
+
+const AuthenticatedRacksRouteWithChildren =
+  AuthenticatedRacksRoute._addFileChildren(AuthenticatedRacksRouteChildren)
+
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
@@ -487,7 +517,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedOrderHistoryRoute: typeof AuthenticatedOrderHistoryRoute
   AuthenticatedOrderRequestRoute: typeof AuthenticatedOrderRequestRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
-  AuthenticatedRacksRoute: typeof AuthenticatedRacksRoute
+  AuthenticatedRacksRoute: typeof AuthenticatedRacksRouteWithChildren
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedShipmentsRoute: typeof AuthenticatedShipmentsRoute
@@ -507,7 +537,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedOrderHistoryRoute: AuthenticatedOrderHistoryRoute,
   AuthenticatedOrderRequestRoute: AuthenticatedOrderRequestRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
-  AuthenticatedRacksRoute: AuthenticatedRacksRoute,
+  AuthenticatedRacksRoute: AuthenticatedRacksRouteWithChildren,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedShipmentsRoute: AuthenticatedShipmentsRoute,

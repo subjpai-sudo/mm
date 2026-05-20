@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { ScannerFAB } from "@/components/app/ScannerFAB";
 
 export const Route = createFileRoute("/_authenticated")({ component: ProtectedLayout });
 
@@ -196,6 +197,7 @@ function ProtectedLayout() {
           })}
         </nav>
       </main>
+      <ScannerFAB />
     </div>
   );
 }
