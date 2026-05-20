@@ -17,7 +17,7 @@ import { formatDistanceToNow, format } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
 import { SHOPS, isShop } from "@/lib/shops";
-import { RACK_IDS } from "./racks";
+import { DEFAULT_RACK_CODES as RACK_IDS } from "@/lib/racks";
 import { Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
