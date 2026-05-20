@@ -33,10 +33,10 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
       .eq("barcode", trimmed)
       .maybeSingle();
     if (product) {
-      toast.success(`Found ${product.name}`);
+      toast.success(`Found: ${product.name}`, { description: trimmed });
       onClose();
       qc.invalidateQueries({ queryKey: ["products"] });
-      nav({ to: "/products", search: { q: trimmed } as any });
+      nav({ to: "/products" });
     } else {
       toast.message(`Unknown code: ${trimmed}`, { description: "No product matches this barcode." });
     }
