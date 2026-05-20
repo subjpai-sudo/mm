@@ -63,6 +63,16 @@ function StockOut() {
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
   });
+
+  // Auto-prefill from ?barcode=… when navigating from the scanner.
+  useEffect(() => {
+    if (!routeSearch.barcode || products.length === 0) return;
+    const p = (products as any[]).find((x) => x.barcode === routeSearch.barcode || x.sku === routeSearch.barcode);
+    if (p) setSelected(p);
+    else toast.error(`Barcode ${routeSearch.barcode} not found`);
+    nav({ search: {}, replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSearch.barcode, products.length]);
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
