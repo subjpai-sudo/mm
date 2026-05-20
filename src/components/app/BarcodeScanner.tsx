@@ -210,6 +210,9 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
         const rawValue = codes?.find((entry: any) => typeof entry?.rawValue === "string" && entry.rawValue.trim())?.rawValue;
         if (rawValue) {
           emit(rawValue);
+          if (keepOpenOnDetect) {
+            nativeLoopTimerRef.current = window.setTimeout(tick, 380);
+          }
           return;
         }
       } catch {}
