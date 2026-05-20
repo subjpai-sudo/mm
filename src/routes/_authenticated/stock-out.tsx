@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2 } from "lucide-react";
+import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2, X } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
