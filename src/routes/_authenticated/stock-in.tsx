@@ -30,7 +30,7 @@ function formatDetectedProductLabel(code: string, products: any[]) {
 function StockIn() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const search = Route.useSearch();
+  const routeSearch = Route.useSearch();
   const nav = Route.useNavigate();
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
@@ -55,13 +55,13 @@ function StockIn() {
 
   // Auto-prefill from ?barcode=… when navigating from the scanner.
   useEffect(() => {
-    if (!search.barcode || products.length === 0) return;
-    const p = (products as any[]).find((x) => x.barcode === search.barcode || x.sku === search.barcode);
+    if (!routeSearch.barcode || products.length === 0) return;
+    const p = (products as any[]).find((x) => x.barcode === routeSearch.barcode || x.sku === routeSearch.barcode);
     if (p) setConfirm(p);
-    else setNotFound(search.barcode);
+    else setNotFound(routeSearch.barcode);
     nav({ search: {}, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search.barcode, products.length]);
+  }, [routeSearch.barcode, products.length]);
 
   const parents = categories.filter((c: any) => !c.parent_id);
   const children = parent ? categories.filter((c: any) => c.parent_id === parent.id) : [];
