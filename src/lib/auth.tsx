@@ -9,13 +9,16 @@ interface AuthCtx {
   session: Session | null;
   role: Role | null;
   mustChangePin: boolean;
+  fullName: string | null;
+  avatarUrl: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthCtx>({
-  user: null, session: null, role: null, mustChangePin: false, loading: true,
+  user: null, session: null, role: null, mustChangePin: false,
+  fullName: null, avatarUrl: null, loading: true,
   signOut: async () => {}, refreshProfile: async () => {},
 });
 
@@ -23,23 +26,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [mustChangePin, setMustChangePin] = useState(false);
+  const [fullName, setFullName] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function loadProfileFor(userId: string) {
     const [{ data: roleRow }, { data: profile }] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId)
         .order("role").limit(1).maybeSingle(),
-      supabase.from("profiles").select("must_change_pin").eq("id", userId).maybeSingle(),
+      supabase.from("profiles").select("must_change_pin, full_name, avatar_url").eq("id", userId).maybeSingle(),
     ]);
     setRole((roleRow?.role as Role) ?? "operator");
     setMustChangePin(Boolean(profile?.must_change_pin));
+    setFullName((profile as any)?.full_name ?? null);
+    setAvatarUrl((profile as any)?.avatar_url ?? null);
     setLoading(false);
   }
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      if (!s) { setRole(null); setMustChangePin(false); setLoading(false); return; }
+      if (!s) { setRole(null); setMustChangePin(false); setFullName(null); setAvatarUrl(null); setLoading(false); return; }
       // defer role fetch to avoid deadlock
       setTimeout(() => { loadProfileFor(s.user.id); }, 0);
     });
@@ -53,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={{
       user: session?.user ?? null,
-      session, role, mustChangePin, loading,
+      session, role, mustChangePin, fullName, avatarUrl, loading,
       signOut: async () => { await supabase.auth.signOut(); },
       refreshProfile: async () => { if (session?.user.id) await loadProfileFor(session.user.id); },
     }}>{children}</Ctx.Provider>
