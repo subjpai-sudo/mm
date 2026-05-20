@@ -22,6 +22,16 @@ type Props = {
 };
 
 const CAMERA_PERMISSION_KEY = "barcode-camera-granted";
+const NATIVE_SCAN_INTERVAL_MS = 180;
+const ZXING_FALLBACK_DELAY_MS = 650;
+const CAMERA_CONSTRAINTS: MediaStreamConstraints = {
+  video: {
+    facingMode: { ideal: "environment" },
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+  },
+  audio: false,
+};
 
 function markCameraGranted() {
   try {
@@ -77,6 +87,8 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
   const containerRef = useRef<HTMLDivElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
+  const nativeLoopTimerRef = useRef<number | null>(null);
+  const zxingFallbackTimerRef = useRef<number | null>(null);
   const lockRef = useRef(false);
   const zxingControlsRef = useRef<IScannerControls | null>(null);
   const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
@@ -154,26 +166,104 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
     }, keepOpenOnDetect ? 180 : 250);
   }
 
+  async function optimizeVideoTrack(track: MediaStreamTrack | undefined) {
+    if (!track?.applyConstraints) return;
+    try {
+      const capabilities = track.getCapabilities?.() as Record<string, any> | undefined;
+      if (!capabilities) return;
+
+      const advanced: Record<string, unknown> = {};
+      if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes("continuous")) {
+        advanced.focusMode = "continuous";
+      }
+      if (Array.isArray(capabilities.exposureMode) && capabilities.exposureMode.includes("continuous")) {
+        advanced.exposureMode = "continuous";
+      }
+      if (Array.isArray(capabilities.whiteBalanceMode) && capabilities.whiteBalanceMode.includes("continuous")) {
+        advanced.whiteBalanceMode = "continuous";
+      }
+
+      if (Object.keys(advanced).length) {
+        await track.applyConstraints({ advanced: [advanced] as any });
+      }
+    } catch {}
+  }
+
+  function clearScanTimers() {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    if (nativeLoopTimerRef.current) window.clearTimeout(nativeLoopTimerRef.current);
+    nativeLoopTimerRef.current = null;
+    if (zxingFallbackTimerRef.current) window.clearTimeout(zxingFallbackTimerRef.current);
+    zxingFallbackTimerRef.current = null;
+  }
+
+  function startNativeDetector(detector: any) {
+    const tick = async () => {
+      if (lockRef.current || !videoRef.current || videoRef.current.readyState < 2) {
+        nativeLoopTimerRef.current = window.setTimeout(tick, NATIVE_SCAN_INTERVAL_MS);
+        return;
+      }
+
+      try {
+        const codes = await detector.detect(videoRef.current);
+        const rawValue = codes?.find((entry: any) => typeof entry?.rawValue === "string" && entry.rawValue.trim())?.rawValue;
+        if (rawValue) {
+          emit(rawValue);
+          return;
+        }
+      } catch {}
+
+      nativeLoopTimerRef.current = window.setTimeout(tick, NATIVE_SCAN_INTERVAL_MS);
+    };
+
+    nativeLoopTimerRef.current = window.setTimeout(tick, 120);
+  }
+
+  async function startZxing(stream: MediaStream) {
+    if (zxingControlsRef.current || !videoRef.current) return;
+    try {
+      const reader = new BrowserMultiFormatReader(ZXING_HINTS);
+      zxingReaderRef.current = reader;
+      zxingControlsRef.current = await reader.decodeFromStream(stream, videoRef.current, (result, error) => {
+        if (lockRef.current) return;
+        if (result?.getText()) {
+          emit(result.getText());
+          return;
+        }
+        if (
+          error &&
+          !(error instanceof NotFoundException) &&
+          !(error instanceof ChecksumException) &&
+          !(error instanceof FormatException)
+        ) {
+          setStatus("Camera is on — move a little closer and hold steady");
+        }
+      });
+      setStatus("Scanning live — barcode and QR are enabled");
+    } catch {
+      if (!("BarcodeDetector" in window)) {
+        setStatus("Scanner unavailable — type below");
+        setErrored(true);
+      }
+    }
+  }
+
   async function start() {
     const v = videoRef.current;
     if (!v) return;
+    stop();
     setStatus("Requesting camera…");
     setErrored(false);
     try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
-        audio: false,
-      });
+      streamRef.current = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
       markCameraGranted();
       setHasPermissionMemory(true);
       v.srcObject = streamRef.current;
       v.setAttribute("playsinline", "");
       v.setAttribute("muted", "");
       await v.play().catch(() => {});
+      await optimizeVideoTrack(streamRef.current.getVideoTracks()[0]);
       setRunning(true);
       setStatus("Point at a barcode or QR — hold steady");
     } catch (e: any) {
@@ -191,59 +281,31 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
       return;
     }
 
-    // Native BarcodeDetector
+    const liveStream = streamRef.current;
+    if (!liveStream) return;
+
     if ("BarcodeDetector" in window) {
       try {
         const det = new window.BarcodeDetector({
           formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "itf", "qr_code"],
         });
-        const tick = async () => {
-          if (lockRef.current || !videoRef.current) return;
-          try {
-            const codes = await det.detect(videoRef.current);
-            if (codes?.length) {
-              emit(codes[0].rawValue);
-              return;
-            }
-          } catch {}
-          rafRef.current = requestAnimationFrame(tick);
-        };
         setStatus("Scanning live — hold the barcode or QR inside the frame");
-        rafRef.current = requestAnimationFrame(tick);
-        return;
+        startNativeDetector(det);
       } catch {}
     }
 
-    setStatus("Switching to universal scanner…");
-    try {
-      const reader = new BrowserMultiFormatReader(ZXING_HINTS);
-      zxingReaderRef.current = reader;
-      const preview = videoRef.current ?? undefined;
-      zxingControlsRef.current = await reader.decodeFromStream(streamRef.current!, preview, (result, error) => {
-        if (lockRef.current) return;
-        if (result?.getText()) {
-          emit(result.getText());
-          return;
-        }
-        if (
-          error &&
-          !(error instanceof NotFoundException) &&
-          !(error instanceof ChecksumException) &&
-          !(error instanceof FormatException)
-        ) {
-          setStatus("Scanner error — try a clearer angle or type the code below");
-        }
-      });
-      setStatus("Scanning live — QR and barcodes are enabled");
-    } catch {
-      setStatus("Scanner unavailable — type below");
-      setErrored(true);
+    zxingFallbackTimerRef.current = window.setTimeout(() => {
+      if (streamRef.current) startZxing(streamRef.current).catch(() => {});
+    }, "BarcodeDetector" in window ? ZXING_FALLBACK_DELAY_MS : 0);
+
+    if (!("BarcodeDetector" in window)) {
+      setStatus("Switching to universal scanner…");
+      return;
     }
   }
 
   function stop() {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
+    clearScanTimers();
     if (zxingControlsRef.current) {
       try {
         zxingControlsRef.current.stop();
@@ -260,6 +322,7 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
         videoRef.current.srcObject = null;
       } catch {}
     }
+    setRunning(false);
     if (containerRef.current) {
       const injected = containerRef.current.querySelector("video");
       if (injected && injected !== videoRef.current) injected.remove();
