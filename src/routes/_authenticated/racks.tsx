@@ -157,7 +157,7 @@ function RacksIndex() {
                 className="block active:scale-[0.98]"
               >
                 <div className="size-9 rounded-xl gradient-primary grid place-items-center">
-                  <Warehouse className="size-4.5 text-primary-foreground" />
+                  <Warehouse className="size-5 text-primary-foreground" />
                 </div>
                 <div className="mt-2.5 font-bold text-base sm:text-lg tracking-tight truncate pr-1">{formatRackLabel(id, meta?.name)}</div>
                 <div className="text-[10px] font-mono text-muted-foreground mt-0.5">{items.length} item{items.length === 1 ? "" : "s"}</div>
