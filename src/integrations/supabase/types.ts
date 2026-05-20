@@ -336,6 +336,30 @@ export type Database = {
         }
         Relationships: []
       }
+      racks: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       stock_movements: {
         Row: {
           created_at: string
