@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { PackagePlus, PackageMinus, ScanLine, Search, Plus, Barcode, X } from "lucide-react";
+import { PackagePlus, PackageMinus, ScanLine, Search, Plus, Barcode } from "lucide-react";
 import { StockStatus } from "@/routes/_authenticated/dashboard";
 
 export function OperatorDashboard() {
