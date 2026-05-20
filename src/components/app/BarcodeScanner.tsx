@@ -218,7 +218,8 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
     try {
       const reader = new BrowserMultiFormatReader(ZXING_HINTS);
       zxingReaderRef.current = reader;
-      zxingControlsRef.current = await reader.decodeFromStream(streamRef.current!, videoRef.current, (result, error) => {
+      const preview = videoRef.current ?? undefined;
+      zxingControlsRef.current = await reader.decodeFromStream(streamRef.current!, preview, (result, error) => {
         if (lockRef.current) return;
         if (result?.getText()) {
           emit(result.getText());
