@@ -1,26 +1,56 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { changeOwnPin } from "@/lib/users.functions";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ShieldAlert, Loader2, KeyRound } from "lucide-react";
+import { ShieldAlert, Loader2, KeyRound, Camera, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/change-pin")({ component: ChangePinPage });
 
 function ChangePinPage() {
-  const { mustChangePin, refreshProfile } = useAuth();
+  const { mustChangePin, refreshProfile, user, fullName, avatarUrl } = useAuth();
   const nav = useNavigate();
   const change = useServerFn(changeOwnPin);
 
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [localAvatar, setLocalAvatar] = useState<string | null>(avatarUrl);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image must be under 5MB"); return; }
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars")
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
+      const url = pub.publicUrl;
+      const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
+      if (dbErr) throw dbErr;
+      setLocalAvatar(url);
+      await refreshProfile();
+      toast.success("Profile picture updated");
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
 
   const mut = useMutation({
     mutationFn: (input: { currentPin: string; newPin: string }) => change({ data: input }),
@@ -42,12 +72,38 @@ function ChangePinPage() {
   return (
     <div className="min-h-screen grid place-items-center p-6">
       <Card className="card-elevated w-full max-w-md p-8">
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Welcome{fullName ? "," : ""}</div>
+          {fullName && <div className="text-2xl font-semibold tracking-tight mt-1">{fullName}</div>}
+
+          <button
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading}
+            className="relative mt-4 size-24 rounded-full overflow-hidden border-2 border-primary/30 bg-muted grid place-items-center group hover:border-primary/60 transition"
+            aria-label="Upload profile picture"
+          >
+            {localAvatar ? (
+              <img src={localAvatar} alt="Avatar" className="size-full object-cover" />
+            ) : (
+              <ImagePlus className="size-8 text-muted-foreground" />
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition grid place-items-center">
+              {uploading ? <Loader2 className="size-6 text-white animate-spin" /> : <Camera className="size-6 text-white" />}
+            </div>
+          </button>
+          <input ref={fileInput} type="file" accept="image/*" className="hidden" onChange={onPickFile} />
+          <p className="text-[11px] text-muted-foreground mt-2">
+            {localAvatar ? "Tap to change profile picture" : "Tap to upload a profile picture"}
+          </p>
+        </div>
+
         <div className="flex items-center gap-3 mb-4">
-          <div className="size-10 rounded-lg gradient-primary grid place-items-center">
+          <div className="size-10 rounded-lg gradient-primary grid place-items-center shrink-0">
             <KeyRound className="size-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">Change your PIN</h1>
+            <h1 className="text-lg font-semibold tracking-tight">Change your PIN</h1>
             <p className="text-xs text-muted-foreground">
               {mustChangePin
                 ? "You must update your PIN before accessing the app."
