@@ -68,17 +68,21 @@ function LoginPage() {
           <div className="size-11 rounded-xl gradient-primary grid place-items-center glow">
             <Boxes className="size-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-semibold tracking-tight">Stockflow</span>
+          <div className="leading-tight">
+            <div className="text-xl font-semibold tracking-tight">CityStar</div>
+            <div className="text-[11px] text-muted-foreground">Inventory Project</div>
+          </div>
         </div>
         <div>
-          <h1 className="text-5xl font-semibold tracking-tight leading-tight">
-            Inventory that <span className="text-gradient">moves at your pace</span>.
+          <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-3">Welcome to</div>
+          <h1 className="text-6xl font-semibold tracking-tight leading-[1.05]">
+            CityStar <span className="text-gradient">Inventory</span> Project.
           </h1>
           <p className="mt-4 text-muted-foreground max-w-md">
             Real-time stock, role-based control, and Viber-ready order requests — built for fast-moving teams.
           </p>
         </div>
-        <div className="text-xs text-muted-foreground">© Stockflow {new Date().getFullYear()}</div>
+        <div className="text-xs text-muted-foreground">© CityStar Inventory Project {new Date().getFullYear()}</div>
       </div>
 
       {/* Form side */}
@@ -86,10 +90,11 @@ function LoginPage() {
         <Card className="card-elevated w-full max-w-md p-8">
           <div className="lg:hidden flex items-center gap-2 mb-6">
             <div className="size-9 rounded-lg gradient-primary grid place-items-center"><Boxes className="size-5 text-primary-foreground" /></div>
-            <span className="font-semibold">Stockflow</span>
+            <span className="font-semibold">CityStar Inventory Project</span>
           </div>
-          <h2 className="text-2xl font-semibold tracking-tight">Sign in</h2>
-          <p className="text-sm text-muted-foreground mt-1">Use the username and PIN issued by your admin or owner.</p>
+          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Welcome</div>
+          <h2 className="text-4xl font-semibold tracking-tight mt-1">Sign in</h2>
+          <p className="text-sm text-muted-foreground mt-2">Use the username and PIN issued by your admin or owner.</p>
 
           <form onSubmit={submit} className="space-y-4 mt-6">
             <div>
