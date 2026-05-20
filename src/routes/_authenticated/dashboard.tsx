@@ -25,10 +25,14 @@ import { OperatorDashboard } from "@/components/app/OperatorDashboard";
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
 function Dashboard() {
-  const { lastUpdated } = useRealtimeSync();
-  const [scanOpen, setScanOpen] = useState(false);
   const { role } = useAuth();
   if (role === "operator") return <OperatorDashboard />;
+  return <AdminDashboard />;
+}
+
+function AdminDashboard() {
+  const { lastUpdated } = useRealtimeSync();
+  const [scanOpen, setScanOpen] = useState(false);
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],

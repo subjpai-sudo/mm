@@ -138,19 +138,19 @@ function RacksIndex() {
                 tone,
               )}
             >
-              <div className="absolute right-3 top-3 z-10">
+              <div className="absolute right-2 top-2 z-10">
                 <Button
                   type="button"
                   size="icon"
                   variant="ghost"
-                  className="size-8 rounded-full bg-background/80 border border-border hover:bg-background"
+                  className="size-7 rounded-full bg-background/80 border border-border hover:bg-background"
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
                     setRenameRack(meta ?? { id: "", code: id, name: id });
                   }}
                 >
-                  <PencilLine className="size-4" />
+                  <PencilLine className="size-3.5" />
                 </Button>
               </div>
               <Link
@@ -158,11 +158,11 @@ function RacksIndex() {
                 params={{ rackId: id }}
                 className="block active:scale-[0.98]"
               >
-              <div className="flex items-start justify-between mb-3">
+              <div className="flex items-start justify-between mb-3 pr-9">
                 <div className="size-10 rounded-xl gradient-primary grid place-items-center">
                   <Warehouse className="size-5 text-primary-foreground" />
                 </div>
-                <span className="text-xs font-mono text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}</span>
+                <span className="text-[10px] font-mono text-muted-foreground whitespace-nowrap mt-1">{items.length} item{items.length === 1 ? "" : "s"}</span>
               </div>
               <div className="font-bold text-lg tracking-tight">{formatRackLabel(id, meta?.name)}</div>
               <div className="mt-2 flex items-center gap-2 text-[11px]">
