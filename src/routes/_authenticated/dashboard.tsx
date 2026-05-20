@@ -19,12 +19,16 @@ import { LiveBadge } from "@/components/app/LiveBadge";
 import { SHOPS, isShop } from "@/lib/shops";
 import { DEFAULT_RACK_CODES as RACK_IDS } from "@/lib/racks";
 import { Link } from "@tanstack/react-router";
+import { useAuth } from "@/lib/auth";
+import { OperatorDashboard } from "@/components/app/OperatorDashboard";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
 
 function Dashboard() {
   const { lastUpdated } = useRealtimeSync();
   const [scanOpen, setScanOpen] = useState(false);
+  const { role } = useAuth();
+  if (role === "operator") return <OperatorDashboard />;
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],
