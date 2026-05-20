@@ -1,7 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Warehouse, Package, AlertTriangle, PackageX, Printer, Plus, PencilLine } from "lucide-react";
@@ -18,6 +18,7 @@ export const Route = createFileRoute("/_authenticated/racks")({ component: Racks
 export const RACK_IDS = DEFAULT_RACK_CODES;
 
 function RacksIndex() {
+  const location = useLocation();
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [renameRack, setRenameRack] = useState<{ id: string; code: string; name: string | null } | null>(null);
@@ -93,6 +94,10 @@ function RacksIndex() {
   }, [extraRacks, racks]);
 
   const unassigned = (products as any[]).filter((p) => !(p.rack ?? "").trim());
+
+  if (location.pathname !== "/racks") {
+    return <Outlet />;
+  }
 
   return (
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
@@ -237,10 +242,10 @@ function RackEditorDialog({
   const [code, setCode] = useState(initialCode);
   const [name, setName] = useState(initialName);
 
-  useState(() => {
+  useEffect(() => {
     setCode(initialCode);
     setName(initialName);
-  });
+  }, [initialCode, initialName, open]);
 
   return (
     <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
