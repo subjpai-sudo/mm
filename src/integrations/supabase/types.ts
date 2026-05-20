@@ -249,6 +249,7 @@ export type Database = {
           barcode: string | null
           barcode_registered_at: string | null
           barcode_registered_by: string | null
+          brand: string | null
           category_id: string | null
           created_at: string
           id: string
@@ -256,9 +257,14 @@ export type Database = {
           last_alert_stock: number | null
           low_stock_threshold: number
           name: string
+          origin: string | null
+          pcs_per_case: number | null
           price: number
+          price_10: number | null
+          price_case: number | null
           rack: string | null
           shelf: string | null
+          size: string | null
           sku: string | null
           stock: number
           updated_at: string
@@ -267,6 +273,7 @@ export type Database = {
           barcode?: string | null
           barcode_registered_at?: string | null
           barcode_registered_by?: string | null
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           id?: string
@@ -274,9 +281,14 @@ export type Database = {
           last_alert_stock?: number | null
           low_stock_threshold?: number
           name: string
+          origin?: string | null
+          pcs_per_case?: number | null
           price?: number
+          price_10?: number | null
+          price_case?: number | null
           rack?: string | null
           shelf?: string | null
+          size?: string | null
           sku?: string | null
           stock?: number
           updated_at?: string
@@ -285,6 +297,7 @@ export type Database = {
           barcode?: string | null
           barcode_registered_at?: string | null
           barcode_registered_by?: string | null
+          brand?: string | null
           category_id?: string | null
           created_at?: string
           id?: string
@@ -292,9 +305,14 @@ export type Database = {
           last_alert_stock?: number | null
           low_stock_threshold?: number
           name?: string
+          origin?: string | null
+          pcs_per_case?: number | null
           price?: number
+          price_10?: number | null
+          price_case?: number | null
           rack?: string | null
           shelf?: string | null
+          size?: string | null
           sku?: string | null
           stock?: number
           updated_at?: string
