@@ -11,7 +11,7 @@ import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse } from "luc
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/racks/$rackId")({ component: RackDetail });
+export const Route = createFileRoute("/_authenticated/racks_/$rackId")({ component: RackDetail });
 
 const SHELVES = ["upper", "mid", "down"] as const;
 type Shelf = (typeof SHELVES)[number];
