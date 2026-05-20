@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  BrowserMultiFormatReader,
-  type IScannerControls,
-} from "@zxing/browser";
+import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
 import {
   BarcodeFormat,
   DecodeHintType,
@@ -10,12 +7,7 @@ import {
   FormatException,
   NotFoundException,
 } from "@zxing/library";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScanLine, X, Camera } from "lucide-react";
@@ -33,9 +25,7 @@ type BarcodeDetectorLike = {
   detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string | null }>>;
 };
 
-type BarcodeDetectorCtor = new (options?: {
-  formats?: string[];
-}) => BarcodeDetectorLike;
+type BarcodeDetectorCtor = new (options?: { formats?: string[] }) => BarcodeDetectorLike;
 
 type ExtendedMediaTrackCapabilities = MediaTrackCapabilities & {
   focusMode?: string[];
@@ -150,9 +140,7 @@ export function BarcodeScanner({
       .query({ name: "camera" as PermissionName })
       .then((permission) => {
         if (!alive) return;
-        setHasPermissionMemory(
-          permission.state === "granted" || wasCameraGranted(),
-        );
+        setHasPermissionMemory(permission.state === "granted" || wasCameraGranted());
       })
       .catch(() => {
         if (alive) setHasPermissionMemory(wasCameraGranted());
@@ -196,10 +184,7 @@ export function BarcodeScanner({
     const trimmed = code.trim();
     const now = Date.now();
 
-    if (
-      lastDetectedRef.current === trimmed &&
-      now - lastDetectedAtRef.current < 1200
-    ) {
+    if (lastDetectedRef.current === trimmed && now - lastDetectedAtRef.current < 1200) {
       return;
     }
 
@@ -213,32 +198,31 @@ export function BarcodeScanner({
     const label = onDetectedLabel?.(trimmed);
     setStatus(label ? `✓ ${label}` : `✓ ${trimmed}`);
 
-    window.setTimeout(() => {
-      onDetected(trimmed);
-      if (keepOpenOnDetect) {
-        lockRef.current = false;
-        setManual("");
-        setStatus("Ready for next barcode");
-      } else {
-        onClose();
-      }
-    }, keepOpenOnDetect ? 180 : 250);
+    window.setTimeout(
+      () => {
+        onDetected(trimmed);
+        if (keepOpenOnDetect) {
+          lockRef.current = false;
+          setManual("");
+          setStatus("Ready for next barcode");
+        } else {
+          onClose();
+        }
+      },
+      keepOpenOnDetect ? 180 : 250,
+    );
   }
 
   async function optimizeVideoTrack(track: MediaStreamTrack | undefined) {
     if (!track?.applyConstraints) return;
 
     try {
-      const capabilities =
-        track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
+      const capabilities = track.getCapabilities?.() as ExtendedMediaTrackCapabilities | undefined;
       if (!capabilities) return;
 
       const advanced: Record<string, unknown> = {};
 
-      if (
-        Array.isArray(capabilities.focusMode) &&
-        capabilities.focusMode.includes("continuous")
-      ) {
+      if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.includes("continuous")) {
         advanced.focusMode = "continuous";
       }
 
@@ -281,10 +265,7 @@ export function BarcodeScanner({
   function startNativeDetector(detector: BarcodeDetectorLike) {
     const tick = async () => {
       if (!videoRef.current || videoRef.current.readyState < 2) {
-        nativeLoopTimerRef.current = window.setTimeout(
-          tick,
-          NATIVE_SCAN_INTERVAL_MS,
-        );
+        nativeLoopTimerRef.current = window.setTimeout(tick, NATIVE_SCAN_INTERVAL_MS);
         return;
       }
 
@@ -307,10 +288,7 @@ export function BarcodeScanner({
         }
       }
 
-      nativeLoopTimerRef.current = window.setTimeout(
-        tick,
-        NATIVE_SCAN_INTERVAL_MS,
-      );
+      nativeLoopTimerRef.current = window.setTimeout(tick, NATIVE_SCAN_INTERVAL_MS);
     };
 
     nativeLoopTimerRef.current = window.setTimeout(tick, 120);
@@ -361,9 +339,7 @@ export function BarcodeScanner({
     setErrored(false);
 
     try {
-      streamRef.current = await navigator.mediaDevices.getUserMedia(
-        CAMERA_CONSTRAINTS,
-      );
+      streamRef.current = await navigator.mediaDevices.getUserMedia(CAMERA_CONSTRAINTS);
       markCameraGranted();
       setHasPermissionMemory(true);
 
@@ -378,8 +354,7 @@ export function BarcodeScanner({
     } catch (error: unknown) {
       const err = error as { name?: string };
       const msg =
-        err?.name === "NotAllowedError" ||
-        err?.name === "PermissionDeniedError"
+        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
           ? "Camera permission denied — allow it once in your browser settings"
           : err?.name === "NotFoundError"
             ? "No camera found"
@@ -399,16 +374,7 @@ export function BarcodeScanner({
     if (window.BarcodeDetector) {
       try {
         const detector = new window.BarcodeDetector({
-          formats: [
-            "ean_13",
-            "ean_8",
-            "code_128",
-            "code_39",
-            "upc_a",
-            "upc_e",
-            "itf",
-            "qr_code",
-          ],
+          formats: ["ean_13", "ean_8", "code_128", "code_39", "upc_a", "upc_e", "itf", "qr_code"],
         });
         setStatus("Scanning live — hold the barcode or QR inside the frame");
         startNativeDetector(detector);
@@ -417,11 +383,14 @@ export function BarcodeScanner({
       }
     }
 
-    zxingFallbackTimerRef.current = window.setTimeout(() => {
-      if (streamRef.current) {
-        startZxing(streamRef.current).catch(() => undefined);
-      }
-    }, window.BarcodeDetector ? ZXING_FALLBACK_DELAY_MS : 0);
+    zxingFallbackTimerRef.current = window.setTimeout(
+      () => {
+        if (streamRef.current) {
+          startZxing(streamRef.current).catch(() => undefined);
+        }
+      },
+      window.BarcodeDetector ? ZXING_FALLBACK_DELAY_MS : 0,
+    );
 
     if (!window.BarcodeDetector) {
       setStatus("Switching to universal scanner…");
@@ -472,10 +441,7 @@ export function BarcodeScanner({
           Open the camera to scan product barcodes and rack QR codes.
         </DialogDescription>
 
-        <div
-          ref={containerRef}
-          className="relative aspect-[16/10] w-full overflow-hidden bg-black"
-        >
+        <div ref={containerRef} className="relative aspect-[16/10] w-full overflow-hidden bg-black">
           <video
             ref={videoRef}
             autoPlay
@@ -496,11 +462,7 @@ export function BarcodeScanner({
                   className="gradient-primary gap-2 border-0 text-primary-foreground"
                 >
                   <Camera className="size-4" />
-                  {running
-                    ? "Resume camera"
-                    : errored
-                      ? "Retry camera"
-                      : "Start camera"}
+                  {running ? "Resume camera" : errored ? "Retry camera" : "Start camera"}
                 </Button>
                 <p className="text-[10px] text-white/60">
                   {hasPermissionMemory
