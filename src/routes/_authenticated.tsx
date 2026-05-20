@@ -119,8 +119,8 @@ function ProtectedLayout() {
         <div className="p-5 flex items-center gap-2.5 border-b border-sidebar-border">
           <div className="size-9 rounded-lg gradient-primary grid place-items-center"><Boxes className="size-5 text-primary-foreground" /></div>
           <div>
-            <div className="font-semibold tracking-tight leading-tight">Stockflow</div>
-            <div className="text-[10px] text-muted-foreground">Inventory OS</div>
+            <div className="font-semibold tracking-tight leading-tight">CityStar</div>
+            <div className="text-[10px] text-muted-foreground">Inventory Project</div>
           </div>
         </div>
 
@@ -151,8 +151,8 @@ function ProtectedLayout() {
               <div className="p-5 flex items-center gap-2.5 border-b border-sidebar-border">
                 <div className="size-9 rounded-lg gradient-primary grid place-items-center"><Boxes className="size-5 text-primary-foreground" /></div>
                 <div>
-                  <div className="font-semibold tracking-tight leading-tight">Stockflow</div>
-                  <div className="text-[10px] text-muted-foreground">Inventory OS</div>
+                  <div className="font-semibold tracking-tight leading-tight">CityStar</div>
+                  <div className="text-[10px] text-muted-foreground">Inventory Project</div>
                 </div>
               </div>
               <nav className="p-3 space-y-1">
@@ -171,7 +171,7 @@ function ProtectedLayout() {
           </Sheet>
           <div className="flex items-center gap-2">
             <div className="size-7 rounded-lg gradient-primary grid place-items-center"><Boxes className="size-4 text-primary-foreground" /></div>
-            <span className="font-semibold text-sm">Stockflow</span>
+            <span className="font-semibold text-sm">CityStar</span>
           </div>
           <div className={cn("flex items-center gap-1.5 px-2 py-1 rounded-full border text-[10px]", Meta.cls)}>
             <Meta.icon className="size-3" />{Meta.label}
