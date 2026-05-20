@@ -1,15 +1,16 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Package, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight,
-  Hash, Barcode as BarcodeIcon, Tag, Boxes, Clock, AlertTriangle, PackageX, MapPin,
+  Hash, Barcode as BarcodeIcon, Tag, Boxes, Clock, AlertTriangle, PackageX, MapPin, Search,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -78,6 +79,19 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
     onClose();
   }
 
+  async function refreshAsProduct(barcode: string) {
+    const { data: product } = await supabase.from("products").select("*").eq("barcode", barcode).maybeSingle();
+    if (!product) return;
+    const [{ data: movements }, { data: rackRow }] = await Promise.all([
+      supabase.from("stock_movements").select("*").eq("product_id", product.id).order("created_at", { ascending: false }).limit(1),
+      product.rack
+        ? supabase.from("racks").select("code, name").eq("code", product.rack).maybeSingle()
+        : Promise.resolve({ data: null }) as any,
+    ]);
+    setHit({ kind: "product", product, lastMovement: movements?.[0] ?? null, rackMeta: rackRow ?? null });
+    qc.invalidateQueries({ queryKey: ["products"] });
+  }
+
   return (
     <>
       <BarcodeScanner
@@ -99,8 +113,16 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
             <ProductCard
               hit={hit}
               onClose={closeAll}
-              onOpenStockIn={() => { closeAll(); nav({ to: "/stock-in" }); }}
-              onOpenStockOut={() => { closeAll(); nav({ to: "/stock-out" }); }}
+              onOpenStockIn={() => {
+                const bc = hit.product.barcode;
+                closeAll();
+                nav({ to: "/stock-in", search: bc ? { barcode: bc } as any : {} });
+              }}
+              onOpenStockOut={() => {
+                const bc = hit.product.barcode;
+                closeAll();
+                nav({ to: "/stock-out", search: bc ? { barcode: bc } as any : {} });
+              }}
               onOpenProducts={() => { closeAll(); nav({ to: "/products" }); }}
               onScanAgain={() => setHit(null)}
             />
@@ -116,26 +138,113 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
           )}
 
           {hit?.kind === "unknown" && (
-            <div className="p-6 text-center space-y-4">
-              <div className="size-14 mx-auto rounded-2xl bg-warning/15 grid place-items-center">
-                <AlertTriangle className="size-7 text-warning" />
-              </div>
-              <div>
-                <div className="font-semibold text-lg">Unknown code</div>
-                <div className="text-xs text-muted-foreground font-mono mt-1 break-all">{hit.code}</div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  No product matches this barcode and it isn't a rack label.
-                </p>
-              </div>
-              <div className="flex gap-2 justify-center pt-2">
-                <Button variant="outline" onClick={() => setHit(null)}>Scan again</Button>
-                <Link to="/products"><Button className="gradient-primary text-primary-foreground border-0" onClick={closeAll}>Register product</Button></Link>
-              </div>
-            </div>
+            <UnknownCard
+              code={hit.code}
+              onScanAgain={() => setHit(null)}
+              onClose={closeAll}
+              onRegistered={() => refreshAsProduct(hit.code)}
+            />
           )}
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+function UnknownCard({ code, onScanAgain, onClose, onRegistered }: {
+  code: string;
+  onScanAgain: () => void;
+  onClose: () => void;
+  onRegistered: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [picking, setPicking] = useState(false);
+  const qc = useQueryClient();
+  const { data: products = [] } = useQuery({
+    queryKey: ["products-pick"],
+    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, image_url, stock").order("name")).data ?? [],
+    enabled: picking,
+  });
+  const filtered = (products as any[])
+    .filter((p) => !q || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q.toLowerCase()))
+    .slice(0, 30);
+  const assign = useMutation({
+    mutationFn: async (productId: string) => {
+      const { error } = await supabase.from("products")
+        .update({ barcode: code, barcode_registered_at: new Date().toISOString() })
+        .eq("id", productId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["products-pick"] });
+      toast.success("Barcode registered");
+      onRegistered();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not register"),
+  });
+
+  if (!picking) {
+    return (
+      <div className="p-6 text-center space-y-4">
+        <div className="size-14 mx-auto rounded-2xl bg-warning/15 grid place-items-center">
+          <AlertTriangle className="size-7 text-warning" />
+        </div>
+        <div>
+          <div className="font-semibold text-lg">Unknown code</div>
+          <div className="text-xs text-muted-foreground font-mono mt-1 break-all">{code}</div>
+          <p className="text-sm text-muted-foreground mt-2">
+            No product matches this barcode and it isn't a rack label.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-2">
+          <Button variant="outline" onClick={onScanAgain}>Scan again</Button>
+          <Button className="gradient-primary text-primary-foreground border-0" onClick={() => setPicking(true)}>
+            Assign to product
+          </Button>
+        </div>
+        <Link to="/products" onClick={onClose} className="block text-xs text-muted-foreground hover:text-foreground">
+          or create a new product →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-5 space-y-3">
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Register barcode</div>
+        <div className="font-mono text-sm break-all">{code}</div>
+        <p className="text-xs text-muted-foreground mt-1">Pick the product this barcode belongs to.</p>
+      </div>
+      <div className="relative">
+        <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products…" className="pl-9" />
+      </div>
+      <div className="max-h-[45vh] overflow-y-auto -mx-1 px-1 space-y-1">
+        {filtered.map((p) => (
+          <button key={p.id} disabled={assign.isPending}
+            onClick={() => assign.mutate(p.id)}
+            className="w-full flex items-center gap-3 p-2 rounded-xl border border-transparent hover:border-border hover:bg-secondary/60 text-left disabled:opacity-50">
+            <div className="size-10 rounded-lg bg-secondary overflow-hidden grid place-items-center shrink-0">
+              {p.image_url ? <img src={p.image_url} alt={p.name} className="size-full object-cover" /> : <ImageIcon className="size-4 text-muted-foreground" />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-sm truncate">{p.name}</div>
+              <div className="text-[11px] text-muted-foreground font-mono truncate">
+                {p.sku ?? "—"} · {p.barcode ?? "no barcode"}
+              </div>
+            </div>
+            <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">stock {p.stock}</span>
+          </button>
+        ))}
+        {filtered.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products match.</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-2 pt-1">
+        <Button variant="outline" onClick={() => setPicking(false)}>Back</Button>
+        <Button variant="ghost" onClick={onScanAgain}>Scan another</Button>
+      </div>
+    </div>
   );
 }
 
