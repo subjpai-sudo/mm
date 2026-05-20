@@ -47,7 +47,7 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
     const plain = compact.match(/^(R\d+[A-Za-z0-9_-]*)$/i);
     if (plain) return plain[1].toUpperCase();
     const route = compact.match(/racks\/?(?:print\?ids=)?(R\d+[A-Za-z0-9_-]*)/i);
-    if (route) return route[2].toUpperCase();
+    if (route) return route[1].toUpperCase();
     return null;
   }
 
