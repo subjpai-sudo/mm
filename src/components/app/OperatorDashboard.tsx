@@ -33,26 +33,40 @@ export function OperatorDashboard() {
         <LiveBadge lastUpdated={lastUpdated} />
       </div>
 
-      <div className="flex-1 grid grid-cols-3 gap-3 sm:gap-4 mt-6">
+      <div className="grid grid-cols-1 gap-3 sm:gap-4 mt-6">
         <Link to="/stock-in" className="block">
-          <button className="w-full h-full min-h-[160px] sm:min-h-[200px] rounded-3xl border-2 border-success/30 bg-success/10 hover:bg-success/20 text-success font-bold inline-flex flex-col items-center justify-center gap-2 sm:gap-3 transition active:scale-[0.98] shadow-sm hover:shadow-md hover:-translate-y-0.5">
-            <PackagePlus className="size-8 sm:size-12" />
-            <span className="text-base sm:text-xl">Stock In</span>
+          <button className="w-full rounded-2xl border-2 border-success/30 bg-success/10 hover:bg-success/20 text-success font-bold inline-flex items-center gap-4 px-5 py-5 transition active:scale-[0.98] shadow-sm hover:shadow-md hover:-translate-y-0.5">
+            <span className="size-12 rounded-xl bg-success/20 grid place-items-center shrink-0">
+              <PackagePlus className="size-6" />
+            </span>
+            <span className="flex-1 text-left">
+              <span className="block text-lg leading-tight">Stock In</span>
+              <span className="block text-[11px] font-medium opacity-70">Receive inventory into rack</span>
+            </span>
           </button>
         </Link>
         <Link to="/stock-out" className="block">
-          <button className="w-full h-full min-h-[160px] sm:min-h-[200px] rounded-3xl border-2 border-destructive/30 bg-destructive/10 hover:bg-destructive/20 text-destructive font-bold inline-flex flex-col items-center justify-center gap-2 sm:gap-3 transition active:scale-[0.98] shadow-sm hover:shadow-md hover:-translate-y-0.5">
-            <PackageMinus className="size-8 sm:size-12" />
-            <span className="text-base sm:text-xl">Stock Out</span>
-            <span className="text-[10px] sm:text-[11px] font-medium opacity-80 hidden sm:inline">Shop or Delivery</span>
+          <button className="w-full rounded-2xl border-2 border-destructive/30 bg-destructive/10 hover:bg-destructive/20 text-destructive font-bold inline-flex items-center gap-4 px-5 py-5 transition active:scale-[0.98] shadow-sm hover:shadow-md hover:-translate-y-0.5">
+            <span className="size-12 rounded-xl bg-destructive/20 grid place-items-center shrink-0">
+              <PackageMinus className="size-6" />
+            </span>
+            <span className="flex-1 text-left">
+              <span className="block text-lg leading-tight">Stock Out</span>
+              <span className="block text-[11px] font-medium opacity-70">Shop or delivery</span>
+            </span>
           </button>
         </Link>
         <button
           onClick={() => setScanOpen(true)}
-          className="w-full h-full min-h-[160px] sm:min-h-[200px] rounded-3xl gradient-primary text-primary-foreground font-bold inline-flex flex-col items-center justify-center gap-2 sm:gap-3 transition active:scale-[0.98] shadow-[0_14px_36px_-14px_rgba(0,0,0,0.5)] hover:-translate-y-0.5"
+          className="w-full rounded-2xl gradient-primary text-primary-foreground font-bold inline-flex items-center gap-4 px-5 py-5 transition active:scale-[0.98] shadow-[0_14px_36px_-14px_rgba(0,0,0,0.5)] hover:-translate-y-0.5"
         >
-          <ScanLine className="size-8 sm:size-12" />
-          <span className="text-base sm:text-xl text-center px-2">Scan QR / Barcode</span>
+          <span className="size-12 rounded-xl bg-primary-foreground/15 grid place-items-center shrink-0">
+            <ScanLine className="size-6" />
+          </span>
+          <span className="flex-1 text-left">
+            <span className="block text-lg leading-tight">Scan QR / Barcode</span>
+            <span className="block text-[11px] font-medium opacity-80">Product info, rack contents</span>
+          </span>
         </button>
       </div>
 
