@@ -39,13 +39,23 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
   const [hit, setHit] = useState<Hit | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function parseRackCode(raw: string) {
+    const normalized = raw.trim().replace(/^https?:\/\/[^/]+\//i, "").replace(/^#/, "");
+    const prefixed = normalized.match(/^RACK:([A-Za-z0-9_-]+)$/i);
+    if (prefixed) return prefixed[1].toUpperCase();
+    const plain = normalized.match(/^(R\d+[A-Za-z0-9_-]*)$/i);
+    if (plain) return plain[1].toUpperCase();
+    const route = normalized.match(/racks\/?(print\?ids=)?(R\d+[A-Za-z0-9_-]*)/i);
+    if (route) return route[2].toUpperCase();
+    return null;
+  }
+
   async function handle(code: string) {
     const trimmed = code.trim();
     setLoading(true);
     try {
-      const rackMatch = trimmed.match(/^RACK:([A-Za-z0-9_-]+)$/i);
-      if (rackMatch) {
-        const rackId = rackMatch[1].toUpperCase();
+      const rackId = parseRackCode(trimmed);
+      if (rackId) {
         const [{ data: rack }, { data: items }] = await Promise.all([
           supabase.from("racks").select("code, name").eq("code", rackId).maybeSingle(),
           supabase.from("products").select("*").eq("rack", rackId).order("name"),
@@ -99,7 +109,10 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
         onClose={onClose}
         onDetected={handle}
         keepOpenOnDetect={false}
-        onDetectedLabel={(c) => (c.startsWith("RACK:") ? `Rack ${c.slice(5)}` : c)}
+        onDetectedLabel={(c) => {
+          const rackId = parseRackCode(c);
+          return rackId ? `Rack ${rackId}` : c;
+        }}
       />
 
       <Dialog open={!!hit} onOpenChange={(v) => !v && closeAll()}>

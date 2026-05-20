@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { BarcodeFormat, DecodeHintType, ChecksumException, FormatException, NotFoundException } from "@zxing/library";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +9,6 @@ import { toast } from "sonner";
 
 declare global {
   interface Window {
-    Quagga?: any;
     BarcodeDetector?: any;
   }
 }
@@ -58,16 +59,18 @@ function playDetectedBeep() {
   } catch {}
 }
 
-function loadQuagga(): Promise<boolean> {
-  return new Promise((res) => {
-    if (window.Quagga) return res(true);
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js";
-    s.onload = () => res(true);
-    s.onerror = () => res(false);
-    document.head.appendChild(s);
-  });
-}
+const ZXING_HINTS = new Map([
+  [DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.QR_CODE,
+    BarcodeFormat.EAN_13,
+    BarcodeFormat.EAN_8,
+    BarcodeFormat.CODE_128,
+    BarcodeFormat.CODE_39,
+    BarcodeFormat.UPC_A,
+    BarcodeFormat.UPC_E,
+    BarcodeFormat.ITF,
+  ]],
+]);
 
 export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = false, onDetectedLabel }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -75,7 +78,8 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const lockRef = useRef(false);
-  const quaggaRunningRef = useRef(false);
+  const zxingControlsRef = useRef<IScannerControls | null>(null);
+  const zxingReaderRef = useRef<BrowserMultiFormatReader | null>(null);
   const lastDetectedRef = useRef<string | null>(null);
   const lastDetectedAtRef = useRef(0);
   const [status, setStatus] = useState("Tap “Start camera” to scan");
@@ -171,7 +175,7 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
       v.setAttribute("muted", "");
       await v.play().catch(() => {});
       setRunning(true);
-      setStatus("Point at a barcode — hold steady");
+      setStatus("Point at a barcode or QR — hold steady");
     } catch (e: any) {
       const msg =
         e?.name === "NotAllowedError" || e?.name === "PermissionDeniedError"
@@ -204,65 +208,49 @@ export function BarcodeScanner({ open, onClose, onDetected, keepOpenOnDetect = f
           } catch {}
           rafRef.current = requestAnimationFrame(tick);
         };
-        setStatus("Scanning live — hold the code inside the frame");
+        setStatus("Scanning live — hold the barcode or QR inside the frame");
         rafRef.current = requestAnimationFrame(tick);
         return;
       } catch {}
     }
 
-    // Fallback to Quagga
-    setStatus("Loading scanner…");
-    const ok = await loadQuagga();
-    if (!ok) {
-      setStatus("Scanner unavailable — type below");
-      return;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (videoRef.current) videoRef.current.srcObject = null;
-
-    setStatus("Point at a barcode — hold steady");
-    window.Quagga.init(
-      {
-        inputStream: {
-          type: "LiveStream",
-          target: containerRef.current,
-          constraints: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
-        },
-        decoder: {
-          readers: ["ean_reader", "ean_8_reader", "code_128_reader", "code_39_reader", "upc_reader", "upc_e_reader"],
-          multiple: false,
-        },
-        locate: true,
-        numOfWorkers: 0,
-        frequency: 15,
-      },
-      (err: any) => {
-        if (err) {
-          setStatus("Scanner error — type below");
+    setStatus("Switching to universal scanner…");
+    try {
+      const reader = new BrowserMultiFormatReader(ZXING_HINTS);
+      zxingReaderRef.current = reader;
+      const preview = videoRef.current ?? undefined;
+      zxingControlsRef.current = await reader.decodeFromStream(streamRef.current!, preview, (result, error) => {
+        if (lockRef.current) return;
+        if (result?.getText()) {
+          emit(result.getText());
           return;
         }
-        window.Quagga.start();
-        quaggaRunningRef.current = true;
-        window.Quagga.onDetected((data: any) => {
-          if (lockRef.current || !quaggaRunningRef.current) return;
-          emit(data?.codeResult?.code);
-        });
-      }
-    );
+        if (
+          error &&
+          !(error instanceof NotFoundException) &&
+          !(error instanceof ChecksumException) &&
+          !(error instanceof FormatException)
+        ) {
+          setStatus("Scanner error — try a clearer angle or type the code below");
+        }
+      });
+      setStatus("Scanning live — QR and barcodes are enabled");
+    } catch {
+      setStatus("Scanner unavailable — type below");
+      setErrored(true);
+    }
   }
 
   function stop() {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = null;
-    if (quaggaRunningRef.current && window.Quagga) {
+    if (zxingControlsRef.current) {
       try {
-        window.Quagga.stop();
+        zxingControlsRef.current.stop();
       } catch {}
-      quaggaRunningRef.current = false;
+      zxingControlsRef.current = null;
     }
+    zxingReaderRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
