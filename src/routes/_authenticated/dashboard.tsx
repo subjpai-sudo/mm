@@ -325,17 +325,7 @@ function AdminDashboard() {
         </TabsContent>
 
         <TabsContent value="products">
-          <Card className="card-elevated p-0 overflow-hidden">
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead>SKU</TableHead><TableHead>Name</TableHead><TableHead>Stock</TableHead><TableHead>Status</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {products.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-12">No products</TableCell></TableRow>}
-                {products.map((p: any) => <ProductRow key={p.id} p={p} />)}
-              </TableBody>
-            </Table>
-          </Card>
+          <ProductListTable products={products} />
         </TabsContent>
 
         <TabsContent value="low">
@@ -431,27 +421,202 @@ export function StockStatus({ stock, threshold }: { stock: number; threshold: nu
   return <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15">In stock</Badge>;
 }
 
-function DashCard({
-  to, tone, icon: Icon, label, value, hint,
-}: { to: string; tone: "primary" | "warning"; icon: any; label: string; value: string | number; hint?: string }) {
-  const toneCls = tone === "warning"
-    ? "from-warning/30 to-warning/0 text-warning"
-    : "from-primary/30 to-primary/0 text-primary";
+/* ====================== Header greeting ====================== */
+function greetingPart(d = new Date()) {
+  const h = d.getHours();
+  if (h < 5) return "Good night";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  if (h < 22) return "Good evening";
+  return "Good night";
+}
+
+function DashboardGreeting({
+  name, stockedIn24, stockedOut24, events24, lastUpdated,
+}: { name: string; stockedIn24: number; stockedOut24: number; events24: number; lastUpdated: Date | null }) {
+  const first = name.split(/[\s.@]+/)[0] ?? name;
   return (
-    <Link to={to as any} className="block focus:outline-none focus:ring-2 focus:ring-primary/40 rounded-2xl">
-      <Card className="card-elevated relative overflow-hidden p-5 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 active:scale-[0.99] transition-all">
-        <div className={`absolute -top-12 -right-12 size-32 rounded-full bg-gradient-to-br blur-2xl opacity-60 ${toneCls}`} />
-        <div className="relative flex items-start justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
-            <div className="mt-2 text-3xl font-semibold tracking-tight">{value}</div>
-            {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+    <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
+      <div className="min-w-0">
+        <div className="upper-label">{format(new Date(), "EEEE · MMM d").toUpperCase()}</div>
+        <h1 className="text-[34px] md:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
+          {greetingPart()}, {first}.
+        </h1>
+        <p className="mt-2 text-[14px] text-muted-foreground">
+          <span className="text-success font-semibold">+{stockedIn24}</span> in
+          <span className="mx-1">/</span>
+          <span className="text-destructive font-semibold">−{stockedOut24}</span> out in the last 24h
+          <span className="mx-1.5">·</span>
+          <span className="text-foreground font-semibold tabular-nums">{events24}</span> events
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <LiveBadge lastUpdated={lastUpdated} />
+        <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
+          <Printer className="size-4" /> Print QR sheet
+        </Link>
+        <Link to="/reports" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
+          <History className="size-4" /> Reports
+        </Link>
+        <Link to="/stock-in" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] gradient-primary text-primary-foreground text-[13px] font-semibold transition hover:opacity-95">
+          <Plus className="size-4" /> Stock movement
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ====================== KPI card ====================== */
+function KpiCard({
+  to, search, label, value, hint, tone = "success", visual,
+}: {
+  to: string;
+  search?: any;
+  label: string;
+  value: React.ReactNode;
+  hint?: string;
+  tone?: "success" | "warning";
+  visual?: React.ReactNode;
+}) {
+  const valueCls = tone === "warning" ? "text-warning" : "text-success";
+  return (
+    <Link to={to as any} search={search} className="block group">
+      <Card className="card-elevated relative overflow-hidden p-4 sm:p-5 rounded-[18px] hover:-translate-y-0.5 transition-all">
+        <div className="flex items-start justify-between gap-2">
+          <div className="upper-label">{label}</div>
+          <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground transition" />
+        </div>
+        <div className="mt-3 flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <div className={`text-[40px] leading-none font-semibold tracking-[-0.03em] tabular-nums ${valueCls}`}>
+              {value}
+            </div>
+            {hint && <div className="text-[11px] text-muted-foreground mt-2">{hint}</div>}
           </div>
-          <div className={`size-10 rounded-xl grid place-items-center bg-secondary/60 border border-border ${toneCls.split(" ").pop()}`}>
-            <Icon className="size-5" />
-          </div>
+          {visual && <div className="shrink-0 opacity-90">{visual}</div>}
         </div>
       </Card>
     </Link>
+  );
+}
+
+/* ====================== Sparkline ====================== */
+function Sparkline({ tone = "success", bars = false }: { tone?: "success" | "warning"; bars?: boolean }) {
+  const stroke = tone === "warning" ? "var(--warning, #f59e0b)" : "var(--success, #10b981)";
+  if (bars) {
+    const heights = [10, 16, 12, 22, 14, 26, 18, 30, 24];
+    return (
+      <svg width="92" height="36" viewBox="0 0 92 36">
+        {heights.map((h, i) => (
+          <rect key={i} x={i * 10} y={36 - h} width="6" height={h} rx="2" fill={stroke} opacity={0.55 + (i / heights.length) * 0.45} />
+        ))}
+      </svg>
+    );
+  }
+  return (
+    <svg width="92" height="36" viewBox="0 0 92 36" fill="none">
+      <path d="M2 28 L14 22 L24 25 L34 18 L46 20 L58 12 L70 16 L82 8 L90 11"
+        stroke={stroke} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 28 L14 22 L24 25 L34 18 L46 20 L58 12 L70 16 L82 8 L90 11 L90 36 L2 36 Z"
+        fill={stroke} opacity="0.12" />
+    </svg>
+  );
+}
+
+/* ====================== Rack bars ====================== */
+function RackBars({ used, total }: { used: number; total: number }) {
+  const cells = Array.from({ length: Math.max(total, 8) }).slice(0, 10);
+  return (
+    <div className="flex items-end gap-[3px] h-9">
+      {cells.map((_, i) => {
+        const isUsed = i < used;
+        const empty = !isUsed;
+        const lowSpot = isUsed && i === used - 1;
+        const tone = empty ? "bg-muted/50" : lowSpot ? "bg-destructive" : i % 3 === 0 ? "bg-warning" : "bg-success";
+        const h = 14 + (i % 4) * 5;
+        return <span key={i} className={`w-[6px] rounded-sm ${tone}`} style={{ height: h }} />;
+      })}
+    </div>
+  );
+}
+
+/* ====================== Product list table ====================== */
+const AVATAR_PALETTE = [
+  "bg-rose-500/20 text-rose-400 border-rose-500/30",
+  "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  "bg-sky-500/20 text-sky-400 border-sky-500/30",
+  "bg-violet-500/20 text-violet-400 border-violet-500/30",
+  "bg-orange-500/20 text-orange-400 border-orange-500/30",
+];
+function paletteFor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length];
+}
+function initialsOf(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() ?? "").join("") || "•";
+}
+function ProductListTable({ products }: { products: any[] }) {
+  if (products.length === 0) {
+    return (
+      <Card className="card-elevated p-12 text-center text-muted-foreground">No products</Card>
+    );
+  }
+  return (
+    <Card className="card-elevated p-0 overflow-hidden rounded-[14px]">
+      <div className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-3 border-b border-border bg-secondary/30">
+        <div className="upper-label">Product</div>
+        <div className="upper-label">SKU / Barcode</div>
+        <div className="upper-label">Rack</div>
+        <div className="upper-label text-right pr-2">Stock · Status</div>
+        <div />
+      </div>
+      <div className="divide-y divide-border max-h-[640px] overflow-auto">
+        {products.map((p: any) => {
+          const palette = paletteFor(p.name ?? "");
+          const rackParts = (p.rack ?? "").trim().split(/[\s/·-]+/).filter(Boolean);
+          const shelfLabel = p.shelf_position ?? rackParts[1] ?? "mid";
+          const rackLabel = rackParts[0] ?? p.rack ?? null;
+          const status = p.stock <= 0 ? "out" : p.stock <= p.low_stock_threshold ? "low" : "ok";
+          const numCls = status === "out" ? "text-destructive" : status === "low" ? "text-warning" : "text-success";
+          return (
+            <Link
+              key={p.id}
+              to="/products"
+              search={{ filter: "all" } as any}
+              className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-4 items-center hover:bg-secondary/30 transition"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className={`size-10 rounded-[10px] border grid place-items-center text-[12px] font-bold tracking-wider shrink-0 ${palette}`}>
+                  {initialsOf(p.name ?? "")}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-[14px] truncate">{p.name}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{p.categories?.name ?? "—"}</div>
+                </div>
+              </div>
+              <div className="font-mono text-[12px] min-w-0">
+                <div className="truncate text-foreground">{p.sku ?? "—"}</div>
+                <div className="truncate text-muted-foreground">{p.barcode ?? "—"}</div>
+              </div>
+              <div>
+                {rackLabel ? (
+                  <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-border bg-secondary/40 text-[11px] font-mono">
+                    <span className="size-3 grid place-items-center text-muted-foreground">🏠</span>
+                    {rackLabel}<span className="text-muted-foreground">/</span>{shelfLabel}
+                  </span>
+                ) : <span className="text-[11px] text-muted-foreground">Unassigned</span>}
+              </div>
+              <div className="flex items-center justify-end gap-2 pr-1">
+                <span className={`text-[22px] font-semibold tabular-nums ${numCls}`}>{p.stock}</span>
+                <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+              </div>
+              <ArrowUpRight className="size-4 text-muted-foreground rotate-45" />
+            </Link>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
