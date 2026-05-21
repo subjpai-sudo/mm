@@ -192,7 +192,7 @@ function StockOut() {
 
   return (
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Stock Out" subtitle="Issue inventory with reason logging." />
+      <PageHeader eyebrow="Dispatching" title="Stock Out" subtitle="Issue inventory with reason logging." />
 
       <div className="space-y-3 sm:space-y-4">
         {/* Destination is chosen FIRST */}
