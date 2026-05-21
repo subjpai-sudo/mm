@@ -1,12 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type Role } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card } from "@/components/ui/card";
-import { Boxes, Shield, UserCog, Eye, Loader2 } from "lucide-react";
+import { Boxes, Shield, UserCog, Eye, Loader2, User, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({ component: LoginPage });
@@ -18,6 +16,7 @@ const DEMO: Record<Role, { email: string; password: string; name: string; icon: 
 };
 
 const USERNAME_DOMAIN = "stockflow.local";
+const PIN_LENGTH = 6;
 
 function LoginPage() {
   const { session, loading } = useAuth();
@@ -28,6 +27,7 @@ function LoginPage() {
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoBusy, setDemoBusy] = useState<Role | null>(null);
+  const pinRef = useRef<HTMLInputElement>(null);
 
   async function demoLogin(r: Role) {
     const creds = DEMO[r];
@@ -57,102 +57,168 @@ function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2">
+    <div className="min-h-screen w-full grid lg:grid-cols-[1fr_540px] bg-background">
       {/* Hero side */}
       <div className="relative hidden lg:flex flex-col justify-between p-12 overflow-hidden">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute -top-40 -left-40 w-[500px] h-[500px] rounded-full gradient-primary opacity-30 blur-3xl" />
-          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full gradient-success opacity-20 blur-3xl" />
+        {/* Mesh gradient blobs */}
+        <div aria-hidden className="absolute inset-0 -z-10">
+          <div className="absolute -top-40 -left-40 w-[640px] h-[640px] rounded-full blur-3xl opacity-40"
+               style={{ background: "radial-gradient(circle, var(--cs-primary), transparent 65%)" }} />
+          <div className="absolute bottom-[-160px] right-[-120px] w-[560px] h-[560px] rounded-full blur-3xl opacity-35"
+               style={{ background: "radial-gradient(circle, var(--cs-accent), transparent 65%)" }} />
+          <div className="absolute top-1/3 right-1/4 w-[320px] h-[320px] rounded-full blur-3xl opacity-25"
+               style={{ background: "radial-gradient(circle, var(--cs-primary-2), transparent 70%)" }} />
         </div>
+
+        {/* Brand block */}
         <div className="flex items-center gap-3">
           <div className="size-11 rounded-xl gradient-primary grid place-items-center glow">
             <Boxes className="size-6 text-primary-foreground" />
           </div>
           <div className="leading-tight">
-            <div className="text-xl font-semibold tracking-tight">CityStar</div>
-            <div className="text-[11px] text-muted-foreground">Inventory Project</div>
+            <div className="text-base font-semibold tracking-tight">CityStar</div>
+            <div className="upper-label" style={{ fontSize: 10 }}>Inventory v3.0</div>
           </div>
         </div>
-        <div>
-          <div className="text-xs uppercase tracking-[0.3em] text-muted-foreground mb-3">Welcome to</div>
-          <h1 className="text-6xl font-semibold tracking-tight leading-[1.05]">
-            CityStar <span className="text-gradient">Inventory</span> Project.
+
+        {/* Hero copy */}
+        <div className="max-w-2xl">
+          <div className="upper-label mb-4">Welcome</div>
+          <h1 className="font-semibold tracking-[-0.03em] leading-[1.02] text-[clamp(48px,7vw,84px)]">
+            Every box,<br/>every shelf,<br/>
+            <span className="text-primary">real time.</span>
           </h1>
-          <p className="mt-4 text-muted-foreground max-w-md">
+          <p className="mt-6 text-muted-foreground max-w-lg text-[15px]">
             Real-time stock, role-based control, and Viber-ready order requests — built for fast-moving teams.
           </p>
+
+          {/* Stat strip */}
+          <div className="mt-10 grid grid-cols-3 gap-3 max-w-xl">
+            {[
+              { v: "1,284", l: "SKUs tracked" },
+              { v: "38 / 40", l: "Racks active" },
+              { v: "99.7%", l: "Sync uptime" },
+            ].map((s) => (
+              <div key={s.l} className="rounded-[14px] border border-border bg-card/60 backdrop-blur-sm px-4 py-3">
+                <div className="num-m text-foreground">{s.v}</div>
+                <div className="upper-label mt-1.5" style={{ fontSize: 10 }}>{s.l}</div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="text-xs text-muted-foreground">© CityStar Inventory Project {new Date().getFullYear()}</div>
+
+        <div className="text-[11px] text-muted-foreground">© CityStar Inventory · {new Date().getFullYear()}</div>
       </div>
 
       {/* Form side */}
-      <div className="flex items-center justify-center p-6">
-        <Card className="card-elevated w-full max-w-md p-8">
-          <div className="lg:hidden flex items-center gap-2 mb-6">
+      <div className="flex items-center justify-center p-6 lg:p-10 bg-card lg:border-l border-border">
+        <div className="w-full max-w-sm">
+          <div className="lg:hidden flex items-center gap-2 mb-8">
             <div className="size-9 rounded-lg gradient-primary grid place-items-center"><Boxes className="size-5 text-primary-foreground" /></div>
-            <span className="font-semibold">CityStar Inventory Project</span>
+            <span className="font-semibold tracking-tight">CityStar Inventory</span>
           </div>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-muted-foreground">Welcome</div>
-          <h2 className="text-4xl font-semibold tracking-tight mt-1">Sign in</h2>
-          <p className="text-sm text-muted-foreground mt-2">Use the username and PIN issued by your admin or owner.</p>
 
-          <form onSubmit={submit} className="space-y-4 mt-6">
+          <div className="upper-label">Welcome</div>
+          <h2 className="text-[34px] leading-tight font-semibold tracking-[-0.025em] mt-1">Welcome back.</h2>
+          <p className="text-sm text-muted-foreground mt-2">Sign in with the username and PIN issued by your admin.</p>
+
+          <form onSubmit={submit} className="space-y-6 mt-8">
+            {/* Username with leading icon */}
             <div>
-              <Label>Username</Label>
-              <Input
-                required value={username}
-                onChange={e => setUsername(e.target.value)}
-                autoCapitalize="none" autoCorrect="off"
-                placeholder="jane.doe"
-              />
+              <label className="upper-label">Username</label>
+              <div className="relative mt-2">
+                <User className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  required value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  autoCapitalize="none" autoCorrect="off"
+                  placeholder="jane.doe"
+                  className="h-11 pl-10 rounded-[10px]"
+                />
+              </div>
             </div>
+
+            {/* PIN pad */}
             <div>
-              <Label>PIN</Label>
-              <Input
-                type="password" required minLength={4} maxLength={12}
-                inputMode="numeric"
+              <label className="upper-label">PIN</label>
+              <button
+                type="button"
+                onClick={() => pinRef.current?.focus()}
+                className="mt-2 w-full grid grid-cols-6 gap-2"
+              >
+                {Array.from({ length: PIN_LENGTH }).map((_, i) => {
+                  const filled = i < pin.length;
+                  const active = i === pin.length;
+                  return (
+                    <div
+                      key={i}
+                      className={`h-12 rounded-[10px] border grid place-items-center transition-all ${
+                        filled
+                          ? "border-primary/40 bg-primary/5"
+                          : active
+                            ? "border-primary/60 bg-card ring-4 ring-primary/15"
+                            : "border-border bg-card"
+                      }`}
+                    >
+                      {filled && <span className="size-2.5 rounded-full bg-primary" />}
+                    </div>
+                  );
+                })}
+              </button>
+              <input
+                ref={pinRef}
+                type="password"
                 value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, ""))}
-                placeholder="••••"
+                onChange={e => setPin(e.target.value.replace(/\D/g, "").slice(0, PIN_LENGTH))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="sr-only"
+                required
+                minLength={4}
               />
             </div>
-            <Button type="submit" disabled={busy} className="w-full gradient-primary text-primary-foreground border-0 hover:opacity-90">
-              {busy && <Loader2 className="size-4 animate-spin mr-2" />}
-              Sign in
+
+            <Button
+              type="submit"
+              disabled={busy}
+              className="w-full h-12 rounded-[12px] gradient-primary text-primary-foreground border-0 hover:opacity-95 text-[14px] font-semibold justify-between px-5"
+            >
+              <span className="inline-flex items-center gap-2">
+                {busy && <Loader2 className="size-4 animate-spin" />}
+                Sign in
+              </span>
+              <ChevronRight className="size-4" />
             </Button>
           </form>
 
-          <p className="text-[11px] text-muted-foreground mt-6 text-center">
-            No account? Ask your Admin or Owner to issue you a username and PIN.
-          </p>
-
-          <div className="mt-6 pt-6 border-t border-border">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-medium text-foreground">Try a demo account</div>
-              <span className="text-[10px] text-muted-foreground">one click</span>
-            </div>
+          {/* Quick demo access */}
+          <div className="mt-10 pt-6 border-t border-border">
+            <div className="upper-label mb-3">Quick demo access</div>
             <div className="grid grid-cols-3 gap-2">
               {(Object.keys(DEMO) as Role[]).map(id => {
                 const Icon = DEMO[id].icon;
-                const loading = demoBusy === id;
+                const isBusy = demoBusy === id;
                 return (
-                  <Button
-                    key={id} type="button" variant="outline" size="sm"
+                  <button
+                    key={id} type="button"
                     disabled={demoBusy !== null}
                     onClick={() => demoLogin(id)}
-                    className="flex-col h-auto py-2.5 gap-1"
+                    className="group rounded-[12px] border border-border bg-card hover:border-primary/40 hover:-translate-y-0.5 transition-all px-3 py-3 text-left disabled:opacity-60"
                   >
-                    {loading ? <Loader2 className="size-4 animate-spin" /> : <Icon className="size-4" />}
-                    <span className="text-[11px]">{DEMO[id].name}</span>
-                  </Button>
+                    <div className="flex items-center gap-2">
+                      {isBusy ? <Loader2 className="size-4 animate-spin text-primary" /> : <Icon className="size-4 text-primary" />}
+                      <span className="text-[13px] font-semibold">{DEMO[id].name}</span>
+                    </div>
+                    <div className="upper-label mt-1.5" style={{ fontSize: 9 }}>one-tap demo</div>
+                  </button>
                 );
               })}
             </div>
-            <p className="text-[10px] text-muted-foreground mt-2 text-center">
+            <p className="text-[11px] text-muted-foreground mt-3">
               Demo data is shared. Don't store anything sensitive.
             </p>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   );
