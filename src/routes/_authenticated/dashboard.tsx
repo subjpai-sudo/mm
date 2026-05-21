@@ -451,7 +451,7 @@ function DashboardGreeting({
         </p>
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        <LiveBadge lastUpdated={lastUpdated} />
+        {lastUpdated && <LiveBadge lastUpdated={lastUpdated} />}
         <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
           <Printer className="size-4" /> Print QR sheet
         </Link>
