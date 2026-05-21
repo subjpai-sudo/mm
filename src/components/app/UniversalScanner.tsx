@@ -160,7 +160,7 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
       />
 
       <Dialog open={!!hit} onOpenChange={(v) => !v && closeAll()}>
-        <DialogContent className="p-0 max-w-lg gap-0 overflow-hidden border-border">
+        <DialogContent className="p-0 gap-0 border-border overflow-hidden w-[100vw] sm:w-auto sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[90vh] max-w-none rounded-none sm:rounded-lg flex flex-col">
           <DialogHeader className="sr-only">
             <DialogTitle>Scan result</DialogTitle>
           </DialogHeader>
