@@ -164,7 +164,7 @@ function AdminDashboard() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
+      <PageHeader eyebrow={format(new Date(), "EEEE · MMM d").toUpperCase()} title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
 
       {/* Quick actions */}
       <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
