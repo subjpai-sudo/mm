@@ -45,7 +45,7 @@ function ShopsPage() {
 
   // assign a stable color per shop
   const palette = ["var(--cs-primary)", "var(--cs-accent)", "var(--cs-ok)", "var(--cs-warn)", "var(--cs-bad)", "var(--cs-primary-2)", "oklch(0.7 0.16 320)", "oklch(0.7 0.16 220)"];
-  const shopColor = (name: string) => palette[SHOPS.indexOf(name) % palette.length] ?? "var(--cs-primary)";
+  const shopColor = (name: string) => palette[(SHOPS as readonly string[]).indexOf(name) % palette.length] ?? "var(--cs-primary)";
 
   const ranked = useMemo(
     () => [...SHOPS].map(name => ({ name, qty: totals[name] ?? 0 })).sort((a, b) => b.qty - a.qty),
