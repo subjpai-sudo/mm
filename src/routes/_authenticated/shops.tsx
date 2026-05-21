@@ -111,7 +111,7 @@ function ShopsPage() {
         {/* Network map */}
         <Card className="card-elevated p-5 relative overflow-hidden">
           <div className="upper-label">Network</div>
-          <h2 className="text-[20px] font-semibold tracking-tight mb-3">Yangon map</h2>
+          <h2 className="text-[20px] font-semibold tracking-tight mb-3">Kawaguchi map</h2>
           <div className="relative h-[320px] rounded-[14px] bg-secondary/40 border border-border overflow-hidden">
             <svg viewBox="0 0 300 320" className="absolute inset-0 w-full h-full opacity-50">
               <path d="M0,180 Q80,140 150,170 T300,150" stroke="var(--cs-primary)" strokeWidth="2" fill="none" opacity="0.4" />

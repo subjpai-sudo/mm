@@ -151,7 +151,7 @@ function ProtectedLayout() {
       <Warehouse className="size-4 text-primary" />
       <div className="leading-tight min-w-0 flex-1">
         <div className="upper-label" style={{ fontSize: 9 }}>Warehouse</div>
-        <div className="text-[12px] font-semibold truncate">Yangon · Main</div>
+        <div className="text-[12px] font-semibold truncate">Kawaguchi · Main</div>
       </div>
       <ChevronDown className="size-3.5 text-muted-foreground" />
     </button>

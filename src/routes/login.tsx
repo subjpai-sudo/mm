@@ -23,6 +23,12 @@ function LoginPage() {
   const nav = useNavigate();
   useEffect(() => { if (session && !loading) nav({ to: "/dashboard" }); }, [session, loading, nav]);
 
+  // Match the rest of the app's dark theme
+  useEffect(() => {
+    document.documentElement.classList.add("dark");
+    document.documentElement.setAttribute("data-theme", "dark");
+  }, []);
+
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
