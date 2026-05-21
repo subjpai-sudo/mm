@@ -10,8 +10,9 @@ type Insight = {
 export const generateStockInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ insights: Insight[]; summary: string; generatedAt: string }> => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) {
+    const openaiKey = process.env.OPENAI_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    if (!openaiKey && !lovableKey) {
       return {
         insights: [],
         summary: "AI insights not configured.",
@@ -67,14 +68,19 @@ export const generateStockInsights = createServerFn({ method: "POST" })
     const userPrompt = `FACT SHEET:\n${JSON.stringify(factSheet)}\n\nRespond with strict JSON: {"summary": string, "insights": [{"kind":"alert"|"opportunity"|"trend","title":string,"detail":string}]}`;
 
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const useOpenAI = !!openaiKey;
+      const endpoint = useOpenAI
+        ? "https://api.openai.com/v1/chat/completions"
+        : "https://ai.gateway.lovable.dev/v1/chat/completions";
+      const model = useOpenAI ? "gpt-4o-mini" : "google/gemini-2.5-flash";
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${useOpenAI ? openaiKey : lovableKey}`,
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model,
           messages: [
             { role: "system", content: system },
             { role: "user", content: userPrompt },

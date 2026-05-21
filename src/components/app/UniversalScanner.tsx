@@ -160,7 +160,7 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
       />
 
       <Dialog open={!!hit} onOpenChange={(v) => !v && closeAll()}>
-        <DialogContent className="p-0 max-w-lg gap-0 overflow-hidden border-border">
+        <DialogContent className="p-0 gap-0 border-border overflow-hidden w-[100vw] sm:w-auto sm:max-w-lg h-[100dvh] sm:h-auto sm:max-h-[90vh] max-w-none rounded-none sm:rounded-lg flex flex-col">
           <DialogHeader className="sr-only">
             <DialogTitle>Scan result</DialogTitle>
           </DialogHeader>
@@ -385,8 +385,8 @@ function ProductCard({
         : { label: "In stock", tone: "bg-success/15 text-success", Icon: Boxes };
   const StatusIcon = status.Icon;
   return (
-    <div>
-      <div className="relative aspect-[16/9] bg-gradient-to-br from-primary/15 via-primary/5 to-transparent">
+    <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+      <div className="relative aspect-[16/9] bg-gradient-to-br from-primary/15 via-primary/5 to-transparent shrink-0">
         {p.image_url ? (
           <img src={p.image_url} alt={p.name} className="absolute inset-0 size-full object-cover" />
         ) : (
@@ -403,7 +403,7 @@ function ProductCard({
           <StatusIcon className="size-3.5" /> {status.label}
         </div>
       </div>
-      <div className="p-5 space-y-4">
+      <div className="p-5 space-y-4 overflow-y-auto flex-1 min-h-0">
         <div>
           <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
             Product
@@ -511,8 +511,8 @@ function RackCard({
   ).length;
   const ok = hit.items.length - out - low;
   return (
-    <div>
-      <div className="p-5 gradient-primary text-primary-foreground">
+    <div className="flex flex-col min-h-0 flex-1 overflow-hidden">
+      <div className="p-5 gradient-primary text-primary-foreground shrink-0">
         <div className="flex items-center gap-3">
           <div className="size-12 rounded-2xl bg-primary-foreground/15 grid place-items-center">
             <Warehouse className="size-6" />
@@ -539,7 +539,7 @@ function RackCard({
           </div>
         </div>
       </div>
-      <div className="p-4 space-y-3 max-h-[55vh] overflow-y-auto">
+      <div className="p-4 space-y-3 overflow-y-auto flex-1 min-h-0">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Items in rack</span>
           <Badge variant="secondary">{hit.items.length}</Badge>
@@ -589,7 +589,7 @@ function RackCard({
           })}
         </ul>
       </div>
-      <div className="p-3 border-t border-border grid grid-cols-2 gap-2">
+      <div className="p-3 border-t border-border grid grid-cols-2 gap-2 shrink-0">
         <Button variant="outline" onClick={onScanAgain}>
           Scan next
         </Button>
