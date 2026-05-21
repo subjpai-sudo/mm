@@ -128,16 +128,17 @@ function StockIn() {
 
   return (
     <div className="p-3 sm:p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader title="Stock In" subtitle="Receive inventory by category or scan." />
+      <PageHeader eyebrow="Receiving" title="Stock In" subtitle="Receive inventory by category or scan." />
 
       <div className="space-y-3 sm:space-y-4">
         {/* Scan + search */}
-        <Card className="card-elevated p-3 sm:p-4 space-y-3">
-          <div>
-            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Barcode scan</Label>
+        <Card className="card-elevated p-3 sm:p-4 space-y-3 relative overflow-hidden border-success/30">
+          <div aria-hidden className="absolute -top-20 -right-20 size-60 rounded-full bg-success/20 blur-3xl pointer-events-none" />
+          <div className="relative">
+            <Label className="text-xs uppercase tracking-[0.14em] text-success font-semibold">Barcode scan · receive</Label>
             <div className="mt-2 flex gap-2">
               <div className="relative flex-1">
-                <ScanLine className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+                <ScanLine className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-success" />
                 <Input autoFocus value={scan} onChange={e => setScan(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && onScan()}
                   placeholder="Scan or type barcode / SKU…" className="pl-9 font-mono" />
@@ -145,10 +146,10 @@ function StockIn() {
               <Button onClick={() => setCamOpen(true)} variant="secondary" size="icon" aria-label="Open camera">
                 <Camera className="size-4" />
               </Button>
-              <Button onClick={onScan} className="gradient-primary text-primary-foreground border-0">Find</Button>
+              <Button onClick={onScan} className="gradient-success text-success-foreground border-0">Find</Button>
             </div>
           </div>
-          <div className="relative">
+          <div className="relative z-10">
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products by name, SKU or barcode…" className="pl-9" />
           </div>
