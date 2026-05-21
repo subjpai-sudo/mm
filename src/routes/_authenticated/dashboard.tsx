@@ -240,10 +240,23 @@ function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="activity">
-        <TabsList>
-          <TabsTrigger value="activity">Recent Activity</TabsTrigger>
-          <TabsTrigger value="products">Product List</TabsTrigger>
-          <TabsTrigger value="low">Low Stock</TabsTrigger>
+        <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px]">
+          <TabsTrigger value="activity" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
+            <Activity className="size-4" /> Recent Activity
+            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{activity.length}</span>
+          </TabsTrigger>
+          <TabsTrigger value="low" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
+            <AlertTriangle className="size-4" /> Low Stock
+            {(low + out) > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold tabular-nums">
+                {low + out}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="products" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
+            <Package className="size-4" /> Product List
+            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{total}</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activity">
@@ -286,7 +299,6 @@ function AdminDashboard() {
                     <div className="flex items-center gap-2 flex-wrap">
                       {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
                       {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
-                      {a.kind === "barcode" && <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><Barcode className="size-3" /> Barcode</Badge>}
                       <span className="font-medium truncate">{a.product}</span>
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
@@ -297,9 +309,7 @@ function AdminDashboard() {
                         </span>
                       )}
                       {a.kind === "stock_out" && a.destination && (a.reason || a.who) && <span>·</span>}
-                      {a.kind === "barcode"
-                        ? <span className="font-mono">{a.barcode}</span>
-                        : <span>{a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out")}</span>}
+                      <span>{a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out")}</span>
                       <span>·</span>
                       <span>by <span className="text-foreground font-medium">{a.who}</span></span>
                     </div>
