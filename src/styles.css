@@ -231,5 +231,4 @@
   .chip-acc  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 35%, transparent); background: color-mix(in oklch, var(--accent) 12%, transparent); }
   .hover-lift { transition: transform 160ms ease, box-shadow 160ms ease; }
   .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
-  }
 }
