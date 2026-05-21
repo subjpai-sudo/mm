@@ -1,13 +1,14 @@
 import { ReactNode } from "react";
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function PageHeader({ title, subtitle, eyebrow, actions }: { title: string; subtitle?: string; eyebrow?: string; actions?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+    <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        {subtitle && <p className="text-muted-foreground mt-1">{subtitle}</p>}
+        {eyebrow && <div className="upper-label">{eyebrow}</div>}
+        <h1 className="text-[32px] md:text-[36px] font-semibold tracking-[-0.025em] leading-[1.1] mt-1">{title}</h1>
+        {subtitle && <p className="text-muted-foreground mt-1.5 text-[14px]">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
   );
 }
