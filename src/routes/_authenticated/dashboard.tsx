@@ -29,6 +29,7 @@ function Dashboard() {
 
 function AdminDashboard() {
   const { lastUpdated } = useRealtimeSync();
+  const { fullName, user } = useAuth();
   const [scanOpen, setScanOpen] = useState(false);
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -161,10 +162,17 @@ function AdminDashboard() {
 
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
-      <PageHeader eyebrow={format(new Date(), "EEEE · MMM d").toUpperCase()} title="Dashboard" subtitle="Live inventory overview." actions={<LiveBadge lastUpdated={lastUpdated} />} />
+      {/* Greeting header */}
+      <DashboardGreeting
+        name={fullName ?? user?.email?.split("@")[0] ?? "there"}
+        stockedIn24={stockedIn24}
+        stockedOut24={stockedOut24}
+        events24={last24.length}
+        lastUpdated={lastUpdated}
+      />
 
-      {/* Quick actions */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+      {/* Quick actions — Stock In / Stock Out / Scan */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-6">
         <Link to="/stock-in" className="block">
           <button className="w-full h-14 sm:h-16 rounded-2xl border border-success/30 bg-success/10 hover:bg-success/15 text-success font-semibold inline-flex items-center justify-center gap-2 transition active:scale-[0.98]">
             <PackagePlus className="size-5" /> <span className="hidden sm:inline">Stock In</span><span className="sm:hidden">In</span>
@@ -183,24 +191,46 @@ function AdminDashboard() {
         </button>
       </div>
 
+      {/* Stat cards — visual style per handoff screenshot */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard label="Total products" value={total} icon={Boxes} tone="primary" hint={`${stockedIn24}/${stockedOut24} in/out 24h`} to="/products" search={{ filter: "all" }} />
-        <DashCard
-          to="/racks"
-          tone="primary"
-          icon={Warehouse}
-          label="Racks"
-          value={`${racksUsed}/${racksTotal}`}
-          hint="In use"
+        <KpiCard
+          to="/products"
+          search={{ filter: "all" }}
+          label="Total products"
+          value={total.toLocaleString()}
+          hint={`+${stockedIn24} this week`}
+          tone="success"
+          visual={<Sparkline tone="success" />}
         />
-        <StatCard label="Low stock" value={low + out} icon={AlertTriangle} tone={out > 0 ? "destructive" : "warning"} hint={`${out} out · ${low} low`} to="/products" search={{ filter: "low" }} />
-        <DashCard
-          to="/shops"
+        <KpiCard
+          to="/racks"
+          label="Racks occupied"
+          value={
+            <>
+              <span>{racksUsed}</span>
+              <span className="text-muted-foreground"> / {racksTotal}</span>
+            </>
+          }
+          hint={racksUsed < racksTotal ? `${racksTotal - racksUsed} empty` : "All in use"}
+          tone="success"
+          visual={<RackBars used={racksUsed} total={racksTotal} />}
+        />
+        <KpiCard
+          to="/products"
+          search={{ filter: "low" }}
+          label="Low + Out of stock"
+          value={(low + out).toString()}
+          hint={`${out} out · ${low} low`}
           tone="warning"
-          icon={Store}
-          label="Shop tracker"
-          value={shopTotal.toLocaleString()}
+          visual={<Sparkline tone="warning" bars />}
+        />
+        <KpiCard
+          to="/shops"
+          label="Shop deliveries (24h)"
+          value={stockedOut24.toLocaleString()}
           hint={topShop && topShop[1] > 0 ? `Top: ${topShop[0]}` : "No deliveries yet"}
+          tone="warning"
+          visual={<Sparkline tone="warning" />}
         />
       </div>
 
