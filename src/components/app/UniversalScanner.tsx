@@ -227,6 +227,8 @@ function UnknownCard({
 }) {
   const [q, setQ] = useState("");
   const [picking, setPicking] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
   const qc = useQueryClient();
   const { data: products = [] } = useQuery({
     queryKey: ["products-pick"],
@@ -262,6 +264,69 @@ function UnknownCard({
     onError: (e: any) => toast.error(e?.message ?? "Could not register"),
   });
 
+  const createProduct = useMutation({
+    mutationFn: async (name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("Name is required");
+      const { error } = await supabase
+        .from("products")
+        .insert({
+          name: trimmed,
+          barcode: code,
+          stock: 0,
+          barcode_registered_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["products-pick"] });
+      toast.success("Product created");
+      onRegistered();
+    },
+    onError: (e: any) => toast.error(e?.message ?? "Could not create"),
+  });
+
+  if (creating) {
+    return (
+      <div className="p-5 space-y-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+            New product
+          </div>
+          <div className="font-mono text-sm break-all">{code}</div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Barcode will be saved on this new product.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Product name</label>
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="e.g. Mango Juice 200ml"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newName.trim()) createProduct.mutate(newName);
+            }}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <Button variant="outline" onClick={() => setCreating(false)}>
+            Back
+          </Button>
+          <Button
+            disabled={!newName.trim() || createProduct.isPending}
+            className="gradient-primary text-primary-foreground border-0"
+            onClick={() => createProduct.mutate(newName)}
+          >
+            {createProduct.isPending ? "Creating…" : "Create & register"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!picking) {
     return (
       <div className="p-6 text-center space-y-4">
@@ -276,23 +341,28 @@ function UnknownCard({
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 pt-2">
-          <Button variant="outline" onClick={onScanAgain}>
-            Scan again
-          </Button>
           <Button
             className="gradient-primary text-primary-foreground border-0"
             onClick={() => setPicking(true)}
           >
             Assign to product
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setNewName("");
+              setCreating(true);
+            }}
+          >
+            Create new product
+          </Button>
         </div>
-        <Link
-          to="/products"
-          onClick={onClose}
-          className="block text-xs text-muted-foreground hover:text-foreground"
+        <button
+          onClick={onScanAgain}
+          className="block w-full text-xs text-muted-foreground hover:text-foreground"
         >
-          or create a new product →
-        </Link>
+          Scan again
+        </button>
       </div>
     );
   }
