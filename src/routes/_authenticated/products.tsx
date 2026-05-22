@@ -717,6 +717,9 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
               </div>
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
+              {displaySize(product) && (
+                <div className="text-xs text-muted-foreground">Size <span className="font-semibold text-foreground">{displaySize(product)}</span></div>
+              )}
             </div>
           </div>
 
