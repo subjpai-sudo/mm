@@ -442,13 +442,13 @@ function DashboardGreeting({
 }: { name: string; stockedIn24: number; stockedOut24: number; events24: number; lastUpdated: Date | null }) {
   const first = name.split(/[\s.@]+/)[0] ?? name;
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4 mb-6 sm:mb-7">
+      <div className="min-w-0 w-full sm:w-auto">
         <div className="upper-label">{format(new Date(), "EEEE · MMM d").toUpperCase()}</div>
-        <h1 className="text-[34px] md:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
+        <h1 className="text-[26px] sm:text-[34px] md:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
           {greetingPart()}, {first}.
         </h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">
+        <p className="mt-2 text-[13px] sm:text-[14px] text-muted-foreground">
           <span className="text-success font-semibold">+{stockedIn24}</span> in
           <span className="mx-1">/</span>
           <span className="text-destructive font-semibold">−{stockedOut24}</span> out in the last 24h
@@ -456,16 +456,16 @@ function DashboardGreeting({
           <span className="text-foreground font-semibold tabular-nums">{events24}</span> events
         </p>
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
         {lastUpdated && <LiveBadge lastUpdated={lastUpdated} />}
-        <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
-          <Printer className="size-4" /> Print QR sheet
+        <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition" aria-label="Print QR sheet">
+          <Printer className="size-4" /> <span className="hidden sm:inline">Print QR sheet</span>
         </Link>
-        <Link to="/reports" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
-          <History className="size-4" /> Reports
+        <Link to="/reports" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition" aria-label="Reports">
+          <History className="size-4" /> <span className="hidden sm:inline">Reports</span>
         </Link>
-        <Link to="/stock-in" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] gradient-primary text-primary-foreground text-[13px] font-semibold transition hover:opacity-95">
-          <Plus className="size-4" /> Stock movement
+        <Link to="/stock-in" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] gradient-primary text-primary-foreground text-[13px] font-semibold transition hover:opacity-95">
+          <Plus className="size-4" /> <span className="hidden sm:inline">Stock movement</span><span className="sm:hidden">Move</span>
         </Link>
       </div>
     </div>
