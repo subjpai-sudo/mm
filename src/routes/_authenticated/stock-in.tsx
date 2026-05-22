@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { displaySize } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-in")({
