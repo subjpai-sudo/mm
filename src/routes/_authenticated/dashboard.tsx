@@ -571,7 +571,7 @@ function ProductListTable({ products }: { products: any[] }) {
   }
   return (
     <Card className="card-elevated p-0 overflow-hidden rounded-[14px]">
-      <div className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-3 border-b border-border bg-secondary/30">
+      <div className="hidden md:grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-3 border-b border-border bg-secondary/30">
         <div className="upper-label">Product</div>
         <div className="upper-label">SKU / Barcode</div>
         <div className="upper-label">Rack</div>
@@ -591,22 +591,30 @@ function ProductListTable({ products }: { products: any[] }) {
               key={p.id}
               to="/products"
               search={{ filter: "all" } as any}
-              className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-4 items-center hover:bg-secondary/30 transition"
+              className="flex md:grid md:grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-4 md:px-5 py-3 md:py-4 items-center hover:bg-secondary/30 transition"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className={`size-10 rounded-[10px] border grid place-items-center text-[12px] font-bold tracking-wider shrink-0 ${palette}`}>
                   {initialsOf(p.name ?? "")}
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-[14px] truncate">{p.name}</div>
                   <div className="text-[11px] text-muted-foreground truncate">{p.categories?.name ?? "—"}</div>
+                  <div className="md:hidden mt-1 flex items-center gap-1.5 flex-wrap text-[10px] font-mono text-muted-foreground">
+                    {rackLabel && (
+                      <span className="inline-flex items-center h-5 px-1.5 rounded-full border border-border bg-secondary/40">
+                        {rackLabel}/{shelfLabel}
+                      </span>
+                    )}
+                    {p.sku && <span className="truncate">{p.sku}</span>}
+                  </div>
                 </div>
               </div>
-              <div className="font-mono text-[12px] min-w-0">
+              <div className="hidden md:block font-mono text-[12px] min-w-0">
                 <div className="truncate text-foreground">{p.sku ?? "—"}</div>
                 <div className="truncate text-muted-foreground">{p.barcode ?? "—"}</div>
               </div>
-              <div>
+              <div className="hidden md:block">
                 {rackLabel ? (
                   <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-border bg-secondary/40 text-[11px] font-mono">
                     <span className="size-3 grid place-items-center text-muted-foreground">🏠</span>
@@ -614,11 +622,13 @@ function ProductListTable({ products }: { products: any[] }) {
                   </span>
                 ) : <span className="text-[11px] text-muted-foreground">Unassigned</span>}
               </div>
-              <div className="flex items-center justify-end gap-2 pr-1">
-                <span className={`text-[22px] font-semibold tabular-nums ${numCls}`}>{p.stock}</span>
-                <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+              <div className="flex items-center justify-end gap-2 pr-1 shrink-0">
+                <span className={`text-[20px] md:text-[22px] font-semibold tabular-nums ${numCls}`}>{p.stock}</span>
+                <div className="hidden sm:block">
+                  <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+                </div>
               </div>
-              <ArrowUpRight className="size-4 text-muted-foreground rotate-45" />
+              <ArrowUpRight className="hidden md:block size-4 text-muted-foreground rotate-45" />
             </Link>
           );
         })}
