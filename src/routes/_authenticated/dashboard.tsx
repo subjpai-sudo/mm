@@ -161,7 +161,7 @@ function AdminDashboard() {
       });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto">
       {/* Greeting header */}
       <DashboardGreeting
         name={fullName ?? user?.email?.split("@")[0] ?? "there"}
@@ -240,22 +240,28 @@ function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="activity">
-        <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px]">
-          <TabsTrigger value="activity" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <Activity className="size-4" /> Recent Activity
-            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{activity.length}</span>
+        <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px] w-full overflow-x-auto flex-nowrap justify-start sm:w-auto sm:inline-flex">
+          <TabsTrigger value="activity" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <Activity className="size-4" />
+            <span className="hidden sm:inline">Recent Activity</span>
+            <span className="sm:hidden">Activity</span>
+            <span className="ml-0.5 text-[11px] text-muted-foreground tabular-nums">{activity.length}</span>
           </TabsTrigger>
-          <TabsTrigger value="low" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <AlertTriangle className="size-4" /> Low Stock
+          <TabsTrigger value="low" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <AlertTriangle className="size-4" />
+            <span className="hidden sm:inline">Low Stock</span>
+            <span className="sm:hidden">Low</span>
             {(low + out) > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold tabular-nums">
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold tabular-nums">
                 {low + out}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="products" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <Package className="size-4" /> Product List
-            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{total}</span>
+          <TabsTrigger value="products" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <Package className="size-4" />
+            <span className="hidden sm:inline">Product List</span>
+            <span className="sm:hidden">Products</span>
+            <span className="ml-0.5 text-[11px] text-muted-foreground tabular-nums">{total}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -436,13 +442,13 @@ function DashboardGreeting({
 }: { name: string; stockedIn24: number; stockedOut24: number; events24: number; lastUpdated: Date | null }) {
   const first = name.split(/[\s.@]+/)[0] ?? name;
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-7">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4 mb-6 sm:mb-7">
+      <div className="min-w-0 w-full sm:w-auto">
         <div className="upper-label">{format(new Date(), "EEEE · MMM d").toUpperCase()}</div>
-        <h1 className="text-[34px] md:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
+        <h1 className="text-[26px] sm:text-[34px] md:text-[44px] font-semibold tracking-[-0.03em] leading-[1.05] mt-1">
           {greetingPart()}, {first}.
         </h1>
-        <p className="mt-2 text-[14px] text-muted-foreground">
+        <p className="mt-2 text-[13px] sm:text-[14px] text-muted-foreground">
           <span className="text-success font-semibold">+{stockedIn24}</span> in
           <span className="mx-1">/</span>
           <span className="text-destructive font-semibold">−{stockedOut24}</span> out in the last 24h
@@ -450,16 +456,16 @@ function DashboardGreeting({
           <span className="text-foreground font-semibold tabular-nums">{events24}</span> events
         </p>
       </div>
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
         {lastUpdated && <LiveBadge lastUpdated={lastUpdated} />}
-        <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
-          <Printer className="size-4" /> Print QR sheet
+        <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition" aria-label="Print QR sheet">
+          <Printer className="size-4" /> <span className="hidden sm:inline">Print QR sheet</span>
         </Link>
-        <Link to="/reports" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition">
-          <History className="size-4" /> Reports
+        <Link to="/reports" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition" aria-label="Reports">
+          <History className="size-4" /> <span className="hidden sm:inline">Reports</span>
         </Link>
-        <Link to="/stock-in" className="inline-flex items-center gap-2 h-10 px-3.5 rounded-[12px] gradient-primary text-primary-foreground text-[13px] font-semibold transition hover:opacity-95">
-          <Plus className="size-4" /> Stock movement
+        <Link to="/stock-in" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] gradient-primary text-primary-foreground text-[13px] font-semibold transition hover:opacity-95">
+          <Plus className="size-4" /> <span className="hidden sm:inline">Stock movement</span><span className="sm:hidden">Move</span>
         </Link>
       </div>
     </div>
@@ -565,7 +571,7 @@ function ProductListTable({ products }: { products: any[] }) {
   }
   return (
     <Card className="card-elevated p-0 overflow-hidden rounded-[14px]">
-      <div className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-3 border-b border-border bg-secondary/30">
+      <div className="hidden md:grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-3 border-b border-border bg-secondary/30">
         <div className="upper-label">Product</div>
         <div className="upper-label">SKU / Barcode</div>
         <div className="upper-label">Rack</div>
@@ -585,22 +591,30 @@ function ProductListTable({ products }: { products: any[] }) {
               key={p.id}
               to="/products"
               search={{ filter: "all" } as any}
-              className="grid grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-5 py-4 items-center hover:bg-secondary/30 transition"
+              className="flex md:grid md:grid-cols-[1fr_180px_140px_180px_24px] gap-3 px-4 md:px-5 py-3 md:py-4 items-center hover:bg-secondary/30 transition"
             >
-              <div className="flex items-center gap-3 min-w-0">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
                 <div className={`size-10 rounded-[10px] border grid place-items-center text-[12px] font-bold tracking-wider shrink-0 ${palette}`}>
                   {initialsOf(p.name ?? "")}
                 </div>
                 <div className="min-w-0">
                   <div className="font-semibold text-[14px] truncate">{p.name}</div>
                   <div className="text-[11px] text-muted-foreground truncate">{p.categories?.name ?? "—"}</div>
+                  <div className="md:hidden mt-1 flex items-center gap-1.5 flex-wrap text-[10px] font-mono text-muted-foreground">
+                    {rackLabel && (
+                      <span className="inline-flex items-center h-5 px-1.5 rounded-full border border-border bg-secondary/40">
+                        {rackLabel}/{shelfLabel}
+                      </span>
+                    )}
+                    {p.sku && <span className="truncate">{p.sku}</span>}
+                  </div>
                 </div>
               </div>
-              <div className="font-mono text-[12px] min-w-0">
+              <div className="hidden md:block font-mono text-[12px] min-w-0">
                 <div className="truncate text-foreground">{p.sku ?? "—"}</div>
                 <div className="truncate text-muted-foreground">{p.barcode ?? "—"}</div>
               </div>
-              <div>
+              <div className="hidden md:block">
                 {rackLabel ? (
                   <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-border bg-secondary/40 text-[11px] font-mono">
                     <span className="size-3 grid place-items-center text-muted-foreground">🏠</span>
@@ -608,11 +622,13 @@ function ProductListTable({ products }: { products: any[] }) {
                   </span>
                 ) : <span className="text-[11px] text-muted-foreground">Unassigned</span>}
               </div>
-              <div className="flex items-center justify-end gap-2 pr-1">
-                <span className={`text-[22px] font-semibold tabular-nums ${numCls}`}>{p.stock}</span>
-                <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+              <div className="flex items-center justify-end gap-2 pr-1 shrink-0">
+                <span className={`text-[20px] md:text-[22px] font-semibold tabular-nums ${numCls}`}>{p.stock}</span>
+                <div className="hidden sm:block">
+                  <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
+                </div>
               </div>
-              <ArrowUpRight className="size-4 text-muted-foreground rotate-45" />
+              <ArrowUpRight className="hidden md:block size-4 text-muted-foreground rotate-45" />
             </Link>
           );
         })}
