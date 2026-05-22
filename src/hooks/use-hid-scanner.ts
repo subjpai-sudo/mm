@@ -63,6 +63,29 @@ export function useHidScanner(
     const onKeyDown = (e: KeyboardEvent) => {
       // Ignore modifier-only key presses and the modifier-as-prefix combos.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // If the user has focused an input/textarea/contenteditable, let the
+      // scanner gun type directly into that field (e.g. the barcode input on
+      // the product edit form). Don't open the global scanner in that case.
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      const isEditable =
+        !!t &&
+        (tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          tag === "SELECT" ||
+          (t as HTMLElement).isContentEditable);
+      if (isEditable) {
+        // Reset our buffer so a later out-of-field scan starts clean.
+        buffer = "";
+        lastTs = 0;
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = null;
+        }
+        return;
+      }
+
       const now = performance.now();
       const delta = lastTs ? now - lastTs : 0;
 
