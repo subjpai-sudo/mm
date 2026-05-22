@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,24 +45,31 @@ function RackDetail() {
     queryFn: async () => (await supabase.from("racks").select("id, code, name").eq("code", rackId).maybeSingle()).data,
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
+  // Only products that live in THIS rack — keeps payload small even for big inventories.
+  const { data: rackProducts = [] } = useQuery({
+    queryKey: ["products", "by-rack", rackId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, name, sku, barcode, image_url, stock, low_stock_threshold, rack, shelf")
+          .eq("rack", rackId)
+          .order("name")
+      ).data ?? [],
   });
 
   const byShelf = useMemo(() => {
     const result: Record<Shelf, any[]> = { upper: [], mid: [], down: [] };
-    for (const p of products as any[]) {
-      if ((p.rack ?? "").trim() !== rackId) continue;
+    for (const p of rackProducts as any[]) {
       if (p.shelf && SHELVES.includes(p.shelf)) result[p.shelf as Shelf].push(p);
       else result.mid.push(p);
     }
     return result;
-  }, [products, rackId]);
+  }, [rackProducts]);
 
   const productIdsInRack = useMemo(() => {
-    return (products as any[]).filter((p) => (p.rack ?? "").trim() === rackId).map((p) => p.id);
-  }, [products, rackId]);
+    return (rackProducts as any[]).map((p) => p.id);
+  }, [rackProducts]);
 
   const { data: movements = [] } = useQuery({
     queryKey: ["movements-by-rack", rackId, productIdsInRack.length],
@@ -77,8 +85,7 @@ function RackDetail() {
   const movementsByShelf = useMemo(() => {
     const result: Record<Shelf, any[]> = { upper: [], mid: [], down: [] };
     const productShelf = new Map<string, Shelf>();
-    for (const p of products as any[]) {
-      if ((p.rack ?? "").trim() !== rackId) continue;
+    for (const p of rackProducts as any[]) {
       const s: Shelf = (p.shelf && SHELVES.includes(p.shelf)) ? p.shelf : "mid";
       productShelf.set(p.id, s);
     }
@@ -87,14 +94,30 @@ function RackDetail() {
       if (s) result[s].push(m);
     }
     return result;
-  }, [movements, products, rackId]);
+  }, [movements, rackProducts]);
+
+  // Pickable list is fetched only when the add-dialog opens.
+  const { data: pickableAll = [], isFetching: pickableLoading } = useQuery({
+    queryKey: ["products", "pickable", rackId],
+    enabled: !!addingTo,
+    staleTime: 30_000,
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, name, sku, barcode, image_url, stock, rack, shelf")
+          .or(`rack.is.null,rack.neq.${rackId}`)
+          .order("name")
+      ).data ?? [],
+  });
 
   const pickable = useMemo(() => {
-    const v = q.toLowerCase();
-    return (products as any[])
-      .filter((p) => (p.rack ?? "").trim() !== rackId)
-      .filter((p) => !v || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(v));
-  }, [products, rackId, q]);
+    const v = q.trim().toLowerCase();
+    if (!v) return pickableAll as any[];
+    return (pickableAll as any[]).filter((p) =>
+      `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(v),
+    );
+  }, [pickableAll, q]);
 
   const assign = useMutation({
     mutationFn: async ({ productId, shelf }: { productId: string; shelf: Shelf | null }) => {
@@ -103,7 +126,9 @@ function RackDetail() {
         .eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -159,7 +184,7 @@ function RackDetail() {
           const recent = movementsByShelf[s];
           const inCount = recent.filter((m) => m.type === "in").reduce((a, m) => a + (m.quantity ?? 0), 0);
           const outCount = recent.filter((m) => m.type === "out").reduce((a, m) => a + (m.quantity ?? 0), 0);
-          const productMap = new Map((products as any[]).map((p) => [p.id, p]));
+          const productMap = new Map((rackProducts as any[]).map((p) => [p.id, p]));
           return (
             <Card key={s} className="card-elevated p-3 sm:p-4 relative overflow-hidden">
               {/* 3D isometric shelf base */}
@@ -237,7 +262,7 @@ function RackDetail() {
                       </button>
                       <div className="aspect-square w-full rounded-md overflow-hidden bg-background/60 border border-border grid place-items-center mt-3">
                         {p.image_url ? (
-                          <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                          <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <Package className="size-6 text-muted-foreground" />
                         )}
@@ -270,35 +295,14 @@ function RackDetail() {
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search products…" className="pl-9" />
           </div>
-          <div className="flex-1 overflow-y-auto -mx-6 px-6 divide-y divide-border border border-border rounded-lg max-h-[55vh]">
-            {pickable.length === 0 && <p className="text-center text-sm text-muted-foreground py-8">No matching products</p>}
-            {pickable.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  if (!addingTo) return;
-                  assign.mutate({ productId: p.id, shelf: addingTo });
-                }}
-                className="w-full flex items-center gap-3 p-2 hover:bg-secondary/40 transition text-left"
-              >
-                {p.image_url ? (
-                  <img src={p.image_url} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
-                ) : (
-                  <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{p.name}</div>
-                  <div className="text-[11px] text-muted-foreground font-mono truncate">
-                    {p.barcode ?? p.sku ?? "—"}
-                    {(p.rack ?? "").trim() && <span className="ml-2">· in Rack {p.rack} / {p.shelf ?? "—"}</span>}
-                  </div>
-                </div>
-                <span className="text-[10px] tabular-nums font-bold text-muted-foreground">{p.stock}</span>
-                <Plus className="size-4 text-primary shrink-0" />
-              </button>
-            ))}
-          </div>
+          <VirtualPickList
+            items={pickable}
+            loading={pickableLoading}
+            onPick={(p) => {
+              if (!addingTo) return;
+              assign.mutate({ productId: p.id, shelf: addingTo });
+            }}
+          />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setAddingTo(null)} className="w-full">Done</Button>
           </DialogFooter>
@@ -322,6 +326,99 @@ function RackDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function VirtualPickList({
+  items,
+  loading,
+  onPick,
+}: {
+  items: any[];
+  loading: boolean;
+  onPick: (p: any) => void;
+}) {
+  const parentRef = useRef<HTMLDivElement | null>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 56,
+    overscan: 8,
+  });
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
+        Loading products…
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div className="border border-border rounded-lg p-6 text-center text-sm text-muted-foreground">
+        No matching products
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={parentRef}
+      className="flex-1 overflow-y-auto border border-border rounded-lg max-h-[55vh]"
+    >
+      <div
+        style={{
+          height: rowVirtualizer.getTotalSize(),
+          position: "relative",
+          width: "100%",
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+          const p = items[virtualRow.index];
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onPick(p)}
+              className="absolute left-0 top-0 w-full flex items-center gap-3 p-2 hover:bg-secondary/40 transition text-left border-b border-border"
+              style={{
+                height: virtualRow.size,
+                transform: `translateY(${virtualRow.start}px)`,
+              }}
+            >
+              {p.image_url ? (
+                <img
+                  src={p.image_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="size-10 rounded-lg object-cover border border-border shrink-0"
+                />
+              ) : (
+                <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0">
+                  <ImageIcon className="size-4" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate">{p.name}</div>
+                <div className="text-[11px] text-muted-foreground font-mono truncate">
+                  {p.barcode ?? p.sku ?? "—"}
+                  {(p.rack ?? "").trim() && (
+                    <span className="ml-2">
+                      · in Rack {p.rack} / {p.shelf ?? "—"}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] tabular-nums font-bold text-muted-foreground">
+                {p.stock}
+              </span>
+              <Plus className="size-4 text-primary shrink-0" />
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
