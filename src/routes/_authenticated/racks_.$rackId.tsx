@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight, Printer, PencilLine } from "lucide-react";
+import { ChevronLeft, Package, Plus, Search, X, ImageIcon, Warehouse, ArrowUpRight, ArrowDownRight, Printer, PencilLine, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -172,6 +172,11 @@ function RackDetail() {
             <Link to="/racks/print" search={{ ids: rackId } as any}>
               <Button variant="outline" className="gap-2">
                 <Printer className="size-4" /> Generate QR
+              </Button>
+            </Link>
+            <Link to="/racks/labels" search={{ ids: rackId } as any}>
+              <Button className="gradient-primary text-primary-foreground border-0 gap-2">
+                <Tag className="size-4" /> Print product labels
               </Button>
             </Link>
           </div>
