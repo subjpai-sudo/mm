@@ -23,8 +23,13 @@ function RacksIndex() {
   const [createOpen, setCreateOpen] = useState(false);
   const [renameRack, setRenameRack] = useState<{ id: string; code: string; name: string | null } | null>(null);
   const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
+    queryKey: ["products", "racks-index"],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, rack, stock, low_stock_threshold")
+      ).data ?? [],
   });
   const { data: racks = [] } = useQuery({
     queryKey: ["racks"],
