@@ -192,7 +192,7 @@ function AdminDashboard() {
       </div>
 
       {/* Stat cards — visual style per handoff screenshot */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6 auto-rows-fr items-stretch">
         <KpiCard
           to="/products"
           search={{ filter: "all" }}
