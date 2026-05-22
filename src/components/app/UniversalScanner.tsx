@@ -4,7 +4,7 @@ import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarcodeScanner } from "./BarcodeScanner";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,19 @@ type Hit = ProductHit | RackHit | { kind: "unknown"; code: string };
  * Universal scanner — handles both QR (rack labels) and product barcodes.
  * Shows a rich result dialog with image, stock, price, last movement, etc.
  */
-export function UniversalScanner({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function UniversalScanner({
+  open,
+  onClose,
+  prefillCode,
+  onPrefillConsumed,
+}: {
+  open: boolean;
+  onClose: () => void;
+  /** Optional code from an external (HID/Bluetooth) scanner. When set, the
+   *  camera step is skipped and the code is looked up directly. */
+  prefillCode?: string | null;
+  onPrefillConsumed?: () => void;
+}) {
   const nav = useNavigate();
   const qc = useQueryClient();
   const [hit, setHit] = useState<Hit | null>(null);
@@ -145,6 +157,14 @@ export function UniversalScanner({ open, onClose }: { open: boolean; onClose: ()
     });
     qc.invalidateQueries({ queryKey: ["products"] });
   }
+
+  // Process codes coming from an external HID/Bluetooth barcode scanner.
+  useEffect(() => {
+    if (!open || !prefillCode) return;
+    void handle(prefillCode);
+    onPrefillConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, prefillCode]);
 
   return (
     <>
