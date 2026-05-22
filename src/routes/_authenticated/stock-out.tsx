@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { SHOPS } from "@/lib/shops";
+import { displaySize } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-out")({
@@ -379,6 +380,9 @@ function StockOut() {
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm truncate">{p.name}</div>
                     <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"}</div>
+                    {displaySize(p) && (
+                      <div className="text-[10px] font-semibold text-accent mt-0.5">{displaySize(p)}</div>
+                    )}
                   </div>
                   <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-bold border tabular-nums shrink-0",
                     p.stock <= 0 ? "bg-destructive text-destructive-foreground border-destructive" : "bg-secondary border-border")}>
@@ -415,6 +419,7 @@ function StockOut() {
                   <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
                     <span>SKU <span className="font-mono text-foreground">{selected.sku ?? "—"}</span></span>
                     <span>Barcode <span className="font-mono text-foreground">{selected.barcode ?? "—"}</span></span>
+                    {displaySize(selected) && <span>Size <span className="font-semibold text-foreground">{displaySize(selected)}</span></span>}
                   </div>
                 </div>
                 <div>

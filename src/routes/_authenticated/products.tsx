@@ -24,6 +24,7 @@ import { fetchProductImage, bulkFetchProductImages, generateProductImageAI, bulk
 import { Sparkles, Globe, Wand2 } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
+import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -491,6 +492,7 @@ function ProductsPage() {
 function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: (f: any) => void }) {
   const [name, setName] = useState(""); const [sku, setSku] = useState(""); const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("0"); const [stock, setStock] = useState("0"); const [threshold, setThreshold] = useState("5");
+  const [sizeNum, setSizeNum] = useState(""); const [sizeUnit, setSizeUnit] = useState<string>("g");
   const [mainCatId, setMainCatId] = useState<string>("");
   const [subCatId, setSubCatId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
@@ -548,12 +550,23 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
           <div><Label>Stock</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
           <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
         </div>
+        <div className="grid grid-cols-[1fr_120px] gap-3">
+          <div><Label>Size</Label><Input type="number" step="0.01" inputMode="decimal" placeholder="400" value={sizeNum} onChange={e => setSizeNum(e.target.value)} /></div>
+          <div><Label>Unit</Label>
+            <Select value={sizeUnit} onValueChange={setSizeUnit}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </div>
       </div>
       <DialogFooter>
         <Button className="gradient-primary text-primary-foreground border-0" onClick={() => onSubmit({
           name, sku: sku || null, barcode: barcode || null,
           category_id: categoryId || null,
           image_url: imageUrl || null,
+          size: sizeNum ? sizeNum : null,
+          unit: sizeNum ? sizeUnit : null,
           price: Number(price), stock: Number(stock), low_stock_threshold: Number(threshold),
         })}>Create</Button>
       </DialogFooter>
@@ -569,6 +582,9 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   const [price, setPrice] = useState(String(product.price ?? 0));
   const [stock, setStock] = useState(String(product.stock ?? 0));
   const [threshold, setThreshold] = useState(String(product.low_stock_threshold ?? 5));
+  const initialSize = parseSize(product.size, product.unit);
+  const [sizeNum, setSizeNum] = useState(initialSize.num);
+  const [sizeUnit, setSizeUnit] = useState<string>(initialSize.unit || "g");
   const initialCat = categories.find((c: any) => c.id === product.category_id);
   const initialMainId = initialCat ? (initialCat.parent_id ?? initialCat.id) : "";
   const initialSubId = initialCat && initialCat.parent_id ? initialCat.id : "";
@@ -630,12 +646,23 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
             <div><Label>Stock</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
             <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
           </div>
+          <div className="grid grid-cols-[1fr_120px] gap-3">
+            <div><Label>Size</Label><Input type="number" step="0.01" inputMode="decimal" placeholder="400" value={sizeNum} onChange={e => setSizeNum(e.target.value)} /></div>
+            <div><Label>Unit</Label>
+              <Select value={sizeUnit} onValueChange={setSizeUnit}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button className="gradient-primary text-primary-foreground border-0" onClick={() => onSave({
             name, sku: sku || null, barcode: barcode || null,
             category_id: categoryId || null, image_url: imageUrl || null,
+            size: sizeNum ? sizeNum : null,
+            unit: sizeNum ? sizeUnit : null,
             price: Number(price), stock: Number(stock), low_stock_threshold: Number(threshold),
           })}>Save changes</Button>
         </DialogFooter>
@@ -690,6 +717,9 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
               </div>
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
+              {displaySize(product) && (
+                <div className="text-xs text-muted-foreground">Size <span className="font-semibold text-foreground">{displaySize(product)}</span></div>
+              )}
             </div>
           </div>
 
@@ -820,6 +850,9 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, 
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
+            {displaySize(p) && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30">{displaySize(p)}</span>
+            )}
           </div>
           {p.barcode && (
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
