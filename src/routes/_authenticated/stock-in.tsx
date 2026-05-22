@@ -357,7 +357,11 @@ function StockIn() {
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-sm truncate">{p.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">{cat?.name ?? "Uncategorized"} · Stock {p.stock}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {cat?.name ?? "Uncategorized"}
+                          {displaySize(p) && <> · <span className="text-accent font-semibold">{displaySize(p)}</span></>}
+                          {" · Stock "}{p.stock}
+                        </div>
                       </div>
                       <span className="text-[10px] uppercase tracking-wider text-primary">Register</span>
                     </button>
