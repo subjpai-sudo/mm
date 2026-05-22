@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,24 +45,31 @@ function RackDetail() {
     queryFn: async () => (await supabase.from("racks").select("id, code, name").eq("code", rackId).maybeSingle()).data,
   });
 
-  const { data: products = [] } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => (await supabase.from("products").select("*").order("name")).data ?? [],
+  // Only products that live in THIS rack — keeps payload small even for big inventories.
+  const { data: rackProducts = [] } = useQuery({
+    queryKey: ["products", "by-rack", rackId],
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, name, sku, barcode, image_url, stock, low_stock_threshold, rack, shelf")
+          .eq("rack", rackId)
+          .order("name")
+      ).data ?? [],
   });
 
   const byShelf = useMemo(() => {
     const result: Record<Shelf, any[]> = { upper: [], mid: [], down: [] };
-    for (const p of products as any[]) {
-      if ((p.rack ?? "").trim() !== rackId) continue;
+    for (const p of rackProducts as any[]) {
       if (p.shelf && SHELVES.includes(p.shelf)) result[p.shelf as Shelf].push(p);
       else result.mid.push(p);
     }
     return result;
-  }, [products, rackId]);
+  }, [rackProducts]);
 
   const productIdsInRack = useMemo(() => {
-    return (products as any[]).filter((p) => (p.rack ?? "").trim() === rackId).map((p) => p.id);
-  }, [products, rackId]);
+    return (rackProducts as any[]).map((p) => p.id);
+  }, [rackProducts]);
 
   const { data: movements = [] } = useQuery({
     queryKey: ["movements-by-rack", rackId, productIdsInRack.length],
@@ -77,8 +85,7 @@ function RackDetail() {
   const movementsByShelf = useMemo(() => {
     const result: Record<Shelf, any[]> = { upper: [], mid: [], down: [] };
     const productShelf = new Map<string, Shelf>();
-    for (const p of products as any[]) {
-      if ((p.rack ?? "").trim() !== rackId) continue;
+    for (const p of rackProducts as any[]) {
       const s: Shelf = (p.shelf && SHELVES.includes(p.shelf)) ? p.shelf : "mid";
       productShelf.set(p.id, s);
     }
@@ -87,14 +94,30 @@ function RackDetail() {
       if (s) result[s].push(m);
     }
     return result;
-  }, [movements, products, rackId]);
+  }, [movements, rackProducts]);
+
+  // Pickable list is fetched only when the add-dialog opens.
+  const { data: pickableAll = [], isFetching: pickableLoading } = useQuery({
+    queryKey: ["products", "pickable", rackId],
+    enabled: !!addingTo,
+    staleTime: 30_000,
+    queryFn: async () =>
+      (
+        await supabase
+          .from("products")
+          .select("id, name, sku, barcode, image_url, stock, rack, shelf")
+          .or(`rack.is.null,rack.neq.${rackId}`)
+          .order("name")
+      ).data ?? [],
+  });
 
   const pickable = useMemo(() => {
-    const v = q.toLowerCase();
-    return (products as any[])
-      .filter((p) => (p.rack ?? "").trim() !== rackId)
-      .filter((p) => !v || `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(v));
-  }, [products, rackId, q]);
+    const v = q.trim().toLowerCase();
+    if (!v) return pickableAll as any[];
+    return (pickableAll as any[]).filter((p) =>
+      `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(v),
+    );
+  }, [pickableAll, q]);
 
   const assign = useMutation({
     mutationFn: async ({ productId, shelf }: { productId: string; shelf: Shelf | null }) => {
@@ -103,7 +126,9 @@ function RackDetail() {
         .eq("id", productId);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
