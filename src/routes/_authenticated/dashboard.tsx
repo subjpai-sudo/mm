@@ -161,7 +161,7 @@ function AdminDashboard() {
       });
 
   return (
-    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 md:p-10 max-w-7xl mx-auto">
       {/* Greeting header */}
       <DashboardGreeting
         name={fullName ?? user?.email?.split("@")[0] ?? "there"}
@@ -240,22 +240,28 @@ function AdminDashboard() {
       </div>
 
       <Tabs defaultValue="activity">
-        <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px]">
-          <TabsTrigger value="activity" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <Activity className="size-4" /> Recent Activity
-            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{activity.length}</span>
+        <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px] w-full overflow-x-auto flex-nowrap justify-start sm:w-auto sm:inline-flex">
+          <TabsTrigger value="activity" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <Activity className="size-4" />
+            <span className="hidden sm:inline">Recent Activity</span>
+            <span className="sm:hidden">Activity</span>
+            <span className="ml-0.5 text-[11px] text-muted-foreground tabular-nums">{activity.length}</span>
           </TabsTrigger>
-          <TabsTrigger value="low" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <AlertTriangle className="size-4" /> Low Stock
+          <TabsTrigger value="low" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <AlertTriangle className="size-4" />
+            <span className="hidden sm:inline">Low Stock</span>
+            <span className="sm:hidden">Low</span>
             {(low + out) > 0 && (
-              <span className="ml-1 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold tabular-nums">
+              <span className="ml-0.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-destructive/20 text-destructive text-[10px] font-bold tabular-nums">
                 {low + out}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="products" className="gap-2 rounded-[10px] data-[state=active]:bg-secondary/60">
-            <Package className="size-4" /> Product List
-            <span className="ml-1 text-[11px] text-muted-foreground tabular-nums">{total}</span>
+          <TabsTrigger value="products" className="gap-1.5 sm:gap-2 rounded-[10px] data-[state=active]:bg-secondary/60 text-xs sm:text-sm px-2.5 sm:px-3 whitespace-nowrap">
+            <Package className="size-4" />
+            <span className="hidden sm:inline">Product List</span>
+            <span className="sm:hidden">Products</span>
+            <span className="ml-0.5 text-[11px] text-muted-foreground tabular-nums">{total}</span>
           </TabsTrigger>
         </TabsList>
 
