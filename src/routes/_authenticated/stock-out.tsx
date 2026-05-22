@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { BarcodeScanner } from "@/components/app/BarcodeScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { SHOPS } from "@/lib/shops";
+import { displaySize } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-out")({
