@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { DEFAULT_RACK_CODES, formatRackLabel } from "@/lib/racks";
+import { ProductDetailsDialog } from "@/components/app/ProductDetailsDialog";
 
 export const Route = createFileRoute("/_authenticated/racks_/$rackId")({ component: RackDetail });
 
@@ -38,6 +39,7 @@ function RackDetail() {
   const [q, setQ] = useState("");
   const [renameOpen, setRenameOpen] = useState(false);
   const [rackNameDraft, setRackNameDraft] = useState(rackId);
+  const [viewingProductId, setViewingProductId] = useState<string | null>(null);
   useRealtimeSync({ silent: true });
 
   const { data: rackRecord } = useQuery({
@@ -251,16 +253,30 @@ function RackDetail() {
                   style={{ transform: "perspective(1100px) rotateX(6deg)", transformOrigin: "center top" }}
                 >
                   {items.map((p) => (
-                    <div key={p.id}
+                    <div
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setViewingProductId(p.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setViewingProductId(p.id);
+                        }
+                      }}
                       className={cn(
-                        "relative rounded-lg border-2 p-2 min-h-[120px] flex flex-col gap-1.5 bg-card shadow-md hover:-translate-y-0.5 hover:shadow-lg transition",
+                        "relative rounded-lg border-2 p-2 min-h-[120px] flex flex-col gap-1.5 bg-card shadow-md hover:-translate-y-0.5 hover:shadow-lg transition cursor-pointer text-left",
                         stockColor(p),
-                      )}>
+                      )}
+                    >
                       <span className={cn("absolute top-1.5 right-1.5 size-2.5 rounded-full ring-2 ring-background", stockDot(p))} />
                       <button
                         type="button"
                         title="Remove from rack"
-                        onClick={() => assign.mutate({ productId: p.id, shelf: null })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          assign.mutate({ productId: p.id, shelf: null });
+                        }}
                         className="absolute top-1 left-1 size-5 rounded-full bg-background/80 grid place-items-center text-muted-foreground hover:text-destructive hover:bg-background border border-border"
                       >
                         <X className="size-3" />
@@ -331,6 +347,12 @@ function RackDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ProductDetailsDialog
+        productId={viewingProductId}
+        open={!!viewingProductId}
+        onOpenChange={(v) => !v && setViewingProductId(null)}
+      />
     </div>
   );
 }
