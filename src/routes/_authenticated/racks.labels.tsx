@@ -103,7 +103,7 @@ function PrintProductLabels() {
                     <h2 className="text-lg font-bold">Rack {code}</h2>
                     <span className="text-xs text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}</span>
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 print:gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:grid-cols-2 print:gap-3">
                     {includeRack === "1" && (
                       <div className="break-inside-avoid">
                         <RackQRLabel rackId={code} />

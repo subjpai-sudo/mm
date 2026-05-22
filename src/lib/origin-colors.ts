@@ -53,7 +53,9 @@ const PALETTES: Record<string, OriginPalette> = {
 
 export function originPalette(origin?: string | null): OriginPalette {
   const key = (origin ?? "").trim().toLowerCase();
-  return PALETTES[key] ?? PALETTES.international;
+  // Default to Myanmar (yellow / black) when origin is missing or unknown —
+  // most of the catalogue is Myanmar today and there is no "International" bucket yet.
+  return PALETTES[key] ?? PALETTES.myanmar;
 }
 
 export const KNOWN_ORIGINS = Object.values(PALETTES).map((p) => p.label);

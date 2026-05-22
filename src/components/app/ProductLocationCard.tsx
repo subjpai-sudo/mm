@@ -47,22 +47,26 @@ export function ProductLocationCard({
       JsBarcode(barcodeRef.current, code, {
         format,
         displayValue: true,
-        fontSize: 14,
-        height: 55,
+        fontSize: 20,
+        textMargin: 4,
+        height: 90,
+        width: 2.4,
         margin: 0,
         background: "#ffffff",
         lineColor: "#000000",
       });
     } catch {
       // Fallback to Code128 if data isn't valid for the inferred symbology.
-      try {
-        JsBarcode(barcodeRef.current, code, {
-          format: "CODE128",
-          displayValue: true,
-          fontSize: 14,
-          height: 55,
-          margin: 0,
-        });
+        try {
+          JsBarcode(barcodeRef.current, code, {
+            format: "CODE128",
+            displayValue: true,
+            fontSize: 20,
+            textMargin: 4,
+            height: 90,
+            width: 2.4,
+            margin: 0,
+          });
       } catch {
         /* leave svg empty */
       }
@@ -116,12 +120,13 @@ export function ProductLocationCard({
           {size ? <span className="ml-1 font-semibold text-neutral-600">· {size}</span> : null}
         </div>
 
-        <div className="w-full flex items-start justify-between gap-2 pt-1">
+        <div className="w-full flex items-center justify-between gap-3 pt-1">
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] font-mono text-neutral-700 truncate">
+            <div className="text-[12px] font-mono text-neutral-700 truncate">
               SKU: <span className="font-bold text-black">{product.sku ?? "—"}</span>
             </div>
-            <svg ref={barcodeRef} className="w-full max-w-[200px] mt-1" />
+            {/* Larger barcode so operators can scan reliably from a printed label */}
+            <svg ref={barcodeRef} className="w-full mt-1 block" />
           </div>
           <canvas ref={qrRef} className="rounded-md [image-rendering:pixelated] shrink-0" />
         </div>
