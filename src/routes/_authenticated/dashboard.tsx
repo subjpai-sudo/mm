@@ -192,7 +192,7 @@ function AdminDashboard() {
       </div>
 
       {/* Stat cards — visual style per handoff screenshot */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4 mb-6 auto-rows-fr items-stretch">
         <KpiCard
           to="/products"
           search={{ filter: "all" }}
@@ -486,20 +486,20 @@ function KpiCard({
 }) {
   const valueCls = tone === "warning" ? "text-warning" : "text-success";
   return (
-    <Link to={to as any} search={search} className="block group">
-      <Card className="card-elevated relative overflow-hidden p-4 sm:p-5 rounded-[18px] hover:-translate-y-0.5 transition-all">
+    <Link to={to as any} search={search} className="block group h-full">
+      <Card className="card-elevated relative overflow-hidden p-4 sm:p-5 rounded-[18px] hover:-translate-y-0.5 transition-all h-full min-h-[150px] sm:min-h-[170px] flex flex-col">
         <div className="flex items-start justify-between gap-2">
-          <div className="upper-label">{label}</div>
-          <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground transition" />
+          <div className="upper-label line-clamp-2">{label}</div>
+          <ArrowUpRight className="size-4 text-muted-foreground group-hover:text-foreground transition shrink-0" />
         </div>
-        <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="mt-auto pt-3 flex items-end justify-between gap-2">
           <div className="min-w-0">
-            <div className={`text-[40px] leading-none font-semibold tracking-[-0.03em] tabular-nums ${valueCls}`}>
+            <div className={`text-[32px] sm:text-[40px] leading-none font-semibold tracking-[-0.03em] tabular-nums whitespace-nowrap ${valueCls}`}>
               {value}
             </div>
-            {hint && <div className="text-[11px] text-muted-foreground mt-2">{hint}</div>}
+            {hint && <div className="text-[11px] text-muted-foreground mt-2 line-clamp-1">{hint}</div>}
           </div>
-          {visual && <div className="shrink-0 opacity-90">{visual}</div>}
+          {visual && <div className="shrink-0 opacity-90 hidden xs:block sm:block">{visual}</div>}
         </div>
       </Card>
     </Link>
