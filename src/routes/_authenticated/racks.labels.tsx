@@ -23,7 +23,7 @@ const SHELF_ORDER: Record<string, number> = { upper: 0, mid: 1, down: 2 };
 function PrintProductLabels() {
   const { ids, includeRack } = Route.useSearch();
   const rackCodes = useMemo(
-    () => (ids ? ids.split(",").map((s) => s.trim()).filter(Boolean) : []),
+    () => (ids ? ids.split(",").map((s: string) => s.trim()).filter(Boolean) : []),
     [ids],
   );
 
@@ -95,7 +95,7 @@ function PrintProductLabels() {
           <p className="text-sm text-muted-foreground">Loading products…</p>
         ) : (
           <div className="space-y-8">
-            {rackCodes.map((code) => {
+            {rackCodes.map((code: string) => {
               const items = grouped.get(code) ?? [];
               return (
                 <section key={code} className="break-inside-avoid">
