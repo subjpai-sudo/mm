@@ -267,6 +267,7 @@ export type Database = {
           size: string | null
           sku: string | null
           stock: number
+          unit: string | null
           updated_at: string
         }
         Insert: {
@@ -291,6 +292,7 @@ export type Database = {
           size?: string | null
           sku?: string | null
           stock?: number
+          unit?: string | null
           updated_at?: string
         }
         Update: {
@@ -315,6 +317,7 @@ export type Database = {
           size?: string | null
           sku?: string | null
           stock?: number
+          unit?: string | null
           updated_at?: string
         }
         Relationships: [
