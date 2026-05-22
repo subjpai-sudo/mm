@@ -3,6 +3,8 @@ import { useLocation } from "@tanstack/react-router";
 import { ScanLine } from "lucide-react";
 import { UniversalScanner } from "./UniversalScanner";
 import { cn } from "@/lib/utils";
+import { useHidScanner } from "@/hooks/use-hid-scanner";
+import { toast } from "sonner";
 
 /**
  * Floating Action Button — always visible on authenticated pages.
@@ -10,7 +12,19 @@ import { cn } from "@/lib/utils";
  */
 export function ScannerFAB() {
   const [open, setOpen] = useState(false);
+  const [hidCode, setHidCode] = useState<string | null>(null);
   const location = useLocation();
+
+  // Listen for USB/Bluetooth wedge barcode scanners on every authenticated page.
+  // The scan opens the universal scanner pre-filled with the code, which then
+  // looks it up, opens the product card, or offers to register an unknown barcode.
+  useHidScanner((code) => {
+    if (location.pathname === "/change-pin") return;
+    setHidCode(code);
+    setOpen(true);
+    toast.message("Scanner input", { description: code, duration: 1500 });
+  });
+
   // Hide on the change-pin gate
   if (location.pathname === "/change-pin") return null;
   return (
@@ -29,7 +43,15 @@ export function ScannerFAB() {
         <ScanLine className="size-6 md:size-7" />
         <span className="absolute -top-1 -right-1 size-3 rounded-full bg-success border-2 border-background animate-pulse" />
       </button>
-      <UniversalScanner open={open} onClose={() => setOpen(false)} />
+      <UniversalScanner
+        open={open}
+        onClose={() => {
+          setOpen(false);
+          setHidCode(null);
+        }}
+        prefillCode={hidCode}
+        onPrefillConsumed={() => setHidCode(null)}
+      />
     </>
   );
 }
