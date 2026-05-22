@@ -31,6 +31,7 @@ import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks_.$rackId'
 import { Route as AuthenticatedRacksPrintRouteImport } from './routes/_authenticated/racks.print'
+import { Route as AuthenticatedRacksLabelsRouteImport } from './routes/_authenticated/racks.labels'
 import { Route as ApiPublicHooksNightlyBackupRouteImport } from './routes/api/public/hooks/nightly-backup'
 import { Route as ApiPublicHooksMirrorSyncRouteImport } from './routes/api/public/hooks/mirror-sync'
 
@@ -146,6 +147,12 @@ const AuthenticatedRacksPrintRoute = AuthenticatedRacksPrintRouteImport.update({
   path: '/print',
   getParentRoute: () => AuthenticatedRacksRoute,
 } as any)
+const AuthenticatedRacksLabelsRoute =
+  AuthenticatedRacksLabelsRouteImport.update({
+    id: '/labels',
+    path: '/labels',
+    getParentRoute: () => AuthenticatedRacksRoute,
+  } as any)
 const ApiPublicHooksNightlyBackupRoute =
   ApiPublicHooksNightlyBackupRouteImport.update({
     id: '/api/public/hooks/nightly-backup',
@@ -178,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
@@ -203,6 +211,7 @@ export interface FileRoutesByTo {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
@@ -230,6 +239,7 @@ export interface FileRoutesById {
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/_authenticated/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/_authenticated/racks/print': typeof AuthenticatedRacksPrintRoute
   '/_authenticated/racks_/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/racks/labels'
     | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/racks/labels'
     | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
@@ -308,6 +320,7 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
+    | '/_authenticated/racks/labels'
     | '/_authenticated/racks/print'
     | '/_authenticated/racks_/$rackId'
     | '/api/public/server-health'
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRacksPrintRouteImport
       parentRoute: typeof AuthenticatedRacksRoute
     }
+    '/_authenticated/racks/labels': {
+      id: '/_authenticated/racks/labels'
+      path: '/labels'
+      fullPath: '/racks/labels'
+      preLoaderRoute: typeof AuthenticatedRacksLabelsRouteImport
+      parentRoute: typeof AuthenticatedRacksRoute
+    }
     '/api/public/hooks/nightly-backup': {
       id: '/api/public/hooks/nightly-backup'
       path: '/api/public/hooks/nightly-backup'
@@ -498,10 +518,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRacksRouteChildren {
+  AuthenticatedRacksLabelsRoute: typeof AuthenticatedRacksLabelsRoute
   AuthenticatedRacksPrintRoute: typeof AuthenticatedRacksPrintRoute
 }
 
 const AuthenticatedRacksRouteChildren: AuthenticatedRacksRouteChildren = {
+  AuthenticatedRacksLabelsRoute: AuthenticatedRacksLabelsRoute,
   AuthenticatedRacksPrintRoute: AuthenticatedRacksPrintRoute,
 }
 
