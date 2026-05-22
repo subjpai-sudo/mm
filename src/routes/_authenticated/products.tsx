@@ -847,6 +847,9 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, 
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
+            {displaySize(p) && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30">{displaySize(p)}</span>
+            )}
           </div>
           {p.barcode && (
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
