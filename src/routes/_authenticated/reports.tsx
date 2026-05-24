@@ -24,7 +24,7 @@ function Reports() {
   });
   const { data: products = [] } = useQuery({
     queryKey: ["products-report"],
-    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, stock, low_stock_threshold, image_url, last_alert_stock, categories(name, parent_id)").order("name")).data ?? [],
+    queryFn: async () => (await supabase.from("products").select("id, name, sku, barcode, brand, stock, low_stock_threshold, image_url, last_alert_stock, categories(name, parent_id)").order("name")).data ?? [],
   });
 
   const inQty = movements.filter((m: any) => m.type === "in").reduce((a, m: any) => a + m.quantity, 0);

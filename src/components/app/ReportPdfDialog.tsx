@@ -17,6 +17,8 @@ type Product = {
   id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
+  brand: string | null;
   stock: number;
   low_stock_threshold: number;
   categories?: { name: string | null } | null;
@@ -41,6 +43,69 @@ const SECTIONS: { id: SectionId; label: string; desc: string }[] = [
   { id: "insights", label: "Insights", desc: "Top movers, stock health, alerts" },
   { id: "destinations", label: "Movement destinations", desc: "Where stock is going" },
 ];
+
+function renderGroupedByBrand(
+  doc: jsPDF,
+  list: Product[],
+  startY: number,
+  fillColor: [number, number, number],
+  mode: "low" | "out" | "all",
+) {
+  if (!list.length) {
+    autoTable(doc, {
+      startY,
+      head: [["Product", "SKU", "Barcode", "Category", "Stock", ...(mode === "out" ? [] : ["Status"])]],
+      body: [["—", "—", "—", "—", "—", ...(mode === "out" ? [] : ["—"])]],
+      headStyles: { fillColor },
+      styles: { fontSize: 9 },
+    });
+    return;
+  }
+  const groups = new Map<string, Product[]>();
+  for (const p of list) {
+    const key = (p.brand ?? "").trim() || "Unbranded";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
+  }
+  const sortedBrands = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+  let y = startY;
+  for (const brand of sortedBrands) {
+    const items = groups.get(brand)!.sort((a, b) => a.name.localeCompare(b.name));
+    const totalStock = items.reduce((a, p) => a + (p.stock ?? 0), 0);
+    const head =
+      mode === "out"
+        ? [["Product", "SKU", "Barcode", "Category", "Stock"]]
+        : [["Product", "SKU", "Barcode", "Category", "Stock", "Status"]];
+    const body = items.map((p) => {
+      const row = [
+        p.name,
+        p.sku ?? "—",
+        p.barcode ?? "—",
+        p.categories?.name ?? "—",
+        String(p.stock),
+      ];
+      if (mode !== "out") {
+        row.push(p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK");
+      }
+      return row;
+    });
+    autoTable(doc, {
+      startY: y,
+      head: [[{ content: `${brand}  (${items.length} item${items.length === 1 ? "" : "s"}, ${totalStock} units)`, colSpan: head[0].length, styles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold", halign: "left" } }]],
+      body: [],
+      styles: { fontSize: 10 },
+      margin: { left: 40, right: 40 },
+    });
+    autoTable(doc, {
+      head,
+      body,
+      headStyles: { fillColor },
+      styles: { fontSize: 9 },
+      margin: { left: 40, right: 40 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+  }
+}
 
 export function ReportPdfDialog({
   products, lowList, outList, movements, rawMovements = [],
@@ -103,41 +168,17 @@ export function ReportPdfDialog({
 
     if (selected.low) {
       newSection("Low Stock", `${lowList.length} item(s) at or below threshold`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Stock", "Threshold"]],
-        body: lowList.length
-          ? lowList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.stock), String(p.low_stock_threshold)])
-          : [["—", "—", "—", "—", "—"]],
-        headStyles: { fillColor: [202, 138, 4] },
-      });
+      renderGroupedByBrand(doc, lowList, 100, [202, 138, 4], "low");
     }
 
     if (selected.out) {
       newSection("Out of Stock", `${outList.length} item(s) with zero stock`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Threshold"]],
-        body: outList.length
-          ? outList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.low_stock_threshold)])
-          : [["—", "—", "—", "—"]],
-        headStyles: { fillColor: [220, 38, 38] },
-      });
+      renderGroupedByBrand(doc, outList, 100, [220, 38, 38], "out");
     }
 
     if (selected.all) {
       newSection("All Products — Stock Counts", `${products.length} product(s), total ${totalStockUnits} units`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Stock", "Threshold", "Status"]],
-        body: products.map((p) => [
-          p.name, p.sku ?? "—", p.categories?.name ?? "—",
-          String(p.stock), String(p.low_stock_threshold),
-          p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK",
-        ]),
-        headStyles: { fillColor: [37, 99, 235] },
-        styles: { fontSize: 9 },
-      });
+      renderGroupedByBrand(doc, products, 100, [37, 99, 235], "all");
     }
 
     if (selected.insights) {
