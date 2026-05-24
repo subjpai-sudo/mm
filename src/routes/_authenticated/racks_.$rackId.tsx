@@ -15,6 +15,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { DEFAULT_RACK_CODES, formatRackLabel } from "@/lib/racks";
 import { ProductDetailsDialog } from "@/components/app/ProductDetailsDialog";
+import { RackQRLabel } from "@/components/app/RackQRLabel";
 
 export const Route = createFileRoute("/_authenticated/racks_/$rackId")({ component: RackDetail });
 
@@ -184,6 +185,20 @@ function RackDetail() {
           </div>
         }
       />
+
+      {/* Rack QR — stick this on the physical rack so the camera scanner jumps straight here */}
+      <Card className="card-elevated p-4 mb-4 flex flex-col sm:flex-row items-center gap-4">
+        <div className="bg-white p-2 rounded-xl border border-border shrink-0">
+          <RackQRLabel rackId={rackId} size={160} />
+        </div>
+        <div className="flex-1 min-w-0 text-center sm:text-left">
+          <div className="upper-label">Rack QR</div>
+          <div className="text-base font-semibold mt-1">Scan to open {printableLabel}</div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Print this label and stick it on the rack. The floating scanner will open this page instantly.
+          </p>
+        </div>
+      </Card>
 
       <div className="space-y-4">
         {SHELVES.map((s) => {
