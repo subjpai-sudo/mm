@@ -17,6 +17,8 @@ type Product = {
   id: string;
   name: string;
   sku: string | null;
+  barcode: string | null;
+  brand: string | null;
   stock: number;
   low_stock_threshold: number;
   categories?: { name: string | null } | null;
@@ -103,41 +105,17 @@ export function ReportPdfDialog({
 
     if (selected.low) {
       newSection("Low Stock", `${lowList.length} item(s) at or below threshold`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Stock", "Threshold"]],
-        body: lowList.length
-          ? lowList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.stock), String(p.low_stock_threshold)])
-          : [["—", "—", "—", "—", "—"]],
-        headStyles: { fillColor: [202, 138, 4] },
-      });
+      renderGroupedByBrand(doc, lowList, 100, [202, 138, 4], "low");
     }
 
     if (selected.out) {
       newSection("Out of Stock", `${outList.length} item(s) with zero stock`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Threshold"]],
-        body: outList.length
-          ? outList.map((p) => [p.name, p.sku ?? "—", p.categories?.name ?? "—", String(p.low_stock_threshold)])
-          : [["—", "—", "—", "—"]],
-        headStyles: { fillColor: [220, 38, 38] },
-      });
+      renderGroupedByBrand(doc, outList, 100, [220, 38, 38], "out");
     }
 
     if (selected.all) {
       newSection("All Products — Stock Counts", `${products.length} product(s), total ${totalStockUnits} units`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Product", "SKU", "Category", "Stock", "Threshold", "Status"]],
-        body: products.map((p) => [
-          p.name, p.sku ?? "—", p.categories?.name ?? "—",
-          String(p.stock), String(p.low_stock_threshold),
-          p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK",
-        ]),
-        headStyles: { fillColor: [37, 99, 235] },
-        styles: { fontSize: 9 },
-      });
+      renderGroupedByBrand(doc, products, 100, [37, 99, 235], "all");
     }
 
     if (selected.insights) {
