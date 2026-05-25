@@ -58,7 +58,7 @@ function ProductDetailPage() {
       (await supabase
         .from("products")
         .select("id, name, sku, stock, low_stock_threshold, image_url, origin")
-        .eq("category_id", product!.category_id)
+        .eq("category_id", product!.category_id as string)
         .neq("id", productId)
         .limit(4)).data ?? [],
   });
