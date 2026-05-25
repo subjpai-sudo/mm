@@ -317,120 +317,79 @@ function ProductsPage() {
         </Card>
       )}
 
-      {allSubsFlat.length > 0 && (
-        <Card className="card-elevated p-3 mb-4 flex flex-wrap gap-2 items-center">
-          <Select value="" onValueChange={jumpToSub}>
-            <SelectTrigger className="flex-1 min-w-[200px]">
-              <SelectValue placeholder="Jump to subcategory…" />
-            </SelectTrigger>
-            <SelectContent>
-              {allSubsFlat.map(({ sub, main }) => (
-                <SelectItem key={sub.id} value={sub.id}>
-                  <span className="text-muted-foreground">{main.name}</span> › <span className="font-semibold">{sub.name}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button variant="secondary" size="sm" onClick={expandAll}><Maximize2 className="size-3.5" /> Expand all</Button>
-          <Button variant="secondary" size="sm" onClick={collapseAll}><Minimize2 className="size-3.5" /> Collapse all</Button>
-        </Card>
-      )}
-
-      {filtered.length === 0 ? (
-        <Card className="card-elevated p-12 text-center text-muted-foreground">No products found</Card>
-      ) : (
-        <Accordion type="multiple" value={accordionValue} onValueChange={setExpandedMains} className="space-y-3">
-          {mainCats.map((mc: any) => {
+      {(() => {
+        const sections = mainCats
+          .map((mc: any) => {
             const subs = subsByMain.get(mc.id) ?? [];
-            const directProducts = productsByCat.get(mc.id) ?? [];
-            const subItemCount = subs.reduce((s, sub) => s + (productsByCat.get(sub.id)?.length ?? 0), 0);
-            const totalCount = directProducts.length + subItemCount;
-            if (totalCount === 0) return null;
-            return (
-              <Card key={mc.id} className="card-elevated p-0 overflow-hidden">
-                <AccordionItem value={mc.id} className="border-0">
-                  <AccordionTrigger className="px-4 py-4 hover:no-underline hover:bg-secondary/40 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="size-9 rounded-lg gradient-primary grid place-items-center shrink-0">
-                        <FolderTree className="size-4 text-primary-foreground" />
-                      </div>
-                      <div className="min-w-0 text-left">
-                        <div className="font-bold text-base truncate">{mc.name}</div>
-                        <div className="text-[11px] text-muted-foreground">{totalCount} items</div>
-                      </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-2 pb-2">
-                    {subs.map((sub: any) => {
-                      const items = productsByCat.get(sub.id) ?? [];
-                      if (items.length === 0) return null;
-                      const collapsed = collapsedSubs.has(sub.id);
-                      return (
-                        <div key={sub.id} id={`sub-${sub.id}`} className="mb-3 scroll-mt-20">
-                          <button type="button" onClick={() => toggleSub(sub.id)}
-                            className="w-full flex items-center gap-2 px-2 py-2 mb-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-l-4 border-primary rounded-r-md hover:bg-secondary/40 transition-colors text-left">
-                            <ChevronDown className={cn("size-4 text-primary transition-transform", collapsed && "-rotate-90")} />
-                            <span className="text-base font-bold tracking-wide flex-1 truncate">{sub.name}</span>
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">{items.length}</span>
-                          </button>
-                          {!collapsed && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {items.map((p: any) => (
-                                <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                                  onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                                  onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {directProducts.length > 0 && (
-                      <div className="mb-1">
-                        {subs.length > 0 && (
-                          <div className="flex items-center gap-2 px-2 py-2 mb-1 border-l-4 border-muted rounded-r-md">
-                            <span className="text-base font-bold tracking-wide text-muted-foreground">Other</span>
-                            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{directProducts.length}</span>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {directProducts.map((p: any) => (
-                            <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                              onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                              onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </AccordionContent>
-                </AccordionItem>
+            const items = [
+              ...(productsByCat.get(mc.id) ?? []),
+              ...subs.flatMap((s: any) => productsByCat.get(s.id) ?? []),
+            ];
+            return { id: mc.id, name: mc.name, items };
+          })
+          .filter((s) => s.items.length > 0);
+        if (uncategorized.length > 0) {
+          sections.push({ id: "__none__", name: "Uncategorized", items: uncategorized });
+        }
+        if (filtered.length === 0) {
+          return <Card className="card-elevated p-12 text-center text-muted-foreground">No products found</Card>;
+        }
+        return (
+          <>
+            {sections.length > 1 && (
+              <Card className="card-elevated p-2 mb-4 sticky top-2 z-20 backdrop-blur bg-card/90">
+                <div className="flex gap-1.5 overflow-x-auto px-1">
+                  {sections.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() =>
+                        document
+                          .getElementById(`cat-${s.id}`)
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                      }
+                      className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-border bg-secondary/40 hover:bg-secondary hover:border-primary/40 text-xs font-semibold transition"
+                    >
+                      {s.name}
+                      <span className="px-1.5 py-0.5 rounded-full text-[10px] tabular-nums bg-background/60 text-muted-foreground">
+                        {s.items.length}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </Card>
-            );
-          })}
-          {uncategorized.length > 0 && (
-            <Card className="card-elevated p-0 overflow-hidden">
-              <AccordionItem value="__none__" className="border-0">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-secondary/40">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <FolderTree className="size-4 text-muted-foreground shrink-0" />
-                    <span className="font-semibold truncate">Uncategorized</span>
-                    <span className="text-xs text-muted-foreground shrink-0">· {uncategorized.length} items</span>
+            )}
+            <div className="space-y-6">
+              {sections.map((s) => (
+                <section key={s.id} id={`cat-${s.id}`} className="scroll-mt-24">
+                  <div className="flex items-center gap-2 mb-2.5 px-1">
+                    <FolderTree className="size-4 text-primary" />
+                    <h2 className="font-bold text-base">{s.name}</h2>
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                      {s.items.length}
+                    </span>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-2 pb-2">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {uncategorized.map((p: any) => (
-                      <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                        onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
-                        onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                    {s.items.map((p: any) => (
+                      <ProductCard
+                        key={p.id}
+                        p={p}
+                        canEdit={canEdit}
+                        canDelete={canDelete}
+                        onView={() => openProduct(p)}
+                        onEdit={() => setEditing(p)}
+                        onDelete={() => setDeleting(p)}
+                        onScan={() => setScanFor({ id: p.id, name: p.name })}
+                        onClearBarcode={() => clearBarcode.mutate(p.id)}
+                      />
                     ))}
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Card>
-          )}
-        </Accordion>
-      )}
+                </section>
+              ))}
+            </div>
+          </>
+        );
+      })()}
 
       {manageCats && <CategoryManagerDialog categories={categories} onClose={() => setManageCats(false)} />}
 
