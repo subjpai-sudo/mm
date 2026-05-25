@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -39,6 +39,7 @@ function ProductsPage() {
   const { lastUpdated } = useRealtimeSync();
   const qc = useQueryClient();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">(search.filter ?? "all");
   const [mainFilter, setMainFilter] = useState<string>("all");
@@ -49,7 +50,7 @@ function ProductsPage() {
   const [bulkShelfOpen, setBulkShelfOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
-  const [viewing, setViewing] = useState<any | null>(null);
+  const openProduct = (p: any) => navigate({ to: "/products/$productId", params: { productId: p.id } });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
