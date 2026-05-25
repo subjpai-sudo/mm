@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
@@ -39,6 +39,7 @@ function ProductsPage() {
   const { lastUpdated } = useRealtimeSync();
   const qc = useQueryClient();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">(search.filter ?? "all");
   const [mainFilter, setMainFilter] = useState<string>("all");
@@ -49,7 +50,7 @@ function ProductsPage() {
   const [bulkShelfOpen, setBulkShelfOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
-  const [viewing, setViewing] = useState<any | null>(null);
+  const openProduct = (p: any) => navigate({ to: "/products/$productId", params: { productId: p.id } });
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -376,7 +377,7 @@ function ProductsPage() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {items.map((p: any) => (
                                 <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                                  onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                                  onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
                                   onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                               ))}
                             </div>
@@ -395,7 +396,7 @@ function ProductsPage() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {directProducts.map((p: any) => (
                             <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                              onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                              onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
                               onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                           ))}
                         </div>
@@ -420,7 +421,7 @@ function ProductsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {uncategorized.map((p: any) => (
                       <ProductCard key={p.id} p={p} canEdit={canEdit} canDelete={canDelete}
-                        onView={() => setViewing(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
+                        onView={() => openProduct(p)} onEdit={() => setEditing(p)} onDelete={() => setDeleting(p)}
                         onScan={() => setScanFor({ id: p.id, name: p.name })} onClearBarcode={() => clearBarcode.mutate(p.id)} />
                     ))}
                   </div>
@@ -479,12 +480,6 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      {viewing && (
-        <ProductDetailDialog product={viewing} onClose={() => setViewing(null)}
-          onEdit={() => { setEditing(viewing); setViewing(null); }}
-          onScan={() => { setScanFor({ id: viewing.id, name: viewing.name }); setViewing(null); }}
-          canEdit={canEdit} />
-      )}
     </div>
   );
 }
