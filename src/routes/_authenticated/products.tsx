@@ -480,12 +480,6 @@ function ProductsPage() {
         </DialogContent>
       </Dialog>
 
-      {viewing && (
-        <ProductDetailDialog product={viewing} onClose={() => setViewing(null)}
-          onEdit={() => { setEditing(viewing); setViewing(null); }}
-          onScan={() => { setScanFor({ id: viewing.id, name: viewing.name }); setViewing(null); }}
-          canEdit={canEdit} />
-      )}
     </div>
   );
 }
