@@ -31,7 +31,9 @@ function hasServiceRoleAccess() {
 }
 
 function hasDirectMirrorDbAccess() {
-  return Boolean(process.env.MIRROR_DB_URL?.trim() && process.env.SUPABASE_DB_URL?.trim());
+  // Target (mirror) connection string is required. Source DB URL is optional —
+  // when present we also sync auth.users / auth.identities directly via pg.
+  return Boolean(process.env.MIRROR_DB_URL?.trim());
 }
 
 function getDbClient(client?: SupabaseClient<Database>) {
@@ -176,7 +178,7 @@ export async function runMirror(triggeredBy: string) {
     return { ok: false as const, error: "Mirror sync requires the admin backend key on this deployment" };
   }
   if (!hasDirectMirrorDbAccess()) {
-    return { ok: false as const, error: "Mirror sync requires both source and target database connection strings" };
+    return { ok: false as const, error: "Mirror sync requires the target database connection string (MIRROR_DB_URL)" };
   }
   const { default: postgres } = await import("postgres");
   const startedAt = new Date().toISOString();
