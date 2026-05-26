@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, Printer } from "lucide-react";
 import { RackQRLabel } from "@/components/app/RackQRLabel";
 import { ProductLocationCard } from "@/components/app/ProductLocationCard";
+import { resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 
 const search = z.object({
   ids: z.string().optional(), // comma-separated rack codes; required
@@ -34,11 +35,18 @@ function PrintProductLabels() {
       (
         await supabase
           .from("products")
-          .select("id, name, sku, barcode, image_url, origin, size, unit, rack, shelf")
+          .select("id, name, sku, barcode, image_url, origin, size, unit, rack, shelf, category_id")
           .in("rack", rackCodes)
           .order("rack")
           .order("name")
       ).data ?? [],
+  });
+
+  const { data: allCategories = [] } = useQuery<CategoryLite[]>({
+    queryKey: ["categories", "lite"],
+    queryFn: async () =>
+      ((await supabase.from("categories").select("id, name, parent_id")).data ?? []) as CategoryLite[],
+    staleTime: 60_000,
   });
 
   const grouped = useMemo(() => {
@@ -110,7 +118,14 @@ function PrintProductLabels() {
                       </div>
                     )}
                     {items.map((p: any) => (
-                      <ProductLocationCard key={p.id} rackCode={code} product={p} />
+                      <ProductLocationCard
+                        key={p.id}
+                        rackCode={code}
+                        product={{
+                          ...p,
+                          mainCategoryName: resolveMainCategoryName(p.category_id, allCategories),
+                        }}
+                      />
                     ))}
                     {items.length === 0 && (
                       <div className="col-span-full text-sm text-muted-foreground italic print:hidden">
