@@ -263,10 +263,10 @@ function ProductDetailPage() {
       </div>
 
       {tab === "overview" && (
-        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} />
+        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} />
       )}
       {tab === "history" && <HistoryTab history={history as any[]} userById={userById} />}
-      {tab === "location" && <LocationTab p={p} />}
+      {tab === "location" && <LocationTab p={p} rackLabel={rackLabel} shelfLabel={shelfLabel} />}
     </div>
   );
 }
@@ -281,8 +281,8 @@ function Mini({ label, value, tone }: { label: string; value: string; tone: stri
 }
 
 function OverviewTab({
-  p, related, history, userById, sevenDays,
-}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] } }) {
+  p, related, history, userById, sevenDays, locationLabel,
+}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string }) {
   const navigate = useNavigate();
   const net = sevenDays.inQty - sevenDays.outQty;
   return (
@@ -351,7 +351,7 @@ function OverviewTab({
           <KV k="SKU" v={p.sku ?? "—"} mono />
           <KV k="Barcode" v={p.barcode ?? "—"} mono />
           <KV k="Category" v={p.categories?.name ?? "Uncategorized"} />
-          <KV k="Location" v={`${p.rack ?? "—"} · ${(p.shelf ?? "—").toString().toUpperCase()}`} mono />
+          <KV k="Location" v={locationLabel} mono />
           <KV k="Threshold" v={`${p.low_stock_threshold ?? 5} units`} mono last={!p.barcode} />
           {p.barcode && (
             <div className="mt-3 p-3 bg-white text-black rounded-lg border border-border">
