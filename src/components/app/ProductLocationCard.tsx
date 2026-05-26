@@ -110,9 +110,11 @@ export function ProductLocationCard({
             <img
               src={product.image_url}
               alt={product.name}
-              className="w-full h-full object-contain"
-              crossOrigin="anonymous"
-              loading="lazy"
+              className="w-full h-full object-contain print:!block"
+              referrerPolicy="no-referrer"
+              loading="eager"
+              decoding="sync"
+              style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties}
             />
           ) : (
             <Package className="size-12 text-neutral-300" />
