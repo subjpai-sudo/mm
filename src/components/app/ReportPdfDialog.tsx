@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas-pro";
 import { format } from "date-fns";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +21,13 @@ type Product = {
   brand: string | null;
   stock: number;
   low_stock_threshold: number;
+  price?: number | null;
+  rack?: string | null;
+  shelf?: string | null;
+  origin?: string | null;
+  size?: string | null;
+  unit?: string | null;
+  pcs_per_case?: number | null;
   categories?: { name: string | null } | null;
 };
 
@@ -44,67 +51,514 @@ const SECTIONS: { id: SectionId; label: string; desc: string }[] = [
   { id: "destinations", label: "Movement destinations", desc: "Where stock is going" },
 ];
 
-function renderGroupedByBrand(
-  doc: jsPDF,
-  list: Product[],
-  startY: number,
-  fillColor: [number, number, number],
-  mode: "low" | "out" | "all",
-) {
-  if (!list.length) {
-    autoTable(doc, {
-      startY,
-      head: [["Product", "SKU", "Barcode", "Category", "Stock", ...(mode === "out" ? [] : ["Status"])]],
-      body: [["—", "—", "—", "—", "—", ...(mode === "out" ? [] : ["—"])]],
-      headStyles: { fillColor },
-      styles: { fontSize: 9 },
-    });
-    return;
+// ────────────────────────────────────────────────────────────────────────────
+// HTML report builder — mirrors the supplied template, threshold column removed.
+// ────────────────────────────────────────────────────────────────────────────
+
+const esc = (s: unknown) =>
+  String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+const fmtNum = (n: number) => n.toLocaleString("en-US");
+const fmtYen = (n: number) => {
+  if (!isFinite(n) || n <= 0) return "¥0";
+  if (n >= 1000) return `¥${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
+  return `¥${Math.round(n)}`;
+};
+
+// Stable color from a string (for brand / category swatches)
+const SWATCH_PALETTE = [
+  "#dc2626", "#15803d", "#a16207", "#1d4ed8", "#facc15",
+  "#92400e", "#1e3a8a", "#7c2d12", "#ca8a04", "#3b82f6",
+  "#fbbf24", "#0ea5e9", "#a855f7", "#ec4899", "#10b981",
+  "#f59e0b", "#ef4444", "#84cc16", "#0891b2", "#d97706",
+];
+function swatchFor(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return SWATCH_PALETTE[h % SWATCH_PALETTE.length];
+}
+
+function statusOf(p: Product) {
+  if (p.stock <= 0) return { label: "OUT", color: "var(--bad)" };
+  if (p.stock <= p.low_stock_threshold) return { label: "LOW", color: "var(--warn)" };
+  return { label: "HEALTHY", color: "var(--ok)" };
+}
+
+function displaySize(p: Product): string {
+  const sz = (p.size ?? "").trim();
+  const u = (p.unit ?? "").trim();
+  if (!sz && !u) return "";
+  if (!sz) return u;
+  return /[a-zA-Z]$/.test(sz) ? sz : `${sz}${u ? u : ""}`;
+}
+
+function rackLabel(p: Product) {
+  const r = (p.rack ?? "").trim();
+  const s = (p.shelf ?? "").trim().toUpperCase();
+  if (!r && !s) return "—";
+  if (!r) return s;
+  if (!s) return r;
+  return `${r}/${s}`;
+}
+
+function reorderQty(p: Product) {
+  return Math.max(0, p.low_stock_threshold * 2 - p.stock);
+}
+
+const STYLE = `
+  :root{
+    --ink:#0a1320;--ink-2:#475569;--ink-3:#8a99ab;--line:#e2e8ed;
+    --bg:#fafbfc;--surface:#fff;--surface-2:#f5f7fa;
+    --primary:#0e7c70;--primary-2:#14a999;--primary-tint:#e6f4f2;
+    --accent:#b07a16;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;
   }
-  const groups = new Map<string, Product[]>();
-  for (const p of list) {
-    const key = (p.brand ?? "").trim() || "Unbranded";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(p);
+  *{box-sizing:border-box}
+  .rpt{font-family:"Geist","Inter",system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+  .rpt .mono{font-family:"Geist Mono",ui-monospace,monospace}
+  .rpt .page{width:210mm;height:297mm;background:#fff;padding:14mm;position:relative;display:flex;flex-direction:column;overflow:hidden}
+  .rpt h1,.rpt h2,.rpt h3,.rpt h4{margin:0;letter-spacing:-.02em}
+  .rpt h1{font-size:22pt;font-weight:600;letter-spacing:-.025em;line-height:1.05}
+  .rpt h2{font-size:13pt;font-weight:600;line-height:1.15}
+  .rpt h3{font-size:9pt;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-3)}
+  .rpt p{margin:0;line-height:1.45;font-size:9pt;color:var(--ink-2)}
+  .rpt .small{font-size:7.5pt;color:var(--ink-2)}
+  .rpt .upper{font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-3)}
+  .rpt .doc-head{display:flex;align-items:flex-start;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+  .rpt .logo{width:32pt;height:32pt;border-radius:8pt;background:linear-gradient(135deg,var(--primary),var(--primary-2));display:grid;place-items:center;color:#fff;flex-shrink:0}
+  .rpt .logo svg{width:18pt;height:18pt}
+  .rpt .brand .name{font-size:12pt;font-weight:600;letter-spacing:-.01em}
+  .rpt .brand .sub{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em}
+  .rpt .meta{margin-left:auto;text-align:right;font-size:7.5pt;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
+  .rpt .meta b{color:var(--ink);font-weight:600}
+  .rpt .doc-foot{display:flex;justify-content:space-between;align-items:center;padding-top:8pt;border-top:1px solid var(--line);font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em;margin-top:auto}
+  .rpt .section{margin-top:14pt}
+  .rpt .section-head{display:flex;align-items:center;gap:10pt;margin-bottom:8pt}
+  .rpt .section-head .rule{flex:1;height:1px;background:var(--line)}
+  .rpt .section-head .badge{padding:1.5pt 7pt;border-radius:99pt;font-size:7pt;font-weight:700;font-family:"Geist Mono",monospace;letter-spacing:.06em;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+  .rpt .section-head .badge.warn{background:var(--warn);color:#fff;border-color:var(--warn)}
+  .rpt .section-head .badge.bad{background:var(--bad);color:#fff;border-color:var(--bad)}
+  .rpt .section-head .badge.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .rpt .section-head .badge.pri{background:var(--primary);color:#fff;border-color:var(--primary)}
+  .rpt table{width:100%;border-collapse:collapse;font-size:8pt}
+  .rpt thead th{text-align:left;padding:5pt 7pt;font-size:6pt;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink-3);background:var(--surface-2);border-bottom:1px solid var(--line)}
+  .rpt tbody td{padding:5pt 7pt;border-bottom:1px solid var(--line);vertical-align:middle}
+  .rpt tbody tr:nth-child(even){background:#fbfcfd}
+  .rpt tbody tr:last-child td{border-bottom:none}
+  .rpt td.right,.rpt th.right{text-align:right}
+  .rpt td.center,.rpt th.center{text-align:center}
+  .rpt .qty{font-weight:600;font-variant-numeric:tabular-nums}
+  .rpt .mono-sm{font-family:"Geist Mono",monospace;font-size:7pt;color:var(--ink-3)}
+  .rpt .swatch{width:12pt;height:12pt;border-radius:3pt;flex-shrink:0;display:inline-block;vertical-align:middle}
+  .rpt .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10pt;margin-bottom:12pt}
+  .rpt .strip .cell{padding:10pt;border-radius:5pt;background:#fff;border:1px solid var(--line)}
+  .rpt .strip .cell .l{font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.1em;text-transform:uppercase}
+  .rpt .strip .cell .v{font-size:18pt;font-weight:600;letter-spacing:-.02em;margin-top:4pt;line-height:1;font-variant-numeric:tabular-nums}
+  .rpt .strip .cell .s{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;margin-top:3pt}
+  .rpt .strip .cell.ok .v{color:var(--ok)}
+  .rpt .strip .cell.warn .v{color:var(--warn)}
+  .rpt .strip .cell.bad .v{color:var(--bad)}
+  .rpt .strip .cell.pri .v{color:var(--primary)}
+  .rpt .bar{width:100%;height:5pt;background:#eef2f5;border-radius:99pt;overflow:hidden}
+  .rpt .bar>span{display:block;height:100%;border-radius:99pt}
+  .rpt .chart-row{display:grid;grid-template-columns:90pt 1fr 70pt;gap:10pt;align-items:center;margin-bottom:5pt;font-size:8pt}
+  .rpt .chart-row .lbl{font-weight:600}
+  .rpt .chart-row .bar2{height:14pt;background:#eef2f5;border-radius:3pt;overflow:hidden;position:relative}
+  .rpt .chart-row .bar2>div{height:100%;display:flex;align-items:center;justify-content:flex-end;padding:0 6pt;color:#fff;font-weight:700;font-size:6.5pt;font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums}
+  .rpt .chart-row .share{text-align:right;font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace}
+  .rpt .shop-card{border:1px solid var(--line);border-radius:6pt;padding:10pt;margin-bottom:8pt;display:grid;grid-template-columns:1fr 80pt 80pt;gap:12pt;align-items:center}
+  .rpt .shop-card .rank{font-family:"Geist Mono",monospace;font-weight:700;color:var(--ink-3);font-size:8pt;letter-spacing:.06em}
+  .rpt .shop-card .nm{font-weight:700;font-size:11pt;letter-spacing:-.01em;margin-top:1pt;color:var(--primary)}
+  .rpt .shop-card .addr{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;margin-top:2pt;letter-spacing:.04em}
+  .rpt .shop-card .top-prod{font-size:7pt;color:var(--ink-2);margin-top:4pt}
+  .rpt .shop-card .top-prod b{color:var(--ink);font-weight:600}
+  .rpt .shop-card .num{text-align:right}
+  .rpt .shop-card .num .v{font-size:16pt;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--primary)}
+  .rpt .shop-card .num .l{font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em}
+  .rpt .shop-card .trend{text-align:right;font-family:"Geist Mono",monospace;font-size:8pt;font-weight:700}
+  .rpt .shop-card .trend.up{color:var(--ok)}.rpt .shop-card .trend.down{color:var(--bad)}
+`;
+
+const LOGO_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-5 9 5v12M3 21h18M7 21v-7h10v7M9 14v7M15 14v7"/></svg>`;
+
+function buildReportHtml(opts: {
+  selected: Record<SectionId, boolean>;
+  products: Product[];
+  lowList: Product[];
+  outList: Product[];
+  movements: Movements;
+  rawMovements: RawMovement[];
+  reference: string;
+  dateLabel: string;
+  timeLabel: string;
+}): { html: string; pageCount: number } {
+  const { selected, products, lowList, outList, rawMovements, reference, dateLabel, timeLabel } = opts;
+
+  const totalUnits = products.reduce((a, p) => a + (p.stock ?? 0), 0);
+  const totalValue = products.reduce((a, p) => a + (p.stock ?? 0) * Number(p.price ?? 0), 0);
+  const healthy = products.length - lowList.length - outList.length;
+  const reorderCost =
+    [...lowList, ...outList].reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
+
+  const racks = new Set(products.map((p) => (p.rack ?? "").trim()).filter(Boolean));
+
+  const pages: string[] = [];
+
+  // ── Helper: header for sub-pages
+  const subHead = (title: string, sub: string, pageNum: number) => `
+    <header class="doc-head">
+      <div class="logo">${LOGO_SVG}</div>
+      <div class="brand">
+        <div class="name">${esc(title)}</div>
+        <div class="sub">${esc(sub)}</div>
+      </div>
+      <div class="meta">
+        <div>Stock Report · <b>${esc(dateLabel)}</b></div>
+        <div>${esc(reference)} · Page ${pageNum}</div>
+      </div>
+    </header>`;
+
+  // ── PAGE 1: summary + all products
+  if (selected.summary || selected.all) {
+    const rows = (selected.all ? products : [])
+      .slice()
+      .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
+      .map((p) => {
+        const s = statusOf(p);
+        const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+        const stockColor =
+          p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
+        return `<tr>
+          <td><span class="swatch" style="background:${swColor}"></span></td>
+          <td>${esc(p.name)}</td>
+          <td>${esc((p.brand ?? "—").toUpperCase())}</td>
+          <td>${esc(p.categories?.name ?? "—")}</td>
+          <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
+          <td class="mono-sm">${esc(rackLabel(p))}</td>
+          <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
+          <td class="right mono-sm">${p.price ? fmtNum(Number(p.price)) : "—"}</td>
+          <td><span style="color:${s.color};font-weight:600;font-size:7pt">● ${s.label}</span></td>
+        </tr>`;
+      }).join("");
+
+    pages.push(`<div class="page">
+      <header class="doc-head">
+        <div class="logo">${LOGO_SVG}</div>
+        <div class="brand">
+          <div class="name">CityStar Inventory</div>
+          <div class="sub">STOCK REPORT · ${esc(dateLabel.toUpperCase())}</div>
+        </div>
+        <div class="meta">
+          <div><b>Generated</b> ${esc(timeLabel)}</div>
+          <div>Reference <b>${esc(reference)}</b></div>
+          <div>Period <b>Live snapshot</b></div>
+        </div>
+      </header>
+
+      <div style="margin-top:12pt;margin-bottom:10pt">
+        <h1>All products — full inventory</h1>
+        <p style="margin-top:4pt">${products.length} SKUs across ${racks.size || "—"} racks · ${fmtNum(totalUnits)} total units · ${fmtYen(totalValue)} inventory value.</p>
+      </div>
+
+      <div class="strip">
+        <div class="cell ok"><div class="l">Healthy</div><div class="v">${healthy}</div><div class="s">ABOVE THRESHOLD</div></div>
+        <div class="cell warn"><div class="l">Low stock</div><div class="v">${lowList.length}</div><div class="s">AT OR BELOW THRESHOLD</div></div>
+        <div class="cell bad"><div class="l">Out of stock</div><div class="v">${outList.length}</div><div class="s">ZERO UNITS</div></div>
+        <div class="cell pri"><div class="l">Reorder need</div><div class="v">${fmtYen(reorderCost)}</div><div class="s">EST. COST</div></div>
+      </div>
+
+      ${selected.all ? `<div class="section">
+        <div class="section-head">
+          <h2>All products</h2>
+          <span class="badge">${products.length} ITEMS</span>
+          <div class="rule"></div>
+          <span class="upper">SORTED BY CATEGORY</span>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="width:14pt"></th>
+            <th>Product</th><th>Brand</th><th>Category</th>
+            <th>Size</th><th>Rack</th>
+            <th class="right">Stock</th><th class="right">¥ × 1</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No products.</td></tr>`}</tbody>
+        </table>
+      </div>` : ""}
+
+      <footer class="doc-foot">
+        <span>CITYSTAR INVENTORY · CONFIDENTIAL</span>
+        <span>${esc(reference)}</span>
+        <span>PAGE __P__</span>
+      </footer>
+    </div>`);
   }
-  const sortedBrands = [...groups.keys()].sort((a, b) => a.localeCompare(b));
-  let y = startY;
-  for (const brand of sortedBrands) {
-    const items = groups.get(brand)!.sort((a, b) => a.name.localeCompare(b.name));
-    const totalStock = items.reduce((a, p) => a + (p.stock ?? 0), 0);
-    const head =
-      mode === "out"
-        ? [["Product", "SKU", "Barcode", "Category", "Stock"]]
-        : [["Product", "SKU", "Barcode", "Category", "Stock", "Status"]];
-    const body = items.map((p) => {
-      const row = [
-        p.name,
-        p.sku ?? "—",
-        p.barcode ?? "—",
-        p.categories?.name ?? "—",
-        String(p.stock),
-      ];
-      if (mode !== "out") {
-        row.push(p.stock <= 0 ? "Out" : p.stock <= p.low_stock_threshold ? "Low" : "OK");
-      }
-      return row;
-    });
-    autoTable(doc, {
-      startY: y,
-      head: [[{ content: `${brand}  (${items.length} item${items.length === 1 ? "" : "s"}, ${totalStock} units)`, colSpan: head[0].length, styles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold", halign: "left" } }]],
-      body: [],
-      styles: { fontSize: 10 },
-      margin: { left: 40, right: 40 },
-    });
-    autoTable(doc, {
-      head,
-      body,
-      headStyles: { fillColor },
-      styles: { fontSize: 9 },
-      margin: { left: 40, right: 40 },
-    });
-    y = (doc as any).lastAutoTable.finalY + 12;
+
+  // ── PAGE 2: out of stock
+  if (selected.out) {
+    const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
+    const body = outList.map((p) => {
+      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
+      const unitPrice = Number(p.price ?? 0);
+      const estCost = reorder * unitPrice;
+      return `<tr>
+        <td><span class="swatch" style="background:${swColor}"></span></td>
+        <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
+        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
+        <td>${esc(p.categories?.name ?? "—")}</td>
+        <td class="mono-sm">${esc(p.origin ?? "—")}</td>
+        <td class="mono-sm">${esc(rackLabel(p))}</td>
+        <td class="right qty" style="color:var(--primary)">+${reorder}</td>
+        <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
+        <td class="right qty" style="color:var(--accent)">${fmtNum(Math.round(estCost))}</td>
+      </tr>`;
+    }).join("");
+
+    // Top stocked-out movers (from rawMovements)
+    const outMoves = rawMovements.filter((m) => m.type === "out");
+    const byName = new Map<string, number>();
+    for (const m of outMoves) {
+      const n = m.products?.name ?? "—";
+      byName.set(n, (byName.get(n) ?? 0) + m.quantity);
+    }
+    const topMovers = [...byName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+    const maxMove = topMovers[0]?.[1] || 1;
+    const totalMove = topMovers.reduce((a, [, v]) => a + v, 0);
+
+    pages.push(`<div class="page">
+      ${subHead("Out of stock", "URGENT · 0 UNITS ON HAND", pages.length + 1)}
+      <div style="margin-top:10pt">
+        <h1>Out of stock</h1>
+        <p style="margin-top:4pt">These cannot be picked or delivered. Total replacement cost <b>${fmtYen(outCost)}</b>.</p>
+      </div>
+      <div class="section">
+        <div class="section-head">
+          <h2>Action needed today</h2>
+          <span class="badge bad">${outList.length} ITEMS</span>
+          <div class="rule"></div>
+        </div>
+        <table>
+          <thead><tr>
+            <th style="width:14pt"></th>
+            <th>Product</th><th>Brand</th><th>Category</th>
+            <th>Origin</th><th>Rack</th>
+            <th class="right">Reorder</th><th class="right">¥ / case</th><th class="right">Est. cost</th>
+          </tr></thead>
+          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
+        </table>
+      </div>
+      ${topMovers.length ? `<div class="section">
+        <div class="section-head"><h2>Most stocked-out this week</h2><div class="rule"></div><span class="upper">UNITS · RECENT</span></div>
+        <div style="margin-top:4pt">
+          ${topMovers.map(([name, qty]) => {
+            const width = Math.round((qty / maxMove) * 100);
+            const share = totalMove ? Math.round((qty / totalMove) * 100) : 0;
+            return `<div class="chart-row"><span class="lbl">${esc(name)}</span><div class="bar2"><div style="width:${width}%;background:#dc2626">${qty}</div></div><span class="share">${share}%</span></div>`;
+          }).join("")}
+        </div>
+      </div>` : ""}
+      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
+    </div>`);
   }
+
+  // ── PAGE 3: low stock
+  if (selected.low) {
+    const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
+    const body = lowList.map((p) => {
+      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
+      const reorder = reorderQty(p);
+      const unitPrice = Number(p.price ?? 0);
+      return `<tr>
+        <td><span class="swatch" style="background:${swColor}"></span></td>
+        <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")}</div></td>
+        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
+        <td>${esc(p.categories?.name ?? "—")}</td>
+        <td class="right qty" style="color:var(--warn)">${fmtNum(p.stock ?? 0)}</td>
+        <td style="padding-right:12pt"><div class="bar"><span style="width:${coverage}%;background:var(--warn)"></span></div></td>
+        <td class="right qty" style="color:var(--primary)">+${reorder}</td>
+        <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
+      </tr>`;
+    }).join("");
+
+    pages.push(`<div class="page">
+      ${subHead("Low stock", "AT OR BELOW THRESHOLD", pages.length + 1)}
+      <div style="margin-top:10pt"><h1>Low stock</h1>
+        <p style="margin-top:4pt">${lowList.length} item${lowList.length === 1 ? "" : "s"} at or below threshold · estimated combined reorder cost <b>${fmtYen(lowCost)}</b>.</p>
+      </div>
+      <div class="section">
+        <div class="section-head"><h2>Reorder list</h2><span class="badge warn">${lowList.length} ITEMS</span><div class="rule"></div></div>
+        <table>
+          <thead><tr>
+            <th style="width:14pt"></th>
+            <th>Product</th><th>Brand</th><th>Category</th>
+            <th class="right">Stock</th>
+            <th>Coverage</th>
+            <th class="right">Reorder</th><th class="right">¥ / case</th>
+          </tr></thead>
+          <tbody>${body || `<tr><td colspan="8" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
+        </table>
+      </div>
+      ${lowList.length ? `<div style="margin-top:14pt;padding:10pt 12pt;background:var(--primary-tint);border-radius:5pt;border:1px solid #cbe6e2;display:flex;align-items:center;gap:12pt">
+        <div style="width:28pt;height:28pt;border-radius:6pt;background:var(--primary);color:#fff;display:grid;place-items:center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5 9-11" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div style="flex:1">
+          <div style="font-size:9pt;font-weight:600">Approve combined reorder</div>
+          <div class="small">Routes one PO per brand to the supplier on file.</div>
+        </div>
+        <div style="text-align:right">
+          <div class="upper">Total</div>
+          <div style="font-size:13pt;font-weight:700;color:var(--accent);margin-top:2pt">${fmtYen(lowCost)}</div>
+        </div>
+      </div>` : ""}
+      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
+    </div>`);
+  }
+
+  // ── PAGE 4: category & brand distribution
+  if (selected.insights) {
+    const catTot = new Map<string, { units: number; skus: number }>();
+    for (const p of products) {
+      const k = p.categories?.name ?? "Uncategorized";
+      const cur = catTot.get(k) ?? { units: 0, skus: 0 };
+      cur.units += p.stock ?? 0;
+      cur.skus += 1;
+      catTot.set(k, cur);
+    }
+    const catRows = [...catTot.entries()].sort((a, b) => b[1].units - a[1].units);
+    const catMax = catRows[0]?.[1].units || 1;
+    const catTotal = catRows.reduce((a, [, v]) => a + v.units, 0);
+
+    const brandTot = new Map<string, { units: number; value: number; skus: number; cat: string; statusMix: string }>();
+    for (const p of products) {
+      const key = (p.brand ?? "Unbranded").toUpperCase();
+      const cur = brandTot.get(key) ?? { units: 0, value: 0, skus: 0, cat: p.categories?.name ?? "—", statusMix: "" };
+      cur.units += p.stock ?? 0;
+      cur.value += (p.stock ?? 0) * Number(p.price ?? 0);
+      cur.skus += 1;
+      brandTot.set(key, cur);
+    }
+    const brandRows = [...brandTot.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 12);
+
+    const brandBody = brandRows.map(([brand, v]) => {
+      const sw = swatchFor(brand);
+      const items = products.filter((p) => (p.brand ?? "Unbranded").toUpperCase() === brand);
+      const out = items.filter((p) => p.stock <= 0).length;
+      const low = items.filter((p) => p.stock > 0 && p.stock <= p.low_stock_threshold).length;
+      const status = out > 0 ? { c: "var(--bad)", l: "OUT" } : low > 0 ? { c: "var(--warn)", l: "LOW" } : { c: "var(--ok)", l: "HEALTHY" };
+      return `<tr>
+        <td><span class="swatch" style="background:${sw}"></span></td>
+        <td><b>${esc(brand)}</b></td>
+        <td>${esc(v.cat)}</td>
+        <td class="right mono-sm">${v.skus}</td>
+        <td class="right qty">${fmtNum(v.units)}</td>
+        <td class="right qty" style="color:var(--accent)">${fmtYen(v.value)}</td>
+        <td class="right" style="color:${status.c};font-weight:600;font-size:7pt">● ${status.l}</td>
+      </tr>`;
+    }).join("");
+
+    pages.push(`<div class="page">
+      ${subHead("By category & brand", "DISTRIBUTION ANALYSIS", pages.length + 1)}
+      <div style="margin-top:10pt"><h1>Stock by category</h1>
+        <p style="margin-top:4pt">Where your inventory weight sits across the ${catRows.length} categor${catRows.length === 1 ? "y" : "ies"} you stock.</p>
+      </div>
+      <div class="section"><div style="margin-top:4pt">
+        ${catRows.map(([name, v]) => {
+          const width = Math.round((v.units / catMax) * 100);
+          const share = catTotal ? Math.round((v.units / catTotal) * 100) : 0;
+          const c = swatchFor(name);
+          return `<div class="chart-row"><span class="lbl">${esc(name)}</span><div class="bar2"><div style="width:${Math.max(width, 2)}%;background:${c}">${v.units}</div></div><span class="share">${v.skus} SKU · ${share}%</span></div>`;
+        }).join("")}
+      </div></div>
+      <div class="section">
+        <div class="section-head"><h2>Top brands by stock value</h2><div class="rule"></div><span class="upper">¥ × 1 retail</span></div>
+        <table>
+          <thead><tr>
+            <th style="width:14pt"></th>
+            <th>Brand</th><th>Category</th>
+            <th class="right">SKUs</th><th class="right">Units</th>
+            <th class="right">Stock ¥</th><th class="right">Status mix</th>
+          </tr></thead>
+          <tbody>${brandBody || `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:14pt">No brand data.</td></tr>`}</tbody>
+        </table>
+      </div>
+      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
+    </div>`);
+  }
+
+  // ── PAGE 5: shop tracker (destinations)
+  if (selected.destinations) {
+    const byDest = new Map<string, { qty: number; trips: number; products: Map<string, number> }>();
+    for (const m of rawMovements) {
+      if (m.type !== "out") continue;
+      const dest = (m.destination ?? "").trim() || "Unspecified";
+      const cur = byDest.get(dest) ?? { qty: 0, trips: 0, products: new Map() };
+      cur.qty += m.quantity;
+      cur.trips += 1;
+      const n = m.products?.name ?? "—";
+      cur.products.set(n, (cur.products.get(n) ?? 0) + m.quantity);
+      byDest.set(dest, cur);
+    }
+    const ranked = [...byDest.entries()].sort((a, b) => b[1].qty - a[1].qty);
+    const totalDelivered = ranked.reduce((a, [, v]) => a + v.qty, 0);
+    const totalTrips = ranked.reduce((a, [, v]) => a + v.trips, 0);
+    const topShop = ranked[0];
+    const topShare = topShop && totalDelivered ? Math.round((topShop[1].qty / totalDelivered) * 100) : 0;
+
+    const cardColors = ["#0ea5e9", "#a855f7", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#84cc16"];
+
+    pages.push(`<div class="page">
+      ${subHead("Shop tracker", "WHO ORDERS WHAT", pages.length + 1)}
+      <div style="margin-top:10pt"><h1>Shop tracker</h1>
+        <p style="margin-top:4pt">Which destination took most stock and what product they pulled most. Ranked by units delivered.</p>
+      </div>
+      <div class="strip">
+        <div class="cell pri"><div class="l">Total units delivered</div><div class="v">${fmtNum(totalDelivered)}</div><div class="s">ALL DESTINATIONS</div></div>
+        <div class="cell pri"><div class="l">Movements</div><div class="v">${fmtNum(totalTrips)}</div><div class="s">DISPATCHED</div></div>
+        <div class="cell ok"><div class="l">Top destination</div><div class="v" style="font-size:14pt">${esc(topShop?.[0] ?? "—")}</div><div class="s">${topShop ? `${fmtNum(topShop[1].qty)} UNITS · ${topShare}%` : "—"}</div></div>
+        <div class="cell"><div class="l">Active routes</div><div class="v">${ranked.length}</div><div class="s">RECENT</div></div>
+      </div>
+      <div class="section">
+        <div class="section-head"><h2>Ranked by volume</h2><span class="badge pri">${ranked.length} DESTINATION${ranked.length === 1 ? "" : "S"}</span><div class="rule"></div></div>
+        ${ranked.length === 0 ? `<p style="text-align:center;color:var(--ink-3);padding:14pt">No movement destinations yet.</p>` :
+          ranked.map(([dest, v], idx) => {
+            const top = [...v.products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+            const topName = top[0]?.[0] ?? "—";
+            const topQty = top[0]?.[1] ?? 0;
+            const also = top.slice(1).map(([n]) => n).join(", ") || "—";
+            const c = cardColors[idx % cardColors.length];
+            return `<div class="shop-card">
+              <div>
+                <div class="rank">#${idx + 1}</div>
+                <div class="nm" style="color:${c}">${esc(dest)}</div>
+                <div class="addr">${v.trips} TRIP${v.trips === 1 ? "" : "S"} · ${v.products.size} SKU</div>
+                <div class="top-prod">Top product: <b>${esc(topName)}</b> · ${fmtNum(topQty)} units · also: ${esc(also)}</div>
+              </div>
+              <div class="num"><div class="v">${fmtNum(v.qty)}</div><div class="l">UNITS</div></div>
+              <div class="trend up">${totalDelivered ? `${Math.round((v.qty / totalDelivered) * 100)}%` : "—"}</div>
+            </div>`;
+          }).join("")
+        }
+      </div>
+      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL · END OF REPORT</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
+    </div>`);
+  }
+
+  if (pages.length === 0) {
+    pages.push(`<div class="page"><div style="margin:auto;text-align:center;color:var(--ink-3)">No sections selected.</div></div>`);
+  }
+
+  // Fill in page numbers
+  const total = pages.length;
+  const finalPages = pages.map((html, i) => html.replace("__P__", `${i + 1} / ${total}`));
+
+  return {
+    html: `<style>${STYLE}</style><div class="rpt">${finalPages.join("")}</div>`,
+    pageCount: total,
+  };
 }
 
 export function ReportPdfDialog({
