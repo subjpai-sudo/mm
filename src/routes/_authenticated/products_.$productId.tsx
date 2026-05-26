@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { displaySize } from "@/lib/product-format";
 import { categoryPalette, resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 import { PageHeader } from "@/components/app/PageHeader";
+import { ProductLocationCard } from "@/components/app/ProductLocationCard";
 
 export const Route = createFileRoute("/_authenticated/products_/$productId")({
   component: ProductDetailPage,
@@ -24,6 +25,14 @@ function ProductDetailPage() {
   const { productId } = Route.useParams();
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>("overview");
+
+  const handlePrintLabel = () => {
+    // window.print uses our injected print-area CSS to isolate the label
+    setTimeout(() => window.print(), 50);
+  };
+  const handleEdit = () => {
+    navigate({ to: "/products", search: { edit: productId } as any });
+  };
 
   const { data: product, isLoading } = useQuery({
     queryKey: ["product-page", productId],
@@ -131,14 +140,46 @@ function ProductDetailPage() {
         </Button>
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
-          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Print label">
+          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Print label" onClick={handlePrintLabel}>
             <QrCode className="size-3.5" />
             <span className="hidden sm:inline">Print label</span>
           </Button>
-          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Edit">
+          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Edit" onClick={handleEdit}>
             <Pencil className="size-3.5" />
             <span className="hidden sm:inline">Edit</span>
           </Button>
+        </div>
+      </div>
+
+      {/* Hidden printable label — only this becomes visible during window.print() */}
+      <div id="single-print-label" className="hidden print:block">
+        <style>{`
+          @media print {
+            html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+            body * { visibility: hidden !important; }
+            #single-print-label, #single-print-label * { visibility: visible !important; }
+            #single-print-label { position: absolute; inset: 0; padding: 24px; display: block !important; }
+            #single-print-label .label-wrap { max-width: 360px; margin: 0 auto; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            img { display: block !important; max-width: 100% !important; }
+          }
+        `}</style>
+        <div className="label-wrap">
+          <ProductLocationCard
+            rackCode={rackLabel}
+            product={{
+              id: p.id,
+              name: p.name,
+              sku: p.sku,
+              barcode: p.barcode,
+              image_url: p.image_url,
+              origin: p.origin,
+              size: p.size,
+              unit: p.unit,
+              shelf: p.shelf,
+              mainCategoryName: mainCatName,
+            }}
+          />
         </div>
       </div>
 
@@ -361,8 +402,7 @@ function OverviewTab({
           <KV k="SKU" v={p.sku ?? "—"} mono />
           <KV k="Barcode" v={p.barcode ?? "—"} mono />
           <KV k="Category" v={p.categories?.name ?? "Uncategorized"} />
-          <KV k="Location" v={locationLabel} mono />
-          <KV k="Threshold" v={`${p.low_stock_threshold ?? 5} units`} mono last={!p.barcode} />
+          <KV k="Location" v={locationLabel} mono last={!p.barcode} />
           {p.barcode && (
             <div className="mt-3 p-3 bg-white text-black rounded-lg border border-border">
               <BarcodeImage code={p.barcode} />

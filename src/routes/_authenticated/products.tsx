@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,11 +27,12 @@ import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 
-type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
+type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
   validateSearch: (s: Record<string, unknown>): ProductsSearch => ({
     filter: s.filter === "in" || s.filter === "low" || s.filter === "out" || s.filter === "all" ? s.filter : undefined,
+    edit: typeof s.edit === "string" ? s.edit : undefined,
   }),
 });
 
@@ -57,6 +58,16 @@ function ProductsPage() {
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name)").order("created_at", { ascending: false })).data ?? [],
   });
+
+  // Auto-open editor when arriving via ?edit=<productId>
+  useEffect(() => {
+    if (!search.edit || editing) return;
+    const target = (products as any[]).find((p) => p.id === search.edit);
+    if (target) {
+      setEditing(target);
+      navigate({ to: "/products", search: { filter: search.filter } as any, replace: true });
+    }
+  }, [search.edit, products, editing, navigate, search.filter]);
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
