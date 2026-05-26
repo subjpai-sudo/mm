@@ -106,6 +106,12 @@ function ProductDetailPage() {
   const suggested = Math.max(0, threshold * 2 - stock);
   const netSeven = sevenDays.inQty - sevenDays.outQty;
 
+  // Fallback location label — when rack/shelf aren't assigned yet we still
+  // want to surface a meaningful place (Kawaguchi warehouse) instead of "— · —".
+  const rackLabel = p.rack ?? "Kawaguchi";
+  const shelfLabel = (p.shelf ?? "Main").toString().toUpperCase();
+  const locationLabel = `${rackLabel} · ${shelfLabel}`;
+
   return (
     <div className="px-4 md:px-8 py-5 max-w-[1280px] mx-auto pb-16">
       {/* Back / actions */}
@@ -168,7 +174,7 @@ function ProductDetailPage() {
           {/* Info */}
           <div className="p-6 md:p-7 flex flex-col">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="chip chip-pri"><MapPin className="size-3" /> {p.rack ?? "—"} · {(p.shelf ?? "—").toString().toUpperCase()}</span>
+              <span className="chip chip-pri"><MapPin className="size-3" /> {locationLabel}</span>
               {p.categories?.name && <span className="chip">{p.categories.name}</span>}
               <span className={`chip chip-${isOut ? "bad" : isLow ? "warn" : "ok"}`}>
                 <span className="chip-dot" /> {toneLabel}
