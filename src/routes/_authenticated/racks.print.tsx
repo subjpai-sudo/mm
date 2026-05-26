@@ -45,7 +45,7 @@ function PrintRackLabels() {
         <p className="text-sm text-muted-foreground mb-6 print:hidden">
           Stick one on each rack. Scan with the floating scanner to open that rack instantly.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 print:grid-cols-3 print:gap-3">
+        <div id="print-area" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 print:grid-cols-3 print:gap-3">
           {list.map((id: string) => (
             <RackQRLabel key={id} rackId={id} size={160} />
           ))}
@@ -55,9 +55,12 @@ function PrintRackLabels() {
       <style>{`
         @media print {
           @page { size: A4; margin: 10mm; }
-          body { background: white !important; }
-          aside, nav, header, .print\\:hidden { display: none !important; }
-          main { padding: 0 !important; }
+          html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          #print-area, #print-area * { visibility: visible !important; }
+          #print-area { position: absolute !important; left: 0; top: 0; width: 100%; padding: 0 !important; margin: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .rack-label { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
     </div>
