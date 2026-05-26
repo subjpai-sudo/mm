@@ -1,0 +1,1 @@
+DELETE FROM public.products; DELETE FROM public.categories;
