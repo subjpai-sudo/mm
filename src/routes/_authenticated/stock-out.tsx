@@ -204,13 +204,19 @@ function StockOut() {
     mutationFn: async () => {
       const qtyNum = Number(qty);
       if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
-      if (qtyNum > selected.stock) throw new Error("Quantity exceeds available stock");
+      const perBox = selected.pcs_per_case ?? 0;
+      if (unit === "boxes" && perBox < 1) {
+        throw new Error('Set "Pcs per box" on this product before using boxes');
+      }
+      const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
+      if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
       const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
-      const unitLabel = unit === "boxes" ? "boxes" : "pcs";
       const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: qtyNum, user_id: user?.id,
-        reason: `${reasonBase} · ${qtyNum} ${unitLabel}`,
+        product_id: selected.id, type: "out", quantity: actual, user_id: user?.id,
+        reason: unit === "boxes"
+          ? `${reasonBase} · ${qtyNum} boxes × ${perBox} = ${actual} pcs`
+          : `${reasonBase} · ${actual} pcs`,
         destination: finalDestination,
       });
       if (error) throw error;
