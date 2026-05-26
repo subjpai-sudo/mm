@@ -36,6 +36,7 @@ type ScanRow = {
   barcode: string | null;
   qty: string;
   unit: Unit;
+  pcsPerCase: number | null;
 };
 
 function formatDetectedProductLabel(code: string, products: any[]) {
@@ -112,6 +113,7 @@ function StockOut() {
         return [...rows, {
           productId: p.id, name: p.name, image_url: p.image_url ?? null,
           stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+          pcsPerCase: p.pcs_per_case ?? null,
         }];
       });
       toast.success(`Added ${p.name}`, { duration: 1200 });
@@ -139,6 +141,7 @@ function StockOut() {
       return [...rows, {
         productId: p.id, name: p.name, image_url: p.image_url ?? null,
         stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+        pcsPerCase: p.pcs_per_case ?? null,
       }];
     });
     toast.success(`Added ${p.name}`, { duration: 1000 });
@@ -158,10 +161,18 @@ function StockOut() {
       const rows = scanned.map((r) => {
         const q = Number(r.qty);
         if (!q || q < 1) throw new Error(`Set quantity for ${r.name}`);
-        if (q > r.stock) throw new Error(`${r.name}: qty exceeds stock (${r.stock})`);
+        const perBox = r.pcsPerCase ?? 0;
+        if (r.unit === "boxes" && perBox < 1) {
+          throw new Error(`${r.name}: set "Pcs per box" on the product before using boxes`);
+        }
+        const actual = r.unit === "boxes" ? q * perBox : q;
+        if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
         return {
-          product_id: r.productId, type: "out" as const, quantity: q, user_id: user?.id,
-          reason: `${reasonBase} · ${q} ${r.unit}`, destination: finalDestination,
+          product_id: r.productId, type: "out" as const, quantity: actual, user_id: user?.id,
+          reason: r.unit === "boxes"
+            ? `${reasonBase} · ${q} boxes × ${perBox} = ${actual} pcs`
+            : `${reasonBase} · ${actual} pcs`,
+          destination: finalDestination,
         };
       });
       const { error } = await supabase.from("stock_movements").insert(rows);
@@ -193,13 +204,19 @@ function StockOut() {
     mutationFn: async () => {
       const qtyNum = Number(qty);
       if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
-      if (qtyNum > selected.stock) throw new Error("Quantity exceeds available stock");
+      const perBox = selected.pcs_per_case ?? 0;
+      if (unit === "boxes" && perBox < 1) {
+        throw new Error('Set "Pcs per box" on this product before using boxes');
+      }
+      const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
+      if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
       const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
-      const unitLabel = unit === "boxes" ? "boxes" : "pcs";
       const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: qtyNum, user_id: user?.id,
-        reason: `${reasonBase} · ${qtyNum} ${unitLabel}`,
+        product_id: selected.id, type: "out", quantity: actual, user_id: user?.id,
+        reason: unit === "boxes"
+          ? `${reasonBase} · ${qtyNum} boxes × ${perBox} = ${actual} pcs`
+          : `${reasonBase} · ${actual} pcs`,
         destination: finalDestination,
       });
       if (error) throw error;

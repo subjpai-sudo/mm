@@ -98,9 +98,17 @@ function StockIn() {
     mutationFn: async () => {
       const qtyNum = Number(qty);
       if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
+      const perBox = confirm.pcs_per_case ?? 0;
+      if (unit === "boxes" && perBox < 1) {
+        throw new Error('Set "Pcs per box" on this product before using boxes');
+      }
+      const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
       const { error } = await supabase.from("stock_movements").insert({
-        product_id: confirm.id, type: "in", quantity: qtyNum, user_id: user?.id,
-        reason: `Stock In · ${qtyNum} ${unit} · ${location}`, destination: location,
+        product_id: confirm.id, type: "in", quantity: actual, user_id: user?.id,
+        reason: unit === "boxes"
+          ? `Stock In · ${qtyNum} boxes × ${perBox} = ${actual} pcs · ${location}`
+          : `Stock In · ${actual} pcs · ${location}`,
+        destination: location,
       });
       if (error) throw error;
     },
