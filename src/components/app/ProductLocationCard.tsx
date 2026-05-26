@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
 import { Package } from "lucide-react";
-import { originPalette } from "@/lib/origin-colors";
+import { categoryPalette } from "@/lib/category-colors";
 import { displaySize } from "@/lib/product-format";
 
 export type LocationCardProduct = {
@@ -15,6 +15,8 @@ export type LocationCardProduct = {
   size?: string | null;
   unit?: string | null;
   shelf?: string | null;
+  /** Resolved top-level category name (e.g. "Myanmar"). Used for the header color. */
+  mainCategoryName?: string | null;
 };
 
 /** Printable rack location card.
@@ -31,7 +33,9 @@ export function ProductLocationCard({
   const barcodeRef = useRef<SVGSVGElement | null>(null);
   const qrRef = useRef<HTMLCanvasElement | null>(null);
 
-  const palette = originPalette(product.origin);
+  const labelName = (product.mainCategoryName ?? product.origin ?? "").toString();
+  const palette = categoryPalette(labelName);
+  const paletteLabel = (labelName || "Uncategorized").toUpperCase();
   const rack = rackCode.trim().toUpperCase();
   const shelf = (product.shelf ?? "").toString().trim();
   const slotLabel = shelf ? `${rack} · ${shelf.toUpperCase()}` : rack;
@@ -91,10 +95,10 @@ export function ProductLocationCard({
       {/* Colored header band — origin/flag color */}
       <div
         className="px-3 py-2 text-center font-black tracking-tight"
-        style={{ background: palette.background, color: palette.foreground }}
+        style={{ background: palette.bg, color: palette.fg }}
       >
         <div className="text-[10px] uppercase tracking-[0.2em] opacity-80 leading-none">
-          {palette.label}
+          {paletteLabel}
         </div>
         <div className="text-3xl leading-tight">{slotLabel}</div>
       </div>
