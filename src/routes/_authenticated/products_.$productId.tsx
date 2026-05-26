@@ -479,22 +479,23 @@ function HistoryTab({ history, userById }: { history: any[]; userById: Map<strin
   );
 }
 
-function LocationTab({ p }: { p: any }) {
+function LocationTab({ p, rackLabel, shelfLabel }: { p: any; rackLabel: string; shelfLabel: string }) {
   const shelves = ["upper", "mid", "down"] as const;
+  const activeShelf = (p.shelf ?? "mid").toString().toLowerCase();
   return (
     <div className="rounded-2xl border border-border bg-card p-6">
       <div className="flex flex-wrap gap-6 items-start">
         <div className="flex-1 min-w-[260px]">
           <div className="upper-label">Stored at</div>
           <div className="flex items-end gap-4 mt-2">
-            <div className="num-l font-mono text-primary">{p.rack ?? "—"}</div>
+            <div className="num-l font-mono text-primary">{rackLabel}</div>
             <div className="pb-1.5 text-muted-foreground">/</div>
-            <div className="num-l font-mono text-accent uppercase">{p.shelf ?? "—"}</div>
+            <div className="num-l font-mono text-accent uppercase">{shelfLabel}</div>
           </div>
           <p className="text-sm text-muted-foreground mt-3 max-w-[420px]">
             {p.rack
               ? `${p.shelf ?? "—"} shelf of rack ${p.rack}. Open the 3D rack view to see the full layout.`
-              : "This product has no rack assigned yet."}
+              : `Currently stored at the ${rackLabel} warehouse. Assign a rack to see the precise shelf layout.`}
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             {p.rack && (
@@ -510,7 +511,7 @@ function LocationTab({ p }: { p: any }) {
         <div className="rounded-xl border border-border bg-secondary/40 p-4 min-w-[260px]">
           <div className="flex flex-col gap-2">
             {shelves.map((s, i) => {
-              const active = (p.shelf ?? "").toString().toLowerCase() === s;
+              const active = activeShelf === s;
               return (
                 <div key={s} className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg border",
