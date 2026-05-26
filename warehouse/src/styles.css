@@ -1,0 +1,234 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --font-sans: "Geist", "Inter", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* CityStar redesign tokens — HANDOFF §1 (light default) */
+:root {
+  --radius: 14px;
+
+  /* Handoff palette */
+  --cs-bg:        oklch(0.985 0.003 170);
+  --cs-bg-2:      oklch(0.96 0.005 170);
+  --cs-surface:   oklch(1 0 0);
+  --cs-surface-2: oklch(0.975 0.004 170);
+  --cs-line:      oklch(0.9 0.006 175);
+  --cs-line-2:    oklch(0.85 0.008 175);
+  --cs-ink:       oklch(0.2 0.02 200);
+  --cs-ink-2:     oklch(0.42 0.02 195);
+  --cs-ink-3:     oklch(0.58 0.015 195);
+  --cs-primary:   oklch(0.46 0.1 180);
+  --cs-primary-2: oklch(0.6 0.12 175);
+  --cs-primary-ink: oklch(0.99 0.01 175);
+  --cs-accent:    oklch(0.78 0.15 75);
+  --cs-accent-ink: oklch(0.18 0.05 60);
+  --cs-ok:        oklch(0.62 0.16 155);
+  --cs-warn:      oklch(0.74 0.17 70);
+  --cs-bad:       oklch(0.62 0.21 25);
+
+  /* Map to shadcn names */
+  --background: var(--cs-bg);
+  --foreground: var(--cs-ink);
+  --card: var(--cs-surface);
+  --card-foreground: var(--cs-ink);
+  --popover: var(--cs-surface);
+  --popover-foreground: var(--cs-ink);
+  --primary: var(--cs-primary);
+  --primary-foreground: var(--cs-primary-ink);
+  --primary-glow: var(--cs-primary-2);
+  --secondary: var(--cs-surface-2);
+  --secondary-foreground: var(--cs-ink);
+  --muted: var(--cs-bg-2);
+  --muted-foreground: var(--cs-ink-3);
+  --accent: var(--cs-accent);
+  --accent-foreground: var(--cs-accent-ink);
+  --success: var(--cs-ok);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: var(--cs-warn);
+  --warning-foreground: oklch(0.18 0.02 180);
+  --destructive: var(--cs-bad);
+  --destructive-foreground: oklch(0.99 0 0);
+  --border: var(--cs-line);
+  --input: var(--cs-line);
+  --ring: var(--cs-primary);
+
+  --chart-1: var(--cs-primary);
+  --chart-2: var(--cs-accent);
+  --chart-3: var(--cs-ok);
+  --chart-4: var(--cs-warn);
+  --chart-5: var(--cs-bad);
+
+  --sidebar: var(--cs-surface);
+  --sidebar-foreground: var(--cs-ink-2);
+  --sidebar-primary: var(--cs-primary);
+  --sidebar-primary-foreground: var(--cs-primary-ink);
+  --sidebar-accent: var(--cs-surface-2);
+  --sidebar-accent-foreground: var(--cs-ink);
+  --sidebar-border: var(--cs-line);
+  --sidebar-ring: var(--cs-primary);
+
+  --shadow-1: 0 1px 0 oklch(0.2 0.02 200 / 0.04), 0 4px 14px -8px oklch(0.2 0.02 200 / 0.18);
+  --shadow-2: 0 1px 0 oklch(0.2 0.02 200 / 0.04), 0 18px 40px -20px oklch(0.2 0.02 200 / 0.35);
+
+  --gradient-primary: linear-gradient(135deg, var(--cs-primary), var(--cs-primary-2));
+  --gradient-success: linear-gradient(135deg, var(--cs-ok), oklch(0.72 0.14 162));
+  --gradient-warning: linear-gradient(135deg, var(--cs-warn), var(--cs-accent));
+  --gradient-card: var(--cs-surface);
+  --gradient-hero:
+    radial-gradient(circle at 15% 0%, color-mix(in oklch, var(--cs-primary) 10%, transparent), transparent 55%),
+    radial-gradient(circle at 90% 100%, color-mix(in oklch, var(--cs-accent) 8%, transparent), transparent 55%);
+
+  --shadow-glow: 0 0 40px -10px color-mix(in oklch, var(--cs-primary) 35%, transparent);
+  --shadow-card: var(--shadow-1);
+  --shadow-elevated: var(--shadow-2);
+}
+
+/* Dark theme — supports both class and data-theme */
+.dark,
+[data-theme="dark"] {
+  --cs-bg:        oklch(0.16 0.012 195);
+  --cs-bg-2:      oklch(0.2 0.013 195);
+  --cs-surface:   oklch(0.22 0.013 195);
+  --cs-surface-2: oklch(0.26 0.013 195);
+  --cs-line:      oklch(0.32 0.013 195);
+  --cs-line-2:    oklch(0.4 0.014 195);
+  --cs-ink:       oklch(0.96 0.005 180);
+  --cs-ink-2:     oklch(0.78 0.012 190);
+  --cs-ink-3:     oklch(0.6 0.012 190);
+  --cs-primary:   oklch(0.78 0.13 175);
+  --cs-primary-2: oklch(0.86 0.14 170);
+  --cs-primary-ink: oklch(0.18 0.05 195);
+  --cs-accent:    oklch(0.82 0.16 75);
+  --cs-ok:        oklch(0.78 0.16 158);
+  --cs-warn:      oklch(0.82 0.17 75);
+  --cs-bad:       oklch(0.74 0.2 25);
+
+  --shadow-1: 0 1px 0 oklch(0 0 0 / 0.3), 0 6px 20px -10px oklch(0 0 0 / 0.6);
+  --shadow-2: 0 1px 0 oklch(0 0 0 / 0.3), 0 24px 60px -24px oklch(0 0 0 / 0.7);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    background-image: var(--gradient-hero);
+    background-attachment: fixed;
+    min-height: 100vh;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+@layer base {
+  /* ...the rest of your base...*/
+  #lovable-badge {
+    display: none !important;
+  }
+}
+@layer utilities {
+  .gradient-primary {
+    background-image: var(--gradient-primary);
+  }
+  .gradient-success {
+    background-image: var(--gradient-success);
+  }
+  .gradient-warning {
+    background-image: var(--gradient-warning);
+  }
+  .text-gradient {
+    background-image: var(--gradient-primary);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glow {
+    box-shadow: var(--shadow-glow);
+  }
+  .card-elevated {
+    background: var(--card);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border);
+  }
+  /* Typography utilities — HANDOFF §1 */
+  .font-mono { font-family: var(--font-mono); }
+  .num-xl { font: 600 56px/1 var(--font-sans); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+  .num-l  { font: 600 36px/1 var(--font-sans); letter-spacing: -0.025em; font-variant-numeric: tabular-nums; }
+  .num-m  { font: 600 22px/1 var(--font-sans); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .upper-label {
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted-foreground);
+  }
+  .grid-tex {
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-position: -1px -1px;
+    opacity: 0.5;
+  }
+  /* Status chips — HANDOFF §2 */
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
+    border: 1px solid var(--border);
+    background: var(--secondary); color: var(--muted-foreground);
+  }
+  .chip-dot { width: 6px; height: 6px; border-radius: 99px; background: currentColor; }
+  .chip-ok   { color: var(--success); border-color: color-mix(in oklch, var(--success) 35%, transparent); background: color-mix(in oklch, var(--success) 12%, transparent); }
+  .chip-warn { color: var(--warning); border-color: color-mix(in oklch, var(--warning) 35%, transparent); background: color-mix(in oklch, var(--warning) 12%, transparent); }
+  .chip-bad  { color: var(--destructive); border-color: color-mix(in oklch, var(--destructive) 35%, transparent); background: color-mix(in oklch, var(--destructive) 12%, transparent); }
+  .chip-pri  { color: var(--primary); border-color: color-mix(in oklch, var(--primary) 35%, transparent); background: color-mix(in oklch, var(--primary) 12%, transparent); }
+  .chip-acc  { color: var(--accent); border-color: color-mix(in oklch, var(--accent) 35%, transparent); background: color-mix(in oklch, var(--accent) 12%, transparent); }
+  .hover-lift { transition: transform 160ms ease, box-shadow 160ms ease; }
+  .hover-lift:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+}

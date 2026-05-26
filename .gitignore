@@ -1,0 +1,31 @@
+# Large files
+*.xlsx
+*.xls
+
+# Build output
+warehouse/dist/
+warehouse/node_modules/
+catalog/node_modules/
+catalog/dist/
+
+# System
+.DS_Store
+__pycache__/
+*.pyc
+
+# Secrets / local
+billing-server/billing.db
+.firebase/
+.wrangler/
+
+# Vendor image folders
+A 1 Thai/
+ABC Company/
+Ambika corporation/
+Bompex Japan/
+Ichiba/
+Imai Japan/
+Kara Indonasian/
+Lifu Tou Thai/
+Next International/
+Sartaz Corporation/
