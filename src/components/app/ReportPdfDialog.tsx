@@ -586,149 +586,64 @@ export function ReportPdfDialog({
   const setAll = (v: boolean) =>
     setSelected({ summary: v, low: v, out: v, all: v, insights: v, destinations: v });
 
-  function buildPdf(): Blob {
-    const doc = new jsPDF({ unit: "pt", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-    const generatedAt = format(new Date(), "PPpp");
-    const totalStockUnits = products.reduce((a, p) => a + (p.stock ?? 0), 0);
-    let firstPage = true;
-    const newSection = (title: string, sub?: string) => {
-      if (!firstPage) doc.addPage();
-      firstPage = false;
-      doc.setFontSize(20); doc.setTextColor(0); doc.text(title, 40, 60);
-      if (sub) {
-        doc.setFontSize(10); doc.setTextColor(120); doc.text(sub, 40, 80); doc.setTextColor(0);
+  async function buildPdf(): Promise<Blob> {
+    const dateLabel = format(new Date(), "d MMM yyyy");
+    const timeLabel = format(new Date(), "HH:mm");
+    const reference = `SR-${format(new Date(), "yyyyMMdd-HHmm")}`;
+
+    const { html } = buildReportHtml({
+      selected, products, lowList, outList,
+      movements, rawMovements,
+      reference, dateLabel, timeLabel,
+    });
+
+    // Ensure Geist fonts are loaded (one-shot, cached by the browser)
+    if (!document.getElementById("rpt-geist-fonts")) {
+      const link = document.createElement("link");
+      link.id = "rpt-geist-fonts";
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap";
+      document.head.appendChild(link);
+      try { await (document as any).fonts?.ready; } catch { /* noop */ }
+    }
+
+    // Mount offscreen for capture
+    const holder = document.createElement("div");
+    holder.style.cssText = "position:fixed;left:-10000px;top:0;background:#fff;";
+    holder.innerHTML = html;
+    document.body.appendChild(holder);
+    // Allow layout / fonts / paint to settle
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    try { await (document as any).fonts?.ready; } catch { /* noop */ }
+
+    const pageEls = Array.from(holder.querySelectorAll<HTMLElement>(".rpt .page"));
+    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
+    const pageWmm = 210;
+    const pageHmm = 297;
+
+    try {
+      for (let i = 0; i < pageEls.length; i++) {
+        const canvas = await html2canvas(pageEls[i], {
+          scale: 2,
+          backgroundColor: "#ffffff",
+          useCORS: true,
+          logging: false,
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.92);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(img, "JPEG", 0, 0, pageWmm, pageHmm, undefined, "FAST");
       }
-    };
-
-    if (selected.summary) {
-      newSection("Stock Report — Summary", `Generated: ${generatedAt}`);
-      autoTable(doc, {
-        startY: 110,
-        head: [["Metric", "Value"]],
-        body: [
-          ["Total products", String(products.length)],
-          ["Total stock units on hand", String(totalStockUnits)],
-          ["Low stock items", String(lowList.length)],
-          ["Out of stock items", String(outList.length)],
-          ["Total stock-in (last 500 movements)", String(movements.inQty)],
-          ["Total stock-out (last 500 movements)", String(movements.outQty)],
-          ["Net movement", String(movements.inQty - movements.outQty)],
-        ],
-        headStyles: { fillColor: [37, 99, 235] },
-        styles: { fontSize: 11 },
-      });
+    } finally {
+      document.body.removeChild(holder);
     }
 
-    if (selected.low) {
-      newSection("Low Stock", `${lowList.length} item(s) at or below threshold`);
-      renderGroupedByBrand(doc, lowList, 100, [202, 138, 4], "low");
-    }
-
-    if (selected.out) {
-      newSection("Out of Stock", `${outList.length} item(s) with zero stock`);
-      renderGroupedByBrand(doc, outList, 100, [220, 38, 38], "out");
-    }
-
-    if (selected.all) {
-      newSection("All Products — Stock Counts", `${products.length} product(s), total ${totalStockUnits} units`);
-      renderGroupedByBrand(doc, products, 100, [37, 99, 235], "all");
-    }
-
-    if (selected.insights) {
-      // Top moved products by quantity
-      const moveByProduct = new Map<string, { name: string; in: number; out: number }>();
-      for (const m of rawMovements) {
-        const name = m.products?.name ?? "—";
-        const cur = moveByProduct.get(name) ?? { name, in: 0, out: 0 };
-        if (m.type === "in") cur.in += m.quantity; else cur.out += m.quantity;
-        moveByProduct.set(name, cur);
-      }
-      const topOut = [...moveByProduct.values()].sort((a, b) => b.out - a.out).slice(0, 10);
-      const topIn = [...moveByProduct.values()].sort((a, b) => b.in - a.in).slice(0, 10);
-      const healthy = products.length - lowList.length - outList.length;
-      const stockHealthPct = products.length ? Math.round((healthy / products.length) * 100) : 0;
-
-      newSection("Insights", `Stock health: ${stockHealthPct}% healthy · ${lowList.length} low · ${outList.length} out`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Indicator", "Value"]],
-        body: [
-          ["Healthy products", `${healthy} (${stockHealthPct}%)`],
-          ["Low stock products", String(lowList.length)],
-          ["Out of stock products", String(outList.length)],
-          ["Total movements analysed", String(rawMovements.length)],
-          ["Net stock change", String(movements.inQty - movements.outQty)],
-          ["Avg stock per product", products.length ? (totalStockUnits / products.length).toFixed(1) : "0"],
-        ],
-        headStyles: { fillColor: [99, 102, 241] },
-        styles: { fontSize: 11 },
-      });
-      autoTable(doc, {
-        head: [["Top 10 — Most Stock OUT", "Qty"]],
-        body: topOut.length ? topOut.map((p) => [p.name, String(p.out)]) : [["—", "—"]],
-        headStyles: { fillColor: [220, 38, 38] },
-        styles: { fontSize: 10 },
-      });
-      autoTable(doc, {
-        head: [["Top 10 — Most Stock IN", "Qty"]],
-        body: topIn.length ? topIn.map((p) => [p.name, String(p.in)]) : [["—", "—"]],
-        headStyles: { fillColor: [22, 163, 74] },
-        styles: { fontSize: 10 },
-      });
-    }
-
-    if (selected.destinations) {
-      const byDest = new Map<string, { qty: number; count: number; products: Set<string> }>();
-      for (const m of rawMovements) {
-        if (m.type !== "out") continue;
-        const dest = (m.destination ?? "").trim() || "Unspecified";
-        const cur = byDest.get(dest) ?? { qty: 0, count: 0, products: new Set() };
-        cur.qty += m.quantity;
-        cur.count += 1;
-        if (m.products?.name) cur.products.add(m.products.name);
-        byDest.set(dest, cur);
-      }
-      const rows = [...byDest.entries()]
-        .map(([dest, v]) => ({ dest, qty: v.qty, count: v.count, products: v.products.size }))
-        .sort((a, b) => b.qty - a.qty);
-      const totalOut = rows.reduce((a, r) => a + r.qty, 0);
-
-      newSection("Movement Destinations", `Where ${totalOut} unit(s) of stock-out went (last ${rawMovements.length} movements)`);
-      autoTable(doc, {
-        startY: 100,
-        head: [["Destination", "Total qty out", "Movements", "Distinct products", "Share"]],
-        body: rows.length
-          ? rows.map((r) => [
-              r.dest, String(r.qty), String(r.count), String(r.products),
-              totalOut ? `${((r.qty / totalOut) * 100).toFixed(1)}%` : "—",
-            ])
-          : [["—", "—", "—", "—", "—"]],
-        headStyles: { fillColor: [37, 99, 235] },
-        styles: { fontSize: 10 },
-      });
-    }
-
-    if (firstPage) {
-      // Nothing was added (shouldn't happen because button is disabled)
-      newSection("Stock Report", "No sections selected.");
-    }
-
-    // Footer page numbers
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(9); doc.setTextColor(150);
-      doc.text(`Page ${i} / ${pageCount}`, pageW - 70, doc.internal.pageSize.getHeight() - 20);
-    }
-
-    return doc.output("blob");
+    return pdf.output("blob");
   }
 
   async function generateAndUpload() {
     setBusy(true); setUrl(null);
     try {
-      const blob = buildPdf();
+      const blob = await buildPdf();
       const path = `${today}/stock-report-${Date.now()}.pdf`;
       const { error } = await supabase.storage.from("reports").upload(path, blob, {
         contentType: "application/pdf", upsert: false,
@@ -748,13 +663,20 @@ export function ReportPdfDialog({
     }
   }
 
-  function downloadLocal() {
-    const blob = buildPdf();
+  async function downloadLocal() {
+    setBusy(true);
+    try {
+      const blob = await buildPdf();
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `stock-report-${today}.pdf`;
     a.click();
     URL.revokeObjectURL(a.href);
+    } catch (e: any) {
+      toast.error(e.message ?? "Failed to render report");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function copyLink() {
