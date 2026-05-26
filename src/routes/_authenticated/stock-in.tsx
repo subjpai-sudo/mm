@@ -40,7 +40,9 @@ function StockIn() {
   const [confirm, setConfirm] = useState<any | null>(null);
   const [qty, setQty] = useState("1");
   const [unit, setUnit] = useState<"pcs" | "boxes">("pcs");
-  const [destination, setDestination] = useState<"Delivery" | "Shops">("Delivery");
+  const LOCATIONS = ["Kita Otsuka", "Kawaguchi"] as const;
+  type Location = (typeof LOCATIONS)[number];
+  const [location, setLocation] = useState<Location>("Kita Otsuka");
   const [camOpen, setCamOpen] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [pickSearch, setPickSearch] = useState("");
@@ -98,7 +100,7 @@ function StockIn() {
       if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
       const { error } = await supabase.from("stock_movements").insert({
         product_id: confirm.id, type: "in", quantity: qtyNum, user_id: user?.id,
-        reason: `Stock In · ${qtyNum} ${unit}`, destination,
+        reason: `Stock In · ${qtyNum} ${unit} · ${location}`, destination: location,
       });
       if (error) throw error;
     },
@@ -282,16 +284,16 @@ function StockIn() {
                   </div>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Destination</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Location</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(["Delivery", "Shops"] as const).map(d => (
+                    {LOCATIONS.map(d => (
                       <button
                         key={d}
                         type="button"
-                        onClick={() => setDestination(d)}
+                        onClick={() => setLocation(d)}
                         className={cn(
                           "h-12 rounded-xl border text-sm font-semibold transition",
-                          destination === d
+                          location === d
                             ? "border-primary bg-primary text-primary-foreground shadow-sm"
                             : "border-border bg-secondary/40 hover:bg-secondary"
                         )}
