@@ -109,14 +109,21 @@ function ProductDetailPage() {
   return (
     <div className="px-4 md:px-8 py-5 max-w-[1280px] mx-auto pb-16">
       {/* Back / actions */}
-      <div className="flex items-center mb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/products" })} className="-ml-2">
-          <ChevronLeft className="size-4" /> All products
+      <div className="flex items-center gap-2 mb-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/products" })} className="-ml-2 shrink-0">
+          <ChevronLeft className="size-4" />
+          <span className="hidden sm:inline">All products</span>
         </Button>
         <div className="flex-1" />
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm"><QrCode className="size-3.5" /> Print label</Button>
-          <Button variant="secondary" size="sm"><Pencil className="size-3.5" /> Edit</Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Print label">
+            <QrCode className="size-3.5" />
+            <span className="hidden sm:inline">Print label</span>
+          </Button>
+          <Button variant="secondary" size="sm" className="px-2 sm:px-3" title="Edit">
+            <Pencil className="size-3.5" />
+            <span className="hidden sm:inline">Edit</span>
+          </Button>
         </div>
       </div>
 
