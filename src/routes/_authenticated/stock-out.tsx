@@ -36,6 +36,7 @@ type ScanRow = {
   barcode: string | null;
   qty: string;
   unit: Unit;
+  pcsPerCase: number | null;
 };
 
 function formatDetectedProductLabel(code: string, products: any[]) {
@@ -112,6 +113,7 @@ function StockOut() {
         return [...rows, {
           productId: p.id, name: p.name, image_url: p.image_url ?? null,
           stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+          pcsPerCase: p.pcs_per_case ?? null,
         }];
       });
       toast.success(`Added ${p.name}`, { duration: 1200 });
@@ -139,6 +141,7 @@ function StockOut() {
       return [...rows, {
         productId: p.id, name: p.name, image_url: p.image_url ?? null,
         stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+        pcsPerCase: p.pcs_per_case ?? null,
       }];
     });
     toast.success(`Added ${p.name}`, { duration: 1000 });
@@ -158,10 +161,18 @@ function StockOut() {
       const rows = scanned.map((r) => {
         const q = Number(r.qty);
         if (!q || q < 1) throw new Error(`Set quantity for ${r.name}`);
-        if (q > r.stock) throw new Error(`${r.name}: qty exceeds stock (${r.stock})`);
+        const perBox = r.pcsPerCase ?? 0;
+        if (r.unit === "boxes" && perBox < 1) {
+          throw new Error(`${r.name}: set "Pcs per box" on the product before using boxes`);
+        }
+        const actual = r.unit === "boxes" ? q * perBox : q;
+        if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
         return {
-          product_id: r.productId, type: "out" as const, quantity: q, user_id: user?.id,
-          reason: `${reasonBase} · ${q} ${r.unit}`, destination: finalDestination,
+          product_id: r.productId, type: "out" as const, quantity: actual, user_id: user?.id,
+          reason: r.unit === "boxes"
+            ? `${reasonBase} · ${q} boxes × ${perBox} = ${actual} pcs`
+            : `${reasonBase} · ${actual} pcs`,
+          destination: finalDestination,
         };
       });
       const { error } = await supabase.from("stock_movements").insert(rows);
