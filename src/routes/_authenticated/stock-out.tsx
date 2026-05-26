@@ -261,9 +261,45 @@ function StockOut() {
             </div>
           )}
           {(destKind === "Delivery" || (destKind === "Shops" && shop)) && (
-            <Button onClick={() => setCamOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
-              <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : "→ Delivery"}
-            </Button>
+            <>
+              <Button onClick={() => setCamOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
+                <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : "→ Delivery"}
+              </Button>
+              <div className="relative">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Or type SKU / product name to add</Label>
+                <div className="relative mt-2">
+                  <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={massSearch}
+                    onChange={(e) => setMassSearch(e.target.value)}
+                    placeholder="Start typing SKU, barcode or name…"
+                    className="pl-9"
+                  />
+                </div>
+                {massSuggestions.length > 0 && (
+                  <div className="mt-2 rounded-xl border border-border bg-card shadow-md max-h-72 overflow-y-auto divide-y divide-border">
+                    {massSuggestions.map((p: any) => (
+                      <button key={p.id} type="button" onClick={() => addProductToScanned(p)}
+                        className="w-full flex items-center gap-2 px-2 py-2 hover:bg-secondary/60 text-left">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
+                        ) : (
+                          <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-4" /></div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold truncate">{p.name}</div>
+                          <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"} · stock {p.stock}</div>
+                        </div>
+                        <span className="text-[10px] uppercase tracking-wider text-warning font-bold shrink-0">Add</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {massSearch.trim().length > 0 && massSuggestions.length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-2 px-1">No products match "{massSearch}".</p>
+                )}
+              </div>
+            </>
           )}
         </Card>
 
