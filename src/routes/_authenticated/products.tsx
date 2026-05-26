@@ -14,7 +14,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { StockStatus } from "./dashboard";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { StrichScanner } from "@/components/app/StrichScanner";
 import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
@@ -508,7 +508,7 @@ function ProductsPage() {
       {manageCats && <CategoryManagerDialog categories={categories} onClose={() => setManageCats(false)} />}
 
       {scanFor && (
-        <BarcodeScanner
+        <StrichScanner
           open={!!scanFor}
           onClose={() => setScanFor(null)}
           onDetected={(code) => setBarcode.mutate({ id: scanFor.id, barcode: code })}
@@ -645,7 +645,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
           pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
         })}>Create</Button>
       </DialogFooter>
-      <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
+      <StrichScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
     </DialogContent>
   );
 }
@@ -748,7 +748,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
             pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
           })}>Save changes</Button>
         </DialogFooter>
-        <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
+        <StrichScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
       </DialogContent>
     </Dialog>
   );
@@ -1357,7 +1357,7 @@ function RapidScanDialog({
           <Button variant="ghost" onClick={onClose}>Done</Button>
         </DialogFooter>
 
-        <BarcodeScanner
+        <StrichScanner
           open={scannerOpen}
           onClose={() => setScannerOpen(false)}
           onDetected={onDetected}
