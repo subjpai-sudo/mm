@@ -387,8 +387,8 @@ function ProductsPage() {
         return (
           <>
             {sections.length > 1 && (
-              <Card className="card-elevated p-2 mb-4 sticky top-2 z-20 backdrop-blur bg-card/90">
-                <div className="flex gap-1.5 overflow-x-auto px-1">
+              <div className="mb-4 sticky top-2 z-20">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
                   {sections.map((s) => {
                     const pal = categoryPalette(s.name);
                     return (
@@ -400,18 +400,21 @@ function ProductsPage() {
                             .getElementById(`cat-${s.id}`)
                             ?.scrollIntoView({ behavior: "smooth", block: "start" })
                         }
-                        style={{ background: pal.bg, color: pal.fg, borderColor: pal.bg }}
-                        className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold transition active:scale-[0.97] hover:opacity-90"
+                        className="group shrink-0 inline-flex items-center gap-2 h-8 px-3 rounded-full border border-border bg-card/70 backdrop-blur text-xs font-semibold text-foreground hover:border-foreground/30 hover:-translate-y-px transition"
                       >
+                        <span
+                          className="size-2 rounded-full shrink-0"
+                          style={{ background: pal.bg }}
+                        />
                         {s.name}
-                        <span className="px-1.5 py-0.5 rounded-full text-[10px] tabular-nums bg-background/25">
+                        <span className="px-1.5 py-px rounded-full text-[10px] font-mono tabular-nums bg-background border border-border text-muted-foreground">
                           {s.items.length}
                         </span>
                       </button>
                     );
                   })}
                 </div>
-              </Card>
+              </div>
             )}
             <div className="space-y-6">
               {sections.map((s) => {
