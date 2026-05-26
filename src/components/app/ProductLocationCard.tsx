@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import QRCode from "qrcode";
 import JsBarcode from "jsbarcode";
 import { Package } from "lucide-react";
 import { categoryPalette } from "@/lib/category-colors";
@@ -31,7 +30,6 @@ export function ProductLocationCard({
   product: LocationCardProduct;
 }) {
   const barcodeRef = useRef<SVGSVGElement | null>(null);
-  const qrRef = useRef<HTMLCanvasElement | null>(null);
 
   const labelName = (product.mainCategoryName ?? product.origin ?? "").toString();
   const palette = categoryPalette(labelName);
@@ -77,16 +75,6 @@ export function ProductLocationCard({
     }
   }, [code]);
 
-  useEffect(() => {
-    if (!qrRef.current) return;
-    QRCode.toCanvas(qrRef.current, code, {
-      width: 110,
-      margin: 1,
-      errorCorrectionLevel: "M",
-      color: { dark: "#0a0f0d", light: "#ffffff" },
-    }).catch(() => {});
-  }, [code]);
-
   return (
     <div
       className="rack-card border-[3px] border-black rounded-2xl overflow-hidden bg-white text-black break-inside-avoid flex flex-col"
@@ -104,7 +92,7 @@ export function ProductLocationCard({
       </div>
 
       <div className="p-3 flex flex-col items-center gap-2">
-        <div className="w-full aspect-square max-h-[180px] bg-white grid place-items-center overflow-hidden">
+        <div className="w-full aspect-[4/3] bg-white grid place-items-center overflow-hidden">
           {product.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -117,24 +105,21 @@ export function ProductLocationCard({
               style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties}
             />
           ) : (
-            <Package className="size-12 text-neutral-300" />
+            <Package className="size-16 text-neutral-300" />
           )}
         </div>
 
-        <div className="text-center font-bold text-[15px] leading-tight line-clamp-2 min-h-[36px]">
+        <div className="text-center font-bold text-[16px] leading-tight line-clamp-2 min-h-[36px]">
           {product.name}
           {size ? <span className="ml-1 font-semibold text-neutral-600">· {size}</span> : null}
         </div>
 
-        <div className="w-full flex items-center justify-between gap-3 pt-1">
-          <div className="flex-1 min-w-0">
-            <div className="text-[12px] font-mono text-neutral-700 truncate">
-              SKU: <span className="font-bold text-black">{product.sku ?? "—"}</span>
-            </div>
-            {/* Larger barcode so operators can scan reliably from a printed label */}
-            <svg ref={barcodeRef} className="w-full mt-1 block" />
+        <div className="w-full pt-1">
+          <div className="text-[12px] font-mono text-neutral-700 truncate text-center">
+            SKU: <span className="font-bold text-black">{product.sku ?? "—"}</span>
           </div>
-          <canvas ref={qrRef} className="rounded-md [image-rendering:pixelated] shrink-0" />
+          {/* Large barcode — operators scan this directly from the printed label */}
+          <svg ref={barcodeRef} className="w-full mt-1 block" />
         </div>
       </div>
     </div>
