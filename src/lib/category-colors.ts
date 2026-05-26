@@ -91,3 +91,23 @@ export function categoryPalette(name?: string | null): CategoryPalette {
   const idx = hashString(key) % AUTO_PALETTE.length;
   return AUTO_PALETTE[idx];
 }
+
+export type CategoryLite = { id: string; name: string; parent_id: string | null };
+
+/** Walk up the parent chain to find the top-level (main) category name.
+ *  Returns null if the id is missing or no matching category is found. */
+export function resolveMainCategoryName(
+  categoryId: string | null | undefined,
+  categories: CategoryLite[] | undefined | null,
+): string | null {
+  if (!categoryId || !categories?.length) return null;
+  const byId = new Map(categories.map((c) => [c.id, c]));
+  let cur = byId.get(categoryId);
+  let safety = 8;
+  while (cur && cur.parent_id && safety-- > 0) {
+    const parent = byId.get(cur.parent_id);
+    if (!parent) break;
+    cur = parent;
+  }
+  return cur?.name ?? null;
+}
