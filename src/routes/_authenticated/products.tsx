@@ -26,6 +26,7 @@ import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
 export const Route = createFileRoute("/_authenticated/products")({
