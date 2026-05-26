@@ -41,7 +41,7 @@ function AdminDashboard() {
   });
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
-    queryFn: async () => (await supabase.from("profiles").select("id, email, full_name")).data ?? [],
+    queryFn: async () => (await supabase.from("profiles").select("id, full_name")).data ?? [],
   });
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -134,7 +134,7 @@ function AdminDashboard() {
     },
   });
 
-  const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "Unknown"]));
+  const profileMap = new Map(profiles.map((p: any) => [p.id, p.full_name || "Unknown"]));
 
   // Combined activity feed: stock movements + barcode registrations
   const activity = [
