@@ -25,6 +25,7 @@ import { Sparkles, Globe, Wand2 } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
+import { categoryPalette } from "@/lib/category-colors";
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out" };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -339,33 +340,45 @@ function ProductsPage() {
             {sections.length > 1 && (
               <Card className="card-elevated p-2 mb-4 sticky top-2 z-20 backdrop-blur bg-card/90">
                 <div className="flex gap-1.5 overflow-x-auto px-1">
-                  {sections.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() =>
-                        document
-                          .getElementById(`cat-${s.id}`)
-                          ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                      }
-                      className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-border bg-secondary/40 hover:bg-secondary hover:border-primary/40 text-xs font-semibold transition"
-                    >
-                      {s.name}
-                      <span className="px-1.5 py-0.5 rounded-full text-[10px] tabular-nums bg-background/60 text-muted-foreground">
-                        {s.items.length}
-                      </span>
-                    </button>
-                  ))}
+                  {sections.map((s) => {
+                    const pal = categoryPalette(s.name);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() =>
+                          document
+                            .getElementById(`cat-${s.id}`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                        }
+                        style={{ background: pal.bg, color: pal.fg, borderColor: pal.bg }}
+                        className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold transition active:scale-[0.97] hover:opacity-90"
+                      >
+                        {s.name}
+                        <span className="px-1.5 py-0.5 rounded-full text-[10px] tabular-nums bg-background/25">
+                          {s.items.length}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </Card>
             )}
             <div className="space-y-6">
-              {sections.map((s) => (
+              {sections.map((s) => {
+                const pal = categoryPalette(s.name);
+                return (
                 <section key={s.id} id={`cat-${s.id}`} className="scroll-mt-24">
-                  <div className="flex items-center gap-2 mb-2.5 px-1">
-                    <FolderTree className="size-4 text-primary" />
-                    <h2 className="font-bold text-base">{s.name}</h2>
-                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/15 text-primary">
+                  <div
+                    className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-lg border-l-4"
+                    style={{ borderLeftColor: pal.bg, background: pal.soft }}
+                  >
+                    <FolderTree className="size-4" style={{ color: pal.accent }} />
+                    <h2 className="font-bold text-base" style={{ color: pal.accent }}>{s.name}</h2>
+                    <span
+                      className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: pal.bg, color: pal.fg }}
+                    >
                       {s.items.length}
                     </span>
                   </div>
@@ -385,7 +398,8 @@ function ProductsPage() {
                     ))}
                   </div>
                 </section>
-              ))}
+                );
+              })}
             </div>
           </>
         );
