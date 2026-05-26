@@ -59,6 +59,7 @@ function StockOut() {
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
   const [scanned, setScanned] = useState<ScanRow[]>([]);
+  const [massSearch, setMassSearch] = useState("");
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -125,6 +126,29 @@ function StockOut() {
   function removeRow(productId: string) {
     setScanned((rows) => rows.filter((r) => r.productId !== productId));
   }
+
+  function addProductToScanned(p: any) {
+    if (destKind === "Shops" && !shop) { toast.error("Pick a shop first"); return; }
+    setScanned((rows) => {
+      const idx = rows.findIndex((r) => r.productId === p.id);
+      if (idx >= 0) {
+        const next = [...rows];
+        next[idx] = { ...next[idx], qty: String((Number(next[idx].qty) || 0) + 1) };
+        return next;
+      }
+      return [...rows, {
+        productId: p.id, name: p.name, image_url: p.image_url ?? null,
+        stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+      }];
+    });
+    toast.success(`Added ${p.name}`, { duration: 1000 });
+    setMassSearch("");
+  }
+
+  const massSuggestions = massSearch.trim().length === 0 ? [] : products.filter((p: any) => {
+    const q = massSearch.toLowerCase();
+    return `${p.name} ${p.sku ?? ""} ${p.barcode ?? ""}`.toLowerCase().includes(q);
+  }).slice(0, 8);
 
   const submitAll = useMutation({
     mutationFn: async () => {
