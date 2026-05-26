@@ -146,6 +146,8 @@ function PrintProductLabels() {
           body { background: white !important; }
           aside, nav, header, .print\\:hidden { display: none !important; }
           main { padding: 0 !important; }
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
+          img { display: block !important; max-width: 100% !important; break-inside: avoid; }
         }
       `}</style>
     </div>
