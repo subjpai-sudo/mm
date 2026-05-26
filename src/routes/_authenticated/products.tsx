@@ -551,6 +551,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
   const [name, setName] = useState(""); const [sku, setSku] = useState(""); const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("0"); const [stock, setStock] = useState("0"); const [threshold, setThreshold] = useState("5");
   const [sizeNum, setSizeNum] = useState(""); const [sizeUnit, setSizeUnit] = useState<string>("g");
+  const [pcsPerCase, setPcsPerCase] = useState("");
   const [mainCatId, setMainCatId] = useState<string>("");
   const [subCatId, setSubCatId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
@@ -617,6 +618,11 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
             </Select>
           </div>
         </div>
+        <div>
+          <Label>Pcs per box</Label>
+          <Input type="number" inputMode="numeric" placeholder="e.g. 24" value={pcsPerCase} onChange={e => setPcsPerCase(e.target.value)} />
+          <p className="text-[11px] text-muted-foreground mt-1">Used to convert boxes → pcs on stock in/out.</p>
+        </div>
       </div>
       <DialogFooter>
         <Button className="gradient-primary text-primary-foreground border-0" onClick={() => onSubmit({
@@ -626,6 +632,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
           size: sizeNum ? sizeNum : null,
           unit: sizeNum ? sizeUnit : null,
           price: Number(price), stock: Number(stock), low_stock_threshold: Number(threshold),
+          pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
         })}>Create</Button>
       </DialogFooter>
       <BarcodeScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
