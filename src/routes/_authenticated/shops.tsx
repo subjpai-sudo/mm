@@ -27,9 +27,9 @@ function ShopsPage() {
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
-    queryFn: async () => (await supabase.from("profiles").select("id, email, full_name")).data ?? [],
+    queryFn: async () => (await supabase.from("profiles").select("id, full_name")).data ?? [],
   });
-  const profileMap = useMemo(() => new Map(profiles.map((p: any) => [p.id, p.full_name || p.email || "—"])), [profiles]);
+  const profileMap = useMemo(() => new Map(profiles.map((p: any) => [p.id, p.full_name || "—"])), [profiles]);
 
   const shopMoves = useMemo(() => (movements as any[]).filter((m) => isShop(m.destination)), [movements]);
 

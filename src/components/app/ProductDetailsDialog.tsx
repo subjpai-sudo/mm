@@ -64,7 +64,7 @@ export function ProductDetailsDialog({
       (
         await supabase
           .from("profiles")
-          .select("id, full_name, email")
+          .select("id, full_name")
           .eq("id", registrarId!)
           .maybeSingle()
       ).data,
@@ -94,12 +94,12 @@ export function ProductDetailsDialog({
       (
         await supabase
           .from("profiles")
-          .select("id, full_name, email")
+          .select("id, full_name")
           .in("id", movementUserIds)
       ).data ?? [],
   });
   const userById = new Map(
-    (movementUsers as any[]).map((u) => [u.id, u.full_name || u.email || "Unknown"]),
+    (movementUsers as any[]).map((u) => [u.id, u.full_name || "Unknown"]),
   );
 
   const mainCatName =

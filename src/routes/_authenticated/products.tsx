@@ -739,20 +739,20 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
         .select("*").eq("product_id", product.id)
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (!data) return null;
-      let email: string | null = null;
+      let by: string | null = null;
       if (data.user_id) {
-        const { data: prof } = await supabase.from("profiles").select("email,full_name").eq("id", data.user_id).maybeSingle();
-        email = prof?.full_name || prof?.email || null;
+        const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", data.user_id).maybeSingle();
+        by = prof?.full_name || null;
       }
-      return { ...data, by: email };
+      return { ...data, by };
     },
   });
   const { data: registrar } = useQuery({
     queryKey: ["product-barcode-registrar", product.id, product.barcode_registered_by],
     enabled: !!product.barcode_registered_by,
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("email,full_name").eq("id", product.barcode_registered_by).maybeSingle();
-      return data?.full_name || data?.email || null;
+      const { data } = await supabase.from("profiles").select("full_name").eq("id", product.barcode_registered_by).maybeSingle();
+      return data?.full_name || null;
     },
   });
 
