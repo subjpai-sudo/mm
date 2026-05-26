@@ -280,8 +280,12 @@ export function ReportPdfDialog({
         contentType: "application/pdf", upsert: false,
       });
       if (error) throw error;
-      const { data } = supabase.storage.from("reports").getPublicUrl(path);
-      setUrl(data.publicUrl);
+      // Reports bucket is private; issue a signed URL (valid 7 days)
+      const { data, error: signErr } = await supabase
+        .storage.from("reports")
+        .createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (signErr) throw signErr;
+      setUrl(data.signedUrl);
       toast.success("Report generated and uploaded");
     } catch (e: any) {
       toast.error(e.message ?? "Failed to generate report");
