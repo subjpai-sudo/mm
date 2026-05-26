@@ -290,8 +290,8 @@ function Mini({ label, value, tone }: { label: string; value: string; tone: stri
 }
 
 function OverviewTab({
-  p, related, history, userById, sevenDays, locationLabel,
-}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string }) {
+  p, related, history, userById, sevenDays, locationLabel, categories,
+}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string; categories: CategoryLite[] }) {
   const navigate = useNavigate();
   const net = sevenDays.inQty - sevenDays.outQty;
   return (
@@ -326,18 +326,19 @@ function OverviewTab({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               {related.map((r) => {
                 const t = r.stock <= 0 ? "destructive" : r.stock <= (r.low_stock_threshold ?? 5) ? "warning" : "success";
-                const pal = originPalette(r.origin);
+                const rMain = resolveMainCategoryName(r.category_id, categories) ?? "";
+                const pal = categoryPalette(rMain);
                 return (
                   <button
                     key={r.id}
                     onClick={() => navigate({ to: "/products/$productId", params: { productId: r.id } })}
                     className="rounded-xl border border-border bg-secondary/40 p-2.5 text-left hover:border-primary/40 transition-colors"
                   >
-                    <div className="aspect-square rounded-md mb-2 overflow-hidden grid place-items-center" style={{ background: pal.background }}>
+                    <div className="aspect-square rounded-md mb-2 overflow-hidden grid place-items-center" style={{ background: pal.bg }}>
                       {r.image_url ? (
                         <img src={r.image_url} alt={r.name} className="w-full h-full object-contain" loading="lazy" />
                       ) : (
-                        <Package className="size-8" style={{ color: pal.foreground }} />
+                        <Package className="size-8" style={{ color: pal.fg }} />
                       )}
                     </div>
                     <div className="text-xs font-semibold leading-tight line-clamp-2 h-[30px]">{r.name}</div>
