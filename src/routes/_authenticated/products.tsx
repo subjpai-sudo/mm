@@ -28,6 +28,16 @@ import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+function stockInBoxes(stock: number, pcsPerCase: number | null | undefined): string | null {
+  if (!pcsPerCase || pcsPerCase < 2) return null;
+  const boxes = Math.floor(stock / pcsPerCase);
+  const rem = stock - boxes * pcsPerCase;
+  if (boxes <= 0 && rem <= 0) return null;
+  return rem === 0
+    ? `${boxes} box${boxes === 1 ? "" : "es"}`
+    : `${boxes} box${boxes === 1 ? "" : "es"} + ${rem} pcs`;
+}
+
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
@@ -787,6 +797,12 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
                 <span className="text-2xl font-bold">{product.stock}</span>
                 <span className="text-xs text-muted-foreground">in stock · low at {product.low_stock_threshold}</span>
               </div>
+              {stockInBoxes(product.stock, product.pcs_per_case) && (
+                <div className="text-xs text-muted-foreground">
+                  ≈ <span className="text-foreground font-semibold">{stockInBoxes(product.stock, product.pcs_per_case)}</span>
+                  <span className="opacity-70"> ({product.pcs_per_case}/box)</span>
+                </div>
+              )}
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
               {displaySize(product) && (
@@ -922,6 +938,11 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, 
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
             <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
+            {stockInBoxes(p.stock, p.pcs_per_case) && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
+                {stockInBoxes(p.stock, p.pcs_per_case)}
+              </span>
+            )}
             {displaySize(p) && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30">{displaySize(p)}</span>
             )}
