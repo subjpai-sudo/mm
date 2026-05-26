@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { displaySize } from "@/lib/product-format";
-import { originPalette } from "@/lib/origin-colors";
+import { categoryPalette, resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 import { PageHeader } from "@/components/app/PageHeader";
 
 export const Route = createFileRoute("/_authenticated/products_/$productId")({
@@ -29,6 +29,13 @@ function ProductDetailPage() {
     queryKey: ["product-page", productId],
     queryFn: async () =>
       (await supabase.from("products").select("*, categories(name)").eq("id", productId).maybeSingle()).data,
+  });
+
+  const { data: allCategories = [] } = useQuery<CategoryLite[]>({
+    queryKey: ["categories", "lite"],
+    queryFn: async () =>
+      ((await supabase.from("categories").select("id, name, parent_id")).data ?? []) as CategoryLite[],
+    staleTime: 60_000,
   });
 
   const { data: history = [] } = useQuery({
@@ -57,7 +64,7 @@ function ProductDetailPage() {
     queryFn: async () =>
       (await supabase
         .from("products")
-        .select("id, name, sku, stock, low_stock_threshold, image_url, origin")
+        .select("id, name, sku, stock, low_stock_threshold, image_url, origin, category_id")
         .eq("category_id", product!.category_id as string)
         .neq("id", productId)
         .limit(4)).data ?? [],
@@ -102,7 +109,9 @@ function ProductDetailPage() {
   const isLow = !isOut && stock <= threshold;
   const toneKey: "success" | "warning" | "destructive" = isOut ? "destructive" : isLow ? "warning" : "success";
   const toneLabel = isOut ? "Out of stock" : isLow ? "Low stock" : "In stock";
-  const palette = originPalette(p.origin);
+  const mainCatName = resolveMainCategoryName(p.category_id, allCategories) ?? p.categories?.name ?? "";
+  const palette = categoryPalette(mainCatName);
+  const paletteLabel = (mainCatName || "Uncategorized").toUpperCase();
   const suggested = Math.max(0, threshold * 2 - stock);
   const netSeven = sevenDays.inQty - sevenDays.outQty;
 
@@ -139,7 +148,7 @@ function ProductDetailPage() {
           {/* Image / origin-band */}
           <div
             className="relative min-h-[280px] md:min-h-[360px] grid place-items-center overflow-hidden"
-            style={{ background: palette.background, color: palette.foreground }}
+            style={{ background: palette.bg, color: palette.fg }}
           >
             <div
               className="absolute inset-0 opacity-60"
@@ -156,7 +165,7 @@ function ProductDetailPage() {
               />
             ) : (
               <div className="relative w-[200px] h-[220px] rounded-lg border-2 border-black/20 shadow-2xl p-5 flex flex-col justify-between"
-                style={{ background: `linear-gradient(180deg, ${palette.background}, rgba(0,0,0,0.25))` }}>
+                style={{ background: `linear-gradient(180deg, ${palette.bg}, rgba(0,0,0,0.25))` }}>
                 <div className="size-14 rounded-full bg-white/25 backdrop-blur grid place-items-center border border-white/40">
                   <Package className="size-7" />
                 </div>
@@ -167,7 +176,7 @@ function ProductDetailPage() {
               </div>
             )}
             <div className="absolute left-4 bottom-4 flex items-center gap-1.5 text-[10px] font-mono tracking-[0.15em] opacity-90">
-              <Package className="size-3" /> {palette.label.toUpperCase()}
+              <Package className="size-3" /> {paletteLabel}
             </div>
           </div>
 
@@ -263,7 +272,7 @@ function ProductDetailPage() {
       </div>
 
       {tab === "overview" && (
-        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} />
+        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} categories={allCategories} />
       )}
       {tab === "history" && <HistoryTab history={history as any[]} userById={userById} />}
       {tab === "location" && <LocationTab p={p} rackLabel={rackLabel} shelfLabel={shelfLabel} />}
