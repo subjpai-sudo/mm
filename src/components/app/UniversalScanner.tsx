@@ -2,7 +2,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { BarcodeScanner } from "./BarcodeScanner";
+import { StrichScanner } from "./StrichScanner";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -92,11 +92,30 @@ export function UniversalScanner({
         setHit({ kind: "rack", code: rackId, name: rack?.name ?? null, items: items ?? [] });
         return;
       }
-      const { data: product } = await supabase
+      // Build a small set of barcode variants so UPC-A (12) and EAN-13 (13)
+      // both resolve, regardless of which one is stored on the product.
+      const variants = new Set<string>([trimmed]);
+      const digitsOnly = trimmed.replace(/\D+/g, "");
+      if (digitsOnly) variants.add(digitsOnly);
+      if (/^\d{12}$/.test(digitsOnly)) variants.add("0" + digitsOnly); // UPC-A → EAN-13
+      if (/^0\d{12}$/.test(digitsOnly)) variants.add(digitsOnly.slice(1)); // EAN-13 → UPC-A
+      const variantList = Array.from(variants);
+
+      // Try barcode match first, then fall back to SKU.
+      const { data: byBarcode } = await supabase
         .from("products")
         .select("*")
-        .eq("barcode", trimmed)
-        .maybeSingle();
+        .in("barcode", variantList)
+        .limit(1);
+      let product = byBarcode?.[0] ?? null;
+      if (!product) {
+        const { data: bySku } = await supabase
+          .from("products")
+          .select("*")
+          .in("sku", variantList)
+          .limit(1);
+        product = bySku?.[0] ?? null;
+      }
       if (!product) {
         setHit({ kind: "unknown", code: trimmed });
         return;
@@ -168,7 +187,7 @@ export function UniversalScanner({
 
   return (
     <>
-      <BarcodeScanner
+      <StrichScanner
         open={open && !hit}
         onClose={onClose}
         onDetected={handle}

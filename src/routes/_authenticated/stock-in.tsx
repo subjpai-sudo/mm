@@ -12,7 +12,7 @@ import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Boxes,
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { StrichScanner } from "@/components/app/StrichScanner";
 import { displaySize } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
@@ -319,7 +319,7 @@ function StockIn() {
           )}
         </DialogContent>
       </Dialog>
-      <BarcodeScanner
+      <StrichScanner
         open={camOpen}
         onClose={() => setCamOpen(false)}
         onDetected={lookup}

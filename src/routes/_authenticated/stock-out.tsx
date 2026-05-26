@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { BarcodeScanner } from "@/components/app/BarcodeScanner";
+import { StrichScanner } from "@/components/app/StrichScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { SHOPS } from "@/lib/shops";
 import { displaySize } from "@/lib/product-format";
@@ -529,7 +529,7 @@ function StockOut() {
           )}
         </DialogContent>
       </Dialog>
-      <BarcodeScanner
+      <StrichScanner
         open={camOpen}
         onClose={() => setCamOpen(false)}
         onDetected={lookup}
