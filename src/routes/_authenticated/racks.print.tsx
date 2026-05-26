@@ -45,9 +45,9 @@ function PrintRackLabels() {
         <p className="text-sm text-muted-foreground mb-6 print:hidden">
           Stick one on each rack. Scan with the floating scanner to open that rack instantly.
         </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-4 print:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 print:grid-cols-3 print:gap-3">
           {list.map((id: string) => (
-            <RackQRLabel key={id} rackId={id} />
+            <RackQRLabel key={id} rackId={id} size={160} />
           ))}
         </div>
       </div>

@@ -174,12 +174,12 @@ function RackDetail() {
             </Button>
             <Link to="/racks/print" search={{ ids: rackId } as any}>
               <Button variant="outline" className="gap-2">
-                <Printer className="size-4" /> Generate QR
+                <Printer className="size-4" /> Print rack QR
               </Button>
             </Link>
             <Link to="/racks/labels" search={{ ids: rackId } as any}>
               <Button className="gradient-primary text-primary-foreground border-0 gap-2">
-                <Tag className="size-4" /> Print product labels
+                <Tag className="size-4" /> Print all labels
               </Button>
             </Link>
           </div>
@@ -228,6 +228,11 @@ function RackDetail() {
                   <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full bg-destructive/15 text-destructive border border-destructive/30">
                     <ArrowDownRight className="size-3" /> -{outCount}
                   </span>
+                  <Link to="/racks/labels" search={{ ids: rackId, shelf: s } as any}>
+                    <Button size="sm" variant="outline" className="gap-1" disabled={items.length === 0} title={`Print labels for ${s} shelf`}>
+                      <Tag className="size-4" /> Print
+                    </Button>
+                  </Link>
                   <Button size="sm" onClick={() => { setAddingTo(s); setQ(""); }} className="gradient-primary text-primary-foreground border-0">
                     <Plus className="size-4" /> Add
                   </Button>
