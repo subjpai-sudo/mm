@@ -400,32 +400,58 @@ function ProductsPage() {
           <>
             {sections.length > 1 && (
               <div className="mb-4 sticky top-2 z-20">
-                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                  {sections.map((s) => {
-                    const pal = categoryPalette(s.name);
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() =>
-                          document
-                            .getElementById(`cat-${s.id}`)
-                            ?.scrollIntoView({ behavior: "smooth", block: "start" })
-                        }
-                        className="group shrink-0 inline-flex items-center gap-2 h-8 px-3 rounded-full border border-border bg-card/70 backdrop-blur text-xs font-semibold text-foreground hover:border-foreground/30 hover:-translate-y-px transition"
-                      >
-                        <span
-                          className="size-2 rounded-full shrink-0"
-                          style={{ background: pal.bg }}
-                        />
-                        {s.name}
-                        <span className="px-1.5 py-px rounded-full text-[10px] font-mono tabular-nums bg-background border border-border text-muted-foreground">
-                          {s.items.length}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 h-9 px-3 rounded-full border border-border bg-card/80 backdrop-blur text-xs font-semibold text-foreground hover:border-foreground/30 transition"
+                    >
+                      <FolderTree className="size-3.5 text-muted-foreground" />
+                      <span>Jump to category</span>
+                      <span className="flex -space-x-1">
+                        {sections.slice(0, 5).map((s) => (
+                          <span
+                            key={s.id}
+                            className="size-2.5 rounded-full ring-1 ring-card"
+                            style={{ background: categoryPalette(s.name).bg }}
+                          />
+                        ))}
+                      </span>
+                      <span className="px-1.5 py-px rounded-full text-[10px] font-mono tabular-nums bg-background border border-border text-muted-foreground">
+                        {sections.length}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-1.5 max-h-[60vh] overflow-y-auto">
+                    <div className="flex flex-col gap-0.5">
+                      {sections.map((s) => {
+                        const pal = categoryPalette(s.name);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() =>
+                              document
+                                .getElementById(`cat-${s.id}`)
+                                ?.scrollIntoView({ behavior: "smooth", block: "start" })
+                            }
+                            className="w-full inline-flex items-center gap-2 h-8 px-2 rounded-md text-xs font-medium text-foreground hover:bg-muted transition text-left"
+                          >
+                            <span
+                              className="size-2.5 rounded-full shrink-0"
+                              style={{ background: pal.bg }}
+                            />
+                            <span className="flex-1 truncate">{s.name}</span>
+                            <span className="px-1.5 py-px rounded-full text-[10px] font-mono tabular-nums bg-muted text-muted-foreground">
+                              {s.items.length}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
             <div className="space-y-6">
