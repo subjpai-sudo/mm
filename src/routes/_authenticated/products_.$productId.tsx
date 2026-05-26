@@ -106,6 +106,12 @@ function ProductDetailPage() {
   const suggested = Math.max(0, threshold * 2 - stock);
   const netSeven = sevenDays.inQty - sevenDays.outQty;
 
+  // Fallback location label — when rack/shelf aren't assigned yet we still
+  // want to surface a meaningful place (Kawaguchi warehouse) instead of "— · —".
+  const rackLabel = p.rack ?? "Kawaguchi";
+  const shelfLabel = (p.shelf ?? "Main").toString().toUpperCase();
+  const locationLabel = `${rackLabel} · ${shelfLabel}`;
+
   return (
     <div className="px-4 md:px-8 py-5 max-w-[1280px] mx-auto pb-16">
       {/* Back / actions */}
@@ -168,7 +174,7 @@ function ProductDetailPage() {
           {/* Info */}
           <div className="p-6 md:p-7 flex flex-col">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
-              <span className="chip chip-pri"><MapPin className="size-3" /> {p.rack ?? "—"} · {(p.shelf ?? "—").toString().toUpperCase()}</span>
+              <span className="chip chip-pri"><MapPin className="size-3" /> {locationLabel}</span>
               {p.categories?.name && <span className="chip">{p.categories.name}</span>}
               <span className={`chip chip-${isOut ? "bad" : isLow ? "warn" : "ok"}`}>
                 <span className="chip-dot" /> {toneLabel}
@@ -257,10 +263,10 @@ function ProductDetailPage() {
       </div>
 
       {tab === "overview" && (
-        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} />
+        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} />
       )}
       {tab === "history" && <HistoryTab history={history as any[]} userById={userById} />}
-      {tab === "location" && <LocationTab p={p} />}
+      {tab === "location" && <LocationTab p={p} rackLabel={rackLabel} shelfLabel={shelfLabel} />}
     </div>
   );
 }
@@ -275,8 +281,8 @@ function Mini({ label, value, tone }: { label: string; value: string; tone: stri
 }
 
 function OverviewTab({
-  p, related, history, userById, sevenDays,
-}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] } }) {
+  p, related, history, userById, sevenDays, locationLabel,
+}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string }) {
   const navigate = useNavigate();
   const net = sevenDays.inQty - sevenDays.outQty;
   return (
@@ -345,7 +351,7 @@ function OverviewTab({
           <KV k="SKU" v={p.sku ?? "—"} mono />
           <KV k="Barcode" v={p.barcode ?? "—"} mono />
           <KV k="Category" v={p.categories?.name ?? "Uncategorized"} />
-          <KV k="Location" v={`${p.rack ?? "—"} · ${(p.shelf ?? "—").toString().toUpperCase()}`} mono />
+          <KV k="Location" v={locationLabel} mono />
           <KV k="Threshold" v={`${p.low_stock_threshold ?? 5} units`} mono last={!p.barcode} />
           {p.barcode && (
             <div className="mt-3 p-3 bg-white text-black rounded-lg border border-border">
@@ -473,22 +479,23 @@ function HistoryTab({ history, userById }: { history: any[]; userById: Map<strin
   );
 }
 
-function LocationTab({ p }: { p: any }) {
+function LocationTab({ p, rackLabel, shelfLabel }: { p: any; rackLabel: string; shelfLabel: string }) {
   const shelves = ["upper", "mid", "down"] as const;
+  const activeShelf = (p.shelf ?? "mid").toString().toLowerCase();
   return (
     <div className="rounded-2xl border border-border bg-card p-6">
       <div className="flex flex-wrap gap-6 items-start">
         <div className="flex-1 min-w-[260px]">
           <div className="upper-label">Stored at</div>
           <div className="flex items-end gap-4 mt-2">
-            <div className="num-l font-mono text-primary">{p.rack ?? "—"}</div>
+            <div className="num-l font-mono text-primary">{rackLabel}</div>
             <div className="pb-1.5 text-muted-foreground">/</div>
-            <div className="num-l font-mono text-accent uppercase">{p.shelf ?? "—"}</div>
+            <div className="num-l font-mono text-accent uppercase">{shelfLabel}</div>
           </div>
           <p className="text-sm text-muted-foreground mt-3 max-w-[420px]">
             {p.rack
               ? `${p.shelf ?? "—"} shelf of rack ${p.rack}. Open the 3D rack view to see the full layout.`
-              : "This product has no rack assigned yet."}
+              : `Currently stored at the ${rackLabel} warehouse. Assign a rack to see the precise shelf layout.`}
           </p>
           <div className="flex flex-wrap gap-2 mt-4">
             {p.rack && (
@@ -504,7 +511,7 @@ function LocationTab({ p }: { p: any }) {
         <div className="rounded-xl border border-border bg-secondary/40 p-4 min-w-[260px]">
           <div className="flex flex-col gap-2">
             {shelves.map((s, i) => {
-              const active = (p.shelf ?? "").toString().toLowerCase() === s;
+              const active = activeShelf === s;
               return (
                 <div key={s} className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg border",
