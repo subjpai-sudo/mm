@@ -326,8 +326,8 @@ export function ReportPdfDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setUrl(null); setPhone(""); } }}>
       <DialogTrigger asChild>
-        <Button className="gradient-primary text-primary-foreground border-0">
-          <FileText className="size-4" />Generate PDF report
+        <Button variant="ghost" className="rounded-xl h-9 px-3 text-sm font-medium">
+          <Download className="size-4" />PDF report
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">

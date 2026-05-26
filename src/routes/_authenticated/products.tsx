@@ -216,106 +216,155 @@ function ProductsPage() {
         title="Products"
         subtitle={`${products.length} items in catalog`}
         actions={canEdit ? (
-          <div className="flex gap-2 flex-wrap items-center">
+          <div className="flex items-center gap-2 flex-wrap">
             <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
-            <ReportPdfDialog
-              products={productsWithCat as any}
-              lowList={reportLowList as any}
-              outList={reportOutList as any}
-              movements={{ inQty: reportInQty, outQty: reportOutQty, total: reportMovements.length }}
-              rawMovements={reportMovements as any}
-            />
-            <Button variant="secondary" disabled={bulkAutoFill.isPending}
-              onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}>
-              <Sparkles className="size-4" /> {bulkAutoFill.isPending ? "Fetching…" : "Auto-fill images"}
-            </Button>
-            <Button className="gradient-primary text-primary-foreground border-0" disabled={bulkAIAll.isPending}
-              onClick={() => { if (confirm("Generate fresh AI images for every product (replaces existing)? Processes 50 per run — click again to continue.")) bulkAIAll.mutate(); }}>
-              <Wand2 className="size-4" /> {bulkAIAll.isPending ? "Generating…" : "Generate AI images (all)"}
-            </Button>
-            <Button variant="secondary" onClick={() => setRapidOpen(true)}>
-              <Zap className="size-4" /> Rapid scan
-            </Button>
-            <Button variant="secondary" onClick={() => setBulkShelfOpen(true)}>
-              <Warehouse className="size-4" /> Assign to shelf
-            </Button>
-            <Button variant="secondary" onClick={() => setManageCats(true)}><FolderTree className="size-4" /> Categories</Button>
-            <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground border-0"><Plus className="size-4" /> New product</Button>
-              </DialogTrigger>
-              <ProductDialog categories={categories} onSubmit={(f) => create.mutate(f)} />
-            </Dialog>
+            <div className="inline-flex items-center gap-1 p-1 rounded-2xl border border-border bg-card/60 backdrop-blur">
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Auto-fill images from web"
+                disabled={bulkAutoFill.isPending}
+                onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}
+              >
+                <Sparkles className="size-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Generate AI images (all)"
+                disabled={bulkAIAll.isPending}
+                onClick={() => { if (confirm("Generate fresh AI images for every product (replaces existing)? Processes 50 per run — click again to continue.")) bulkAIAll.mutate(); }}
+              >
+                <Wand2 className="size-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="Rapid scan" onClick={() => setRapidOpen(true)}>
+                <Zap className="size-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="Assign to shelf" onClick={() => setBulkShelfOpen(true)}>
+                <Warehouse className="size-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="Categories" onClick={() => setManageCats(true)}>
+                <FolderTree className="size-4" />
+              </Button>
+              <div className="mx-1 w-px h-6 bg-border" />
+              <ReportPdfDialog
+                products={productsWithCat as any}
+                lowList={reportLowList as any}
+                outList={reportOutList as any}
+                movements={{ inQty: reportInQty, outQty: reportOutQty, total: reportMovements.length }}
+                rawMovements={reportMovements as any}
+              />
+              <Dialog open={open} onOpenChange={setOpen}>
+                <DialogTrigger asChild>
+                  <Button className="gradient-primary text-primary-foreground border-0 rounded-xl"><Plus className="size-4" /> New product</Button>
+                </DialogTrigger>
+                <ProductDialog categories={categories} onSubmit={(f) => create.mutate(f)} />
+              </Dialog>
+            </div>
           </div>
         ) : <LiveBadge lastUpdated={lastUpdated} />}
       />
 
-      <Card className="card-elevated p-3 mb-4 space-y-2">
-        <div className="relative">
-          <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, SKU, barcode" className="pl-9" />
-        </div>
-        <div className="flex gap-1.5 overflow-x-auto -mx-1 px-1 pb-0.5">
+      {/* Unified search + status segmented control */}
+      <div className="mb-3 rounded-2xl border border-border bg-card/60 backdrop-blur p-2 flex items-center gap-2 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition">
+        <Search className="size-4 ml-2 text-muted-foreground shrink-0" />
+        <Input
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          placeholder="Search name, SKU, barcode…"
+          className="flex-1 min-w-0 h-9 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
+        />
+        <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground shrink-0">⌘ K</kbd>
+        <div className="hidden md:block w-px h-6 bg-border shrink-0" />
+        <div className="hidden md:inline-flex p-0.5 rounded-xl border border-border bg-background gap-0.5 shrink-0">
           {([
-            { id: "all", label: "All", icon: LayoutGrid, count: products.length },
-            { id: "in", label: "In stock", icon: PackageCheck, count: products.filter((p: any) => p.stock > p.low_stock_threshold).length },
-            { id: "low", label: "Low", icon: AlertTriangle, count: products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length },
-            { id: "out", label: "Out", icon: PackageX, count: products.filter((p: any) => p.stock <= 0).length },
+            { id: "all", label: "All", count: products.length, tone: "text-primary" },
+            { id: "in", label: "In stock", count: products.filter((p: any) => p.stock > p.low_stock_threshold).length, tone: "text-success" },
+            { id: "low", label: "Low", count: products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length, tone: "text-warning" },
+            { id: "out", label: "Out", count: products.filter((p: any) => p.stock <= 0).length, tone: "text-destructive" },
           ] as const).map(t => {
             const active = filter === t.id;
-            const Icon = t.icon;
             return (
-              <button key={t.id} type="button" onClick={() => setFilter(t.id as any)}
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setFilter(t.id as any)}
                 className={cn(
-                  "shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-full border text-xs font-semibold transition active:scale-[0.97]",
-                  active
-                    ? t.id === "low" ? "border-warning bg-warning text-warning-foreground"
-                      : t.id === "out" ? "border-destructive bg-destructive text-destructive-foreground"
-                      : t.id === "in" ? "border-success bg-success text-success-foreground"
-                      : "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-secondary/40 hover:bg-secondary text-foreground"
-                )}>
-                <Icon className="size-3.5" />
+                  "inline-flex items-center gap-1.5 px-2.5 h-7 rounded-lg text-xs font-semibold transition",
+                  active ? `bg-card ${t.tone} shadow-sm` : "text-muted-foreground hover:text-foreground"
+                )}
+              >
                 {t.label}
-                <span className={cn("ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] tabular-nums",
-                  active ? "bg-background/20" : "bg-background/60 text-muted-foreground")}>{t.count}</span>
+                <span className={cn(
+                  "px-1.5 py-px rounded-full text-[10px] font-mono tabular-nums",
+                  active ? "bg-current/15 text-current" : "bg-background text-muted-foreground"
+                )}>{t.count}</span>
               </button>
             );
           })}
         </div>
-      </Card>
+      </div>
+
+      {/* Mobile-only status pills (md+ shows them in search bar) */}
+      <div className="md:hidden flex gap-1.5 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
+        {([
+          { id: "all", label: "All", count: products.length },
+          { id: "in", label: "In stock", count: products.filter((p: any) => p.stock > p.low_stock_threshold).length },
+          { id: "low", label: "Low", count: products.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold).length },
+          { id: "out", label: "Out", count: products.filter((p: any) => p.stock <= 0).length },
+        ] as const).map(t => {
+          const active = filter === t.id;
+          return (
+            <button key={t.id} type="button" onClick={() => setFilter(t.id as any)}
+              className={cn(
+                "shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-full border text-xs font-semibold",
+                active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary/40"
+              )}>
+              {t.label}
+              <span className={cn("px-1.5 py-px rounded-full text-[10px] tabular-nums",
+                active ? "bg-background/25" : "bg-background/60 text-muted-foreground")}>{t.count}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {mainCats.length > 0 && (
-        <Card className="card-elevated p-3 mb-4 grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Category</Label>
-            <Select value={mainFilter} onValueChange={(v) => { setMainFilter(v); setSubFilter("all"); }}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All categories</SelectItem>
-                {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Vendor</Label>
-            <Select
-              value={subFilter}
-              onValueChange={setSubFilter}
-              disabled={mainFilter === "all" || (subsByMain.get(mainFilter)?.length ?? 0) === 0}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder={mainFilter === "all" ? "Pick category first" : "All vendors"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All vendors</SelectItem>
-                {(subsByMain.get(mainFilter) ?? []).map((s: any) => (
-                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
+        <div className="mb-4 flex items-center gap-2 flex-wrap">
+          <Select value={mainFilter} onValueChange={(v) => { setMainFilter(v); setSubFilter("all"); }}>
+            <SelectTrigger className="w-auto h-10 rounded-xl border-border bg-card/60 backdrop-blur gap-2 px-3 text-sm font-semibold">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cat</span>
+              <SelectValue />
+              <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background border border-border text-[10px] font-mono text-muted-foreground tabular-nums">
+                {mainCats.length}
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All categories</SelectItem>
+              {mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select
+            value={subFilter}
+            onValueChange={setSubFilter}
+            disabled={mainFilter === "all" || (subsByMain.get(mainFilter)?.length ?? 0) === 0}
+          >
+            <SelectTrigger className="w-auto h-10 rounded-xl border-border bg-card/60 backdrop-blur gap-2 px-3 text-sm font-semibold">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Vendor</span>
+              <SelectValue placeholder={mainFilter === "all" ? "Pick category first" : "All vendors"} />
+              {mainFilter !== "all" && (
+                <span className="ml-1 px-1.5 py-0.5 rounded-full bg-background border border-border text-[10px] font-mono text-muted-foreground tabular-nums">
+                  {subsByMain.get(mainFilter)?.length ?? 0}
+                </span>
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All vendors</SelectItem>
+              {(subsByMain.get(mainFilter) ?? []).map((s: any) => (
+                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       {(() => {
