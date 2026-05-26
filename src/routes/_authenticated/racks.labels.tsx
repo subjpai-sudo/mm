@@ -102,7 +102,7 @@ function PrintProductLabels() {
         ) : isLoading ? (
           <p className="text-sm text-muted-foreground">Loading products…</p>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-8" id="print-area">
             {rackCodes.map((code: string) => {
               const items = grouped.get(code) ?? [];
               return (
@@ -138,11 +138,13 @@ function PrintProductLabels() {
       <style>{`
         @media print {
           @page { size: A4; margin: 8mm; }
-          body { background: white !important; }
-          aside, nav, header, .print\\:hidden { display: none !important; }
-          main { padding: 0 !important; }
+          html, body { background: white !important; margin: 0 !important; padding: 0 !important; }
+          body * { visibility: hidden !important; }
+          #print-area, #print-area * { visibility: visible !important; }
+          #print-area { position: absolute !important; left: 0; top: 0; width: 100%; padding: 0 !important; margin: 0 !important; }
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
           img { display: block !important; max-width: 100% !important; break-inside: avoid; }
+          .rack-card { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
     </div>
