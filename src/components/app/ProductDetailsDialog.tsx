@@ -22,7 +22,7 @@ import {
   Info,
 } from "lucide-react";
 import { displaySize } from "@/lib/product-format";
-import { originPalette } from "@/lib/origin-colors";
+import { categoryPalette, resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 
 export function ProductDetailsDialog({
   productId,
@@ -45,6 +45,14 @@ export function ProductDetailsDialog({
       if (error) throw error;
       return data;
     },
+  });
+
+  const { data: allCategories = [] } = useQuery<CategoryLite[]>({
+    queryKey: ["categories", "lite"],
+    enabled: open,
+    queryFn: async () =>
+      ((await supabase.from("categories").select("id, name, parent_id")).data ?? []) as CategoryLite[],
+    staleTime: 60_000,
   });
 
   const registrarId = (product as any)?.barcode_registered_by ?? null;
@@ -94,7 +102,12 @@ export function ProductDetailsDialog({
     (movementUsers as any[]).map((u) => [u.id, u.full_name || u.email || "Unknown"]),
   );
 
-  const palette = originPalette((product as any)?.origin);
+  const mainCatName =
+    resolveMainCategoryName((product as any)?.category_id, allCategories) ??
+    (product as any)?.categories?.name ??
+    "";
+  const palette = categoryPalette(mainCatName);
+  const paletteLabel = (mainCatName || "Uncategorized").toUpperCase();
   const code = ((product as any)?.barcode ?? (product as any)?.sku ?? "").toString();
 
   const barcodeRef = useRef<SVGSVGElement | null>(null);
@@ -159,11 +172,11 @@ export function ProductDetailsDialog({
             {/* Header band — origin / rack color */}
             <div
               className="rounded-xl px-4 py-3 flex items-center justify-between"
-              style={{ background: palette.background, color: palette.foreground }}
+              style={{ background: palette.bg, color: palette.fg }}
             >
               <div>
                 <div className="text-[10px] uppercase tracking-[0.2em] opacity-80">
-                  {palette.label}
+                  {paletteLabel}
                 </div>
                 <div className="text-lg font-black leading-tight">
                   {(product as any).rack ? `Rack ${(product as any).rack}` : "Unassigned"}
