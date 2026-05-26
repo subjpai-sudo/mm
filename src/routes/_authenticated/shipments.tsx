@@ -359,9 +359,9 @@ function ShipmentsPage() {
             catMap={catMap}
             editable={canDecide}
             onUpdate={(vars) => update.mutate(vars)}
-            renderActions={(r) => isAdmin ? (
+            renderActions={(r) => canDecide ? (
               <ArrivedDialog row={r} products={products} onConfirm={(vars) => arrive.mutate(vars)} />
-            ) : <span className="text-xs text-muted-foreground">Admin marks arrival</span>}
+            ) : <span className="text-xs text-muted-foreground">Admin or owner marks arrival</span>}
           />
         </TabsContent>
 

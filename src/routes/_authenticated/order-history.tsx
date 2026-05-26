@@ -37,7 +37,7 @@ function History() {
         <Table>
           <TableHeader><TableRow>
             <TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Product</TableHead>
-            <TableHead>Qty</TableHead><TableHead>Status</TableHead>{role === "admin" && <TableHead>Actions</TableHead>}
+            <TableHead>Qty</TableHead><TableHead>Status</TableHead>{(role === "admin" || role === "owner") && <TableHead>Actions</TableHead>}
           </TableRow></TableHeader>
           <TableBody>
             {orders.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-12">No order requests</TableCell></TableRow>}
@@ -52,7 +52,7 @@ function History() {
                   {o.status === "pending" && <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"><Clock className="size-3 mr-1" />Pending</Badge>}
                   {o.status === "declined" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><X className="size-3 mr-1" />Declined</Badge>}
                 </TableCell>
-                {role === "admin" && (
+                {(role === "admin" || role === "owner") && (
                   <TableCell>
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => update.mutate({ id: o.id, status: "approved" })}><Check className="size-4 text-success" /></Button>

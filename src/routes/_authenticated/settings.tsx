@@ -52,7 +52,7 @@ function Settings() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  if (role && role !== "admin") return <Navigate to="/dashboard" />;
+  if (role && role !== "admin" && role !== "owner") return <Navigate to="/dashboard" />;
 
   return (
     <div className="p-6 md:p-10 max-w-3xl mx-auto">

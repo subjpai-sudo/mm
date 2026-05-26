@@ -90,11 +90,10 @@ export const markShipmentArrived = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => arriveSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // Admin-only
     const { data: roles } = await context.supabase
       .from("user_roles").select("role").eq("user_id", context.userId);
-    const isAdmin = (roles ?? []).some((r: any) => r.role === "admin");
-    if (!isAdmin) throw new Error("Forbidden: admin only");
+    const allowed = (roles ?? []).some((r: any) => r.role === "admin" || r.role === "owner");
+    if (!allowed) throw new Error("Forbidden: admin or owner only");
 
     const { data: shipment, error: shErr } = await supabaseAdmin
       .from("order_requests").select("*").eq("id", data.id).single();

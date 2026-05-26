@@ -59,11 +59,11 @@ export async function assertAdmin(userId: string, client?: SupabaseClient<Databa
     .from("user_roles")
     .select("role")
     .eq("user_id", userId)
-    .eq("role", "admin")
+    .in("role", ["admin", "owner"])
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Forbidden: admin only");
+  if (!data) throw new Error("Forbidden: admin or owner only");
 }
 
 export async function listBackupsOverview(client?: SupabaseClient<Database>) {
