@@ -161,10 +161,7 @@ function StockOut() {
       const rows = scanned.map((r) => {
         const q = Number(r.qty);
         if (!q || q < 1) throw new Error(`Set quantity for ${r.name}`);
-        const perBox = r.pcsPerCase ?? 0;
-        if (r.unit === "boxes" && perBox < 1) {
-          throw new Error(`${r.name}: set "Pcs per box" on the product before using boxes`);
-        }
+        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 1;
         const actual = r.unit === "boxes" ? q * perBox : q;
         if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
         return {
@@ -204,10 +201,7 @@ function StockOut() {
     mutationFn: async () => {
       const qtyNum = Number(qty);
       if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
-      const perBox = selected.pcs_per_case ?? 0;
-      if (unit === "boxes" && perBox < 1) {
-        throw new Error('Set "Pcs per box" on this product before using boxes');
-      }
+      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 1;
       const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
       if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
       const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
