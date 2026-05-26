@@ -5,13 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Printer } from "lucide-react";
-import { RackQRLabel } from "@/components/app/RackQRLabel";
 import { ProductLocationCard } from "@/components/app/ProductLocationCard";
 import { resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 
 const search = z.object({
   ids: z.string().optional(), // comma-separated rack codes; required
-  includeRack: z.union([z.literal("1"), z.literal("0")]).optional().default("1"),
+  shelf: z.enum(["upper", "mid", "down"]).optional(), // when set, only print this shelf
 });
 
 export const Route = createFileRoute("/_authenticated/racks/labels")({
@@ -22,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/racks/labels")({
 const SHELF_ORDER: Record<string, number> = { upper: 0, mid: 1, down: 2 };
 
 function PrintProductLabels() {
-  const { ids, includeRack } = Route.useSearch();
+  const { ids, shelf } = Route.useSearch();
   const rackCodes = useMemo(
     () => (ids ? ids.split(",").map((s: string) => s.trim()).filter(Boolean) : []),
     [ids],
@@ -53,6 +52,7 @@ function PrintProductLabels() {
     const map = new Map<string, any[]>();
     for (const code of rackCodes) map.set(code, []);
     for (const p of products as any[]) {
+      if (shelf && (p.shelf ?? "mid").toLowerCase() !== shelf) continue;
       const list = map.get(p.rack ?? "") ?? [];
       list.push(p);
       map.set(p.rack ?? "", list);
@@ -66,7 +66,7 @@ function PrintProductLabels() {
       });
     }
     return map;
-  }, [products, rackCodes]);
+  }, [products, rackCodes, shelf]);
 
   const totalCards = (products as any[]).length;
 
@@ -112,11 +112,6 @@ function PrintProductLabels() {
                     <span className="text-xs text-muted-foreground">{items.length} item{items.length === 1 ? "" : "s"}</span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print:grid-cols-2 print:gap-3">
-                    {includeRack === "1" && (
-                      <div className="break-inside-avoid">
-                        <RackQRLabel rackId={code} />
-                      </div>
-                    )}
                     {items.map((p: any) => (
                       <ProductLocationCard
                         key={p.id}
@@ -129,7 +124,7 @@ function PrintProductLabels() {
                     ))}
                     {items.length === 0 && (
                       <div className="col-span-full text-sm text-muted-foreground italic print:hidden">
-                        No products assigned to rack {code} yet.
+                        No products{shelf ? ` on the ${shelf} shelf` : ""} in rack {code} yet.
                       </div>
                     )}
                   </div>
