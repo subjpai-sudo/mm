@@ -28,6 +28,16 @@ import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+function stockInBoxes(stock: number, pcsPerCase: number | null | undefined): string | null {
+  if (!pcsPerCase || pcsPerCase < 2) return null;
+  const boxes = Math.floor(stock / pcsPerCase);
+  const rem = stock - boxes * pcsPerCase;
+  if (boxes <= 0 && rem <= 0) return null;
+  return rem === 0
+    ? `${boxes} box${boxes === 1 ? "" : "es"}`
+    : `${boxes} box${boxes === 1 ? "" : "es"} + ${rem} pcs`;
+}
+
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
