@@ -232,7 +232,7 @@ function buildReportHtml(opts: {
       .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
       .map((p) => {
         const s = statusOf(p);
-        const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+        const swColor = swatchFor(p.categories?.name);
         const stockColor =
           p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
         return `<tr>
@@ -305,7 +305,7 @@ function buildReportHtml(opts: {
   if (selected.out) {
     const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = outList.map((p) => {
-      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const swColor = swatchFor(p.categories?.name);
       const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
       const unitPrice = Number(p.price ?? 0);
       const estCost = reorder * unitPrice;
@@ -314,7 +314,7 @@ function buildReportHtml(opts: {
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
         <td>${esc(p.categories?.name ?? "—")}</td>
-        <td class="mono-sm">${esc(p.origin ?? "—")}</td>
+        <td class="mono-sm">${esc(originOf(p))}</td>
         <td class="mono-sm">${esc(rackLabel(p))}</td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
         <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
@@ -373,7 +373,7 @@ function buildReportHtml(opts: {
   if (selected.low) {
     const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = lowList.map((p) => {
-      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const swColor = swatchFor(p.categories?.name);
       const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
       const reorder = reorderQty(p);
       const unitPrice = Number(p.price ?? 0);
