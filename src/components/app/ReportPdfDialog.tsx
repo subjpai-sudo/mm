@@ -382,7 +382,8 @@ function buildReportHtml(opts: {
   if (selected.low) {
     const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = lowList.map((p) => {
-      const swColor = swatchFor(p.categories?.name);
+      const origin = originOf(p);
+      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
       const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
       const reorder = reorderQty(p);
       const unitPrice = Number(p.price ?? 0);
@@ -390,7 +391,7 @@ function buildReportHtml(opts: {
         <td><span class="swatch" style="background:${swColor}"></span></td>
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${esc(p.categories?.name ?? "—")}</td>
+        <td>${originPill(origin)}</td>
         <td class="right qty" style="color:var(--warn)">${fmtNum(p.stock ?? 0)}</td>
         <td style="padding-right:12pt"><div class="bar"><span style="width:${coverage}%;background:var(--warn)"></span></div></td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
@@ -408,7 +409,7 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
             <th class="right">Stock</th>
             <th>Coverage</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th>
