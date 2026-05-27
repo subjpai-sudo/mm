@@ -240,14 +240,15 @@ function buildReportHtml(opts: {
       .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
       .map((p) => {
         const s = statusOf(p);
-        const swColor = swatchFor(p.categories?.name);
+        const origin = originOf(p);
+        const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
         const stockColor =
           p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
         return `<tr>
           <td><span class="swatch" style="background:${swColor}"></span></td>
           <td>${esc(p.name)}</td>
           <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-          <td>${esc(p.categories?.name ?? "—")}</td>
+          <td>${originPill(origin)}</td>
           <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
           <td class="mono-sm">${esc(rackLabel(p))}</td>
           <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
