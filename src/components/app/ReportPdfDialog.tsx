@@ -314,7 +314,8 @@ function buildReportHtml(opts: {
   if (selected.out) {
     const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = outList.map((p) => {
-      const swColor = swatchFor(p.categories?.name);
+      const origin = originOf(p);
+      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
       const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
       const unitPrice = Number(p.price ?? 0);
       const estCost = reorder * unitPrice;
@@ -322,8 +323,7 @@ function buildReportHtml(opts: {
         <td><span class="swatch" style="background:${swColor}"></span></td>
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${esc(p.categories?.name ?? "—")}</td>
-        <td class="mono-sm">${esc(originOf(p))}</td>
+        <td>${originPill(origin)}</td>
         <td class="mono-sm">${esc(rackLabel(p))}</td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
         <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
