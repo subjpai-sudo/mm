@@ -16,26 +16,29 @@ type Props = {
   onDetectedLabel?: (code: string) => string | null | undefined;
 };
 
-let sdkReadyPromise: Promise<boolean> | null = null;
+let sdkReadyPromise: Promise<{ ok: boolean; error?: string }> | null = null;
 
-async function ensureSdk(fetchKey: () => Promise<{ key: string }>): Promise<boolean> {
+async function ensureSdk(
+  fetchKey: () => Promise<{ key: string }>,
+): Promise<{ ok: boolean; error?: string }> {
   if (sdkReadyPromise) return sdkReadyPromise;
   sdkReadyPromise = (async () => {
     try {
       const mod: any = await import("@pixelverse/strichjs-sdk");
       const SDK = mod.StrichSDK;
-      if (SDK.isInitialized?.()) return true;
+      if (SDK.isInitialized?.()) return { ok: true };
       const { key } = await fetchKey();
       if (!key) {
         console.warn("[STRICH] no license key configured");
-        return false;
+        return { ok: false, error: "No STRICH license key configured" };
       }
       await SDK.initialize(key);
-      return true;
-    } catch (e) {
-      console.error("[STRICH] init failed", e);
+      return { ok: true };
+    } catch (e: any) {
+      const msg = e?.message ?? String(e);
+      console.error("[STRICH] init failed", e, "hostname=", window.location.hostname);
       sdkReadyPromise = null;
-      return false;
+      return { ok: false, error: `${msg} (host: ${window.location.hostname})` };
     }
   })();
   return sdkReadyPromise;
@@ -112,12 +115,12 @@ export function StrichScanner({
     setStatus("Starting camera…");
 
     (async () => {
-      const ready = await ensureSdk(fetchKey as any);
+      const result = await ensureSdk(fetchKey as any);
       if (cancelled) return;
-      if (!ready) {
+      if (!result.ok) {
         setErrored(true);
-        setStatus("Scanner unavailable — type the code below");
-        toast.error("Scanner SDK failed to initialize");
+        setStatus(result.error ?? "Scanner unavailable — type the code below");
+        toast.error("Scanner SDK failed to initialize", { description: result.error });
         return;
       }
       try {
@@ -189,7 +192,7 @@ export function StrichScanner({
         </DialogDescription>
 
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-black">
-          <div ref={hostRef} className="absolute inset-0 h-full w-full" />
+          <div ref={hostRef} className="relative h-full w-full" />
 
           {errored && (
             <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center backdrop-blur-sm">
