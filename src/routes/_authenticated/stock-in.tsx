@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
-import { displaySize } from "@/lib/product-format";
+import { displaySize, extractSizeFromName } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-in")({
@@ -51,7 +51,7 @@ function StockIn() {
   const [newProdOpen, setNewProdOpen] = useState(false);
   const [newProdImg, setNewProdImg] = useState<string | null>(null);
   const [aiScanning, setAiScanning] = useState(false);
-  const [newProdFields, setNewProdFields] = useState({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" });
+  const [newProdFields, setNewProdFields] = useState({ name: "", brand: "", sku: "", size: "", unit: "", origin: "", pcs_per_case: "" });
   const fileRef = useRef<HTMLInputElement>(null);
   const callScanProduct = useServerFn(scanProductImage);
 
@@ -167,19 +167,29 @@ function StockIn() {
       const json = await callScanProduct({ data: { image: dataUrl } });
       if (json.ok && json.product) {
         const p = json.product as any;
+        const nm = p.name ?? "";
+        let size = p.size ?? "";
+        let unit = p.unit ?? "";
+        if (!size) {
+          const parsed = extractSizeFromName(nm);
+          if (parsed) { size = parsed.size; if (!unit) unit = parsed.unit; }
+        }
         setNewProdFields({
-          name: p.name ?? "",
+          name: nm,
           brand: p.brand ?? "",
-          size: p.size ?? "",
-          unit: p.unit ?? "",
+          sku: p.sku ?? (notFound ?? ""),
+          size,
+          unit,
           origin: p.origin ?? "",
           pcs_per_case: p.pcs_per_case != null ? String(p.pcs_per_case) : "",
         });
       } else {
-        toast.error(`AI scan: ${(json as any)?.error ?? "no result"} — fill in manually.`);
+        toast.error("AI couldn't read the product — please fill in manually.");
+        setNewProdFields((f) => ({ ...f, sku: f.sku || (notFound ?? "") }));
       }
-    } catch (e: any) {
-      toast.error(`AI scan error: ${e?.message ?? String(e)}`);
+    } catch {
+      toast.error("AI scan failed — fill in manually.");
+      setNewProdFields((f) => ({ ...f, sku: f.sku || (notFound ?? "") }));
     } finally {
       setAiScanning(false);
     }
@@ -188,12 +198,29 @@ function StockIn() {
   const saveNewProduct = useMutation({
     mutationFn: async () => {
       if (!newProdFields.name.trim()) throw new Error("Product name is required");
-      const uncategorized = (categories as any[]).find((c: any) => c.name.toLowerCase() === "uncategorized");
+      // If size still missing, try to extract from the product name.
+      let finalSize = newProdFields.size.trim();
+      let finalUnit = newProdFields.unit.trim();
+      if (!finalSize) {
+        const parsed = extractSizeFromName(newProdFields.name);
+        if (parsed) { finalSize = parsed.size; if (!finalUnit) finalUnit = parsed.unit; }
+      }
+      let uncategorized = (categories as any[]).find((c: any) => c.name.toLowerCase() === "uncategorized");
+      if (!uncategorized) {
+        const { data: created, error: catErr } = await supabase
+          .from("categories")
+          .insert({ name: "Uncategorized" })
+          .select()
+          .single();
+        if (catErr) throw catErr;
+        uncategorized = created;
+      }
       const { data, error } = await supabase.from("products").insert({
         name: newProdFields.name.trim(),
         brand: newProdFields.brand.trim() || null,
-        size: newProdFields.size.trim() || null,
-        unit: newProdFields.unit.trim() || null,
+        sku: newProdFields.sku.trim() || null,
+        size: finalSize || null,
+        unit: finalUnit || null,
         origin: newProdFields.origin.trim() || null,
         pcs_per_case: newProdFields.pcs_per_case ? Number(newProdFields.pcs_per_case) : null,
         barcode: notFound,
@@ -207,11 +234,12 @@ function StockIn() {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["categories"] });
       toast.success("New product registered — stock in to add quantity.");
       setNewProdOpen(false);
       setNotFound(null);
       setNewProdImg(null);
-      setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" });
+      setNewProdFields({ name: "", brand: "", sku: "", size: "", unit: "", origin: "", pcs_per_case: "" });
       setConfirm(data);
     },
     onError: (e: any) => toast.error(e.message),
@@ -473,7 +501,7 @@ function StockIn() {
       </Dialog>
 
       {/* ── Register New Product dialog ── */}
-      <Dialog open={newProdOpen} onOpenChange={(v) => { if (!v) { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" }); } }}>
+      <Dialog open={newProdOpen} onOpenChange={(v) => { if (!v) { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", sku: "", size: "", unit: "", origin: "", pcs_per_case: "" }); } }}>
         <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="p-4 pb-0">
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -542,11 +570,15 @@ function StockIn() {
                   <Input className="mt-1" value={newProdFields.brand} onChange={e => setNewProdFields(p => ({ ...p, brand: e.target.value }))} placeholder="e.g. Tiparos" />
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Size / Weight</Label>
-                  <Input className="mt-1" value={newProdFields.size} onChange={e => setNewProdFields(p => ({ ...p, size: e.target.value }))} placeholder="e.g. 700ml" />
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">SKU</Label>
+                  <Input className="mt-1 font-mono" value={newProdFields.sku} onChange={e => setNewProdFields(p => ({ ...p, sku: e.target.value }))} placeholder="auto from barcode" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Size / Weight</Label>
+                  <Input className="mt-1" value={newProdFields.size} onChange={e => setNewProdFields(p => ({ ...p, size: e.target.value }))} placeholder="e.g. 700ml" />
+                </div>
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
                   <select
@@ -560,20 +592,22 @@ function StockIn() {
                     ))}
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Origin</Label>
                   <Input className="mt-1" value={newProdFields.origin} onChange={e => setNewProdFields(p => ({ ...p, origin: e.target.value }))} placeholder="e.g. Thailand" />
                 </div>
-              </div>
-              <div>
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pcs per Case</Label>
-                <Input className="mt-1" type="number" inputMode="numeric" value={newProdFields.pcs_per_case} onChange={e => setNewProdFields(p => ({ ...p, pcs_per_case: e.target.value }))} placeholder="e.g. 12" />
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pcs per Case</Label>
+                  <Input className="mt-1" type="number" inputMode="numeric" value={newProdFields.pcs_per_case} onChange={e => setNewProdFields(p => ({ ...p, pcs_per_case: e.target.value }))} placeholder="e.g. 12" />
+                </div>
               </div>
             </div>
           </div>
 
           <DialogFooter className="px-4 pb-4 gap-2">
-            <Button variant="ghost" className="flex-1" onClick={() => { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" }); }}>
+            <Button variant="ghost" className="flex-1" onClick={() => { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", sku: "", size: "", unit: "", origin: "", pcs_per_case: "" }); }}>
               Cancel
             </Button>
             <Button

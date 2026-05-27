@@ -19,3 +19,23 @@ export function displaySize(p: { size?: string | null; unit?: string | null }): 
   if (!num) return unit;
   return `${num}${unit ? ` ${unit}` : ""}`;
 }
+
+/** Try to extract a size + unit token from a free-form product name.
+ *  Examples: "Fish Sauce 700ml" → { size: "700", unit: "ml" }
+ *            "Coconut Milk 1L"  → { size: "1",   unit: "L"  }
+ *            "Rice 5 kg Bag"    → { size: "5",   unit: "kg" }
+ *  Returns null when no size-like token is found. */
+export function extractSizeFromName(
+  name?: string | null
+): { size: string; unit: string } | null {
+  const n = (name ?? "").trim();
+  if (!n) return null;
+  // Match number (optionally decimal) followed by an optional space and a unit.
+  const re = /(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|cl|l|oz|lbs?|pcs|pc|ct)\b/i;
+  const m = n.match(re);
+  if (!m) return null;
+  const raw = m[2].toLowerCase();
+  // Normalize unit casing: liters as "L", everything else lowercase.
+  const unit = raw === "l" ? "L" : raw === "lbs" ? "lb" : raw === "pc" ? "pcs" : raw;
+  return { size: m[1], unit };
+}
