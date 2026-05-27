@@ -71,19 +71,38 @@ const fmtYen = (n: number) => {
 
 // Swatch color comes from the category palette so Myanmar = green,
 // Thailand = blue, Indonesia = purple, Asian Halal = red, etc.
-function swatchFor(categoryName?: string | null): string {
-  return categoryPalette(categoryName).bg;
+function swatchFor(name?: string | null): string {
+  return categoryPalette(name).bg;
 }
 
-// If the category name matches a known origin/country (Myanmar, Thailand…),
-// use it as the product's origin when none is set on the row.
-const ORIGIN_LOOKUP = new Set(KNOWN_ORIGINS.map((o) => o.toLowerCase()));
+// Origins we can infer from a product's category color. If the category name
+// matches one of these (Myanmar/Thailand/Indonesia/Asian Halal — the locked
+// palette overrides), or any other known country origin, we print that as the
+// product's origin when none is explicitly set.
+const COLOR_ORIGIN_LABELS: Record<string, string> = {
+  myanmar: "Myanmar",
+  thailand: "Thailand",
+  indonesia: "Indonesia",
+  "asian halal": "Asian Halal",
+};
+const ORIGIN_LOOKUP = new Map<string, string>([
+  ...KNOWN_ORIGINS.map((o) => [o.toLowerCase(), o] as [string, string]),
+  ...Object.entries(COLOR_ORIGIN_LABELS),
+]);
 function originOf(p: Product): string {
   const explicit = (p.origin ?? "").trim();
   if (explicit) return explicit;
-  const cat = (p.categories?.name ?? "").trim();
-  if (cat && ORIGIN_LOOKUP.has(cat.toLowerCase())) return cat;
-  return "—";
+  const cat = (p.categories?.name ?? "").trim().toLowerCase();
+  const match = cat ? ORIGIN_LOOKUP.get(cat) : null;
+  return match ?? "—";
+}
+
+// Render an origin pill colored by its category palette
+// (Myanmar = green, Thailand = blue, Indonesia = purple, Asian Halal = red…).
+function originPill(name: string): string {
+  if (!name || name === "—") return `<span class="mono-sm">—</span>`;
+  const pal = categoryPalette(name);
+  return `<span style="display:inline-block;padding:1.5pt 6pt;border-radius:99pt;background:${pal.bg};color:${pal.fg};font-size:7pt;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-family:'Geist Mono',monospace">${esc(name)}</span>`;
 }
 
 function statusOf(p: Product) {
@@ -232,14 +251,15 @@ function buildReportHtml(opts: {
       .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
       .map((p) => {
         const s = statusOf(p);
-        const swColor = swatchFor(p.categories?.name);
+        const origin = originOf(p);
+        const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
         const stockColor =
           p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
         return `<tr>
           <td><span class="swatch" style="background:${swColor}"></span></td>
           <td>${esc(p.name)}</td>
           <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-          <td>${esc(p.categories?.name ?? "—")}</td>
+          <td>${originPill(origin)}</td>
           <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
           <td class="mono-sm">${esc(rackLabel(p))}</td>
           <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
@@ -284,7 +304,7 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
             <th>Size</th><th>Rack</th>
             <th class="right">Stock</th><th class="right">¥ × 1</th>
             <th>Status</th>
@@ -305,7 +325,8 @@ function buildReportHtml(opts: {
   if (selected.out) {
     const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = outList.map((p) => {
-      const swColor = swatchFor(p.categories?.name);
+      const origin = originOf(p);
+      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
       const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
       const unitPrice = Number(p.price ?? 0);
       const estCost = reorder * unitPrice;
@@ -313,8 +334,8 @@ function buildReportHtml(opts: {
         <td><span class="swatch" style="background:${swColor}"></span></td>
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${esc(p.categories?.name ?? "—")}</td>
-        <td class="mono-sm">${esc(originOf(p))}</td>
+        <td>${originPill(origin)}</td>
+        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
         <td class="mono-sm">${esc(rackLabel(p))}</td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
         <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
@@ -348,11 +369,11 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
-            <th>Origin</th><th>Rack</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
+            <th>Size</th><th>Rack</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th><th class="right">Est. cost</th>
           </tr></thead>
-          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
+          <tbody>${body || `<tr><td colspan="10" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
         </table>
       </div>
       ${topMovers.length ? `<div class="section">
@@ -373,7 +394,8 @@ function buildReportHtml(opts: {
   if (selected.low) {
     const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = lowList.map((p) => {
-      const swColor = swatchFor(p.categories?.name);
+      const origin = originOf(p);
+      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
       const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
       const reorder = reorderQty(p);
       const unitPrice = Number(p.price ?? 0);
@@ -381,7 +403,8 @@ function buildReportHtml(opts: {
         <td><span class="swatch" style="background:${swColor}"></span></td>
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${esc(p.categories?.name ?? "—")}</td>
+        <td>${originPill(origin)}</td>
+        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
         <td class="right qty" style="color:var(--warn)">${fmtNum(p.stock ?? 0)}</td>
         <td style="padding-right:12pt"><div class="bar"><span style="width:${coverage}%;background:var(--warn)"></span></div></td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
@@ -399,12 +422,12 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
-            <th class="right">Stock</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
+            <th>Size</th><th class="right">Stock</th>
             <th>Coverage</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th>
           </tr></thead>
-          <tbody>${body || `<tr><td colspan="8" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
+          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
         </table>
       </div>
       ${lowList.length ? `<div style="margin-top:14pt;padding:10pt 12pt;background:var(--primary-tint);border-radius:5pt;border:1px solid #cbe6e2;display:flex;align-items:center;gap:12pt">
