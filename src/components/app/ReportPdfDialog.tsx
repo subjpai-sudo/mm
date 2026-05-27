@@ -293,7 +293,7 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
             <th>Size</th><th>Rack</th>
             <th class="right">Stock</th><th class="right">¥ × 1</th>
             <th>Status</th>
