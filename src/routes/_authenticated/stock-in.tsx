@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
-import { displaySize } from "@/lib/product-format";
+import { displaySize, extractSizeFromName } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-in")({
@@ -167,12 +167,19 @@ function StockIn() {
       const json = await callScanProduct({ data: { image: dataUrl } });
       if (json.ok && json.product) {
         const p = json.product as any;
+        const nm = p.name ?? "";
+        let size = p.size ?? "";
+        let unit = p.unit ?? "";
+        if (!size) {
+          const parsed = extractSizeFromName(nm);
+          if (parsed) { size = parsed.size; if (!unit) unit = parsed.unit; }
+        }
         setNewProdFields({
-          name: p.name ?? "",
+          name: nm,
           brand: p.brand ?? "",
           sku: p.sku ?? (notFound ?? ""),
-          size: p.size ?? "",
-          unit: p.unit ?? "",
+          size,
+          unit,
           origin: p.origin ?? "",
           pcs_per_case: p.pcs_per_case != null ? String(p.pcs_per_case) : "",
         });
@@ -191,6 +198,13 @@ function StockIn() {
   const saveNewProduct = useMutation({
     mutationFn: async () => {
       if (!newProdFields.name.trim()) throw new Error("Product name is required");
+      // If size still missing, try to extract from the product name.
+      let finalSize = newProdFields.size.trim();
+      let finalUnit = newProdFields.unit.trim();
+      if (!finalSize) {
+        const parsed = extractSizeFromName(newProdFields.name);
+        if (parsed) { finalSize = parsed.size; if (!finalUnit) finalUnit = parsed.unit; }
+      }
       let uncategorized = (categories as any[]).find((c: any) => c.name.toLowerCase() === "uncategorized");
       if (!uncategorized) {
         const { data: created, error: catErr } = await supabase
@@ -205,8 +219,8 @@ function StockIn() {
         name: newProdFields.name.trim(),
         brand: newProdFields.brand.trim() || null,
         sku: newProdFields.sku.trim() || null,
-        size: newProdFields.size.trim() || null,
-        unit: newProdFields.unit.trim() || null,
+        size: finalSize || null,
+        unit: finalUnit || null,
         origin: newProdFields.origin.trim() || null,
         pcs_per_case: newProdFields.pcs_per_case ? Number(newProdFields.pcs_per_case) : null,
         barcode: notFound,
