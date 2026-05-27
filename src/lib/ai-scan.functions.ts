@@ -6,14 +6,12 @@ type ScanResult = { ok: true; product: Record<string, any> } | { ok: false; erro
 export const scanProductImage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
   .handler(async ({ data }) => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) return { ok: false, error: "AI not configured" };
 
-    const match = data.image.match(/^data:([^;]+);base64,(.+)$/);
-    if (!match) return { ok: false, error: "Invalid image" };
-
-    const mediaType = match[1] as "image/jpeg" | "image/png" | "image/webp";
-    const base64Data = match[2];
+    if (!/^data:image\/(jpeg|png|webp);base64,/.test(data.image)) {
+      return { ok: false, error: "Invalid image" };
+    }
 
     const prompt = `Look at this product packaging photo. Return ONLY a valid JSON object, no markdown, no explanation:
 {
@@ -27,32 +25,34 @@ export const scanProductImage = createServerFn({ method: "POST" })
 }`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
+          "Lovable-API-Key": apiKey,
         },
         body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 512,
+          model: "google/gemini-2.5-flash",
           messages: [
             {
               role: "user",
               content: [
-                { type: "image", source: { type: "base64", media_type: mediaType, data: base64Data } },
                 { type: "text", text: prompt },
+                { type: "image_url", image_url: { url: data.image } },
               ],
             },
           ],
         }),
       });
 
-      if (!res.ok) return { ok: false, error: `AI error: ${res.status}` };
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        console.error("Lovable AI scan error", res.status, errText);
+        return { ok: false, error: `AI error: ${res.status}` };
+      }
 
-      const aiRes = await res.json() as any;
-      const raw: string = aiRes?.content?.[0]?.text ?? "{}";
+      const aiRes = (await res.json()) as any;
+      const raw: string = aiRes?.choices?.[0]?.message?.content ?? "{}";
       let parsed: Record<string, any> = {};
       try {
         parsed = JSON.parse(raw);
@@ -63,6 +63,7 @@ export const scanProductImage = createServerFn({ method: "POST" })
 
       return { ok: true, product: parsed };
     } catch (e: any) {
+      console.error("AI scan failed", e);
       return { ok: false, error: e?.message ?? "Fetch failed" };
     }
   });
