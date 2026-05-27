@@ -29,6 +29,7 @@ import { Route as AuthenticatedChangePinRouteImport } from './routes/_authentica
 import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
+import { Route as ApiPublicScanProductRouteImport } from './routes/api/public/scan-product'
 import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks_.$rackId'
 import { Route as AuthenticatedRacksPrintRouteImport } from './routes/_authenticated/racks.print'
 import { Route as AuthenticatedRacksLabelsRouteImport } from './routes/_authenticated/racks.labels'
@@ -137,6 +138,11 @@ const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
   path: '/api/public/server-health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicScanProductRoute = ApiPublicScanProductRouteImport.update({
+  id: '/api/public/scan-product',
+  path: '/api/public/scan-product',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedRacksRackIdRoute =
   AuthenticatedRacksRackIdRouteImport.update({
     id: '/racks_/$rackId',
@@ -197,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -224,6 +231,7 @@ export interface FileRoutesByTo {
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/_authenticated/racks/print': typeof AuthenticatedRacksPrintRoute
   '/_authenticated/racks_/$rackId': typeof AuthenticatedRacksRackIdRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
+    | '/api/public/scan-product'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesByTo: FileRoutesByTo
@@ -309,6 +319,7 @@ export interface FileRouteTypes {
     | '/racks/print'
     | '/racks/$rackId'
     | '/api/public/server-health'
+    | '/api/public/scan-product'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   id:
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/_authenticated/racks/print'
     | '/_authenticated/racks_/$rackId'
     | '/api/public/server-health'
+    | '/api/public/scan-product'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesById: FileRoutesById
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
   ApiPublicServerHealthRoute: typeof ApiPublicServerHealthRoute
+  ApiPublicScanProductRoute: typeof ApiPublicScanProductRoute
   ApiPublicHooksMirrorSyncRoute: typeof ApiPublicHooksMirrorSyncRoute
   ApiPublicHooksNightlyBackupRoute: typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -534,6 +547,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksMirrorSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/scan-product': {
+      id: '/api/public/scan-product'
+      path: '/api/public/scan-product'
+      fullPath: '/api/public/scan-product'
+      preLoaderRoute: typeof ApiPublicScanProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -601,6 +621,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
   ApiPublicServerHealthRoute: ApiPublicServerHealthRoute,
+  ApiPublicScanProductRoute: ApiPublicScanProductRoute,
   ApiPublicHooksMirrorSyncRoute: ApiPublicHooksMirrorSyncRoute,
   ApiPublicHooksNightlyBackupRoute: ApiPublicHooksNightlyBackupRoute,
 }

@@ -1,14 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Boxes, Camera, ImageIcon, PackageSearch, Package } from "lucide-react";
+import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Camera, ImageIcon, PackageSearch, Package, PackagePlus, Sparkles, RotateCcw, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -46,6 +46,11 @@ function StockIn() {
   const [camOpen, setCamOpen] = useState(false);
   const [notFound, setNotFound] = useState<string | null>(null);
   const [pickSearch, setPickSearch] = useState("");
+  const [newProdOpen, setNewProdOpen] = useState(false);
+  const [newProdImg, setNewProdImg] = useState<string | null>(null);
+  const [aiScanning, setAiScanning] = useState(false);
+  const [newProdFields, setNewProdFields] = useState({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" });
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -130,6 +135,86 @@ function StockIn() {
       toast.success("Barcode registered");
       setNotFound(null);
       if (data) setConfirm(data);
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function resizeImage(file: File, maxPx = 1024): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const ratio = Math.min(1, maxPx / Math.max(img.width, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(img.width * ratio);
+        canvas.height = Math.round(img.height * ratio);
+        canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL("image/jpeg", 0.85));
+      };
+      img.src = url;
+    });
+  }
+
+  async function handlePhotoSelected(file: File) {
+    const dataUrl = await resizeImage(file);
+    setNewProdImg(dataUrl);
+    setAiScanning(true);
+    try {
+      const res = await fetch("/api/public/scan-product", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ image: dataUrl }),
+      });
+      const json = await res.json() as any;
+      if (json.ok && json.product) {
+        const p = json.product;
+        setNewProdFields({
+          name: p.name ?? "",
+          brand: p.brand ?? "",
+          size: p.size ?? "",
+          unit: p.unit ?? "",
+          origin: p.origin ?? "",
+          pcs_per_case: p.pcs_per_case != null ? String(p.pcs_per_case) : "",
+        });
+      } else {
+        toast.error("AI couldn't read the product — please fill in manually.");
+      }
+    } catch {
+      toast.error("AI scan failed — fill in manually.");
+    } finally {
+      setAiScanning(false);
+    }
+  }
+
+  const saveNewProduct = useMutation({
+    mutationFn: async () => {
+      if (!newProdFields.name.trim()) throw new Error("Product name is required");
+      const uncategorized = (categories as any[]).find((c: any) => c.name.toLowerCase() === "uncategorized");
+      const { data, error } = await supabase.from("products").insert({
+        name: newProdFields.name.trim(),
+        brand: newProdFields.brand.trim() || null,
+        size: newProdFields.size.trim() || null,
+        unit: newProdFields.unit.trim() || null,
+        origin: newProdFields.origin.trim() || null,
+        pcs_per_case: newProdFields.pcs_per_case ? Number(newProdFields.pcs_per_case) : null,
+        barcode: notFound,
+        category_id: uncategorized?.id ?? null,
+        stock: 0,
+        price: 0,
+        low_stock_threshold: 5,
+      }).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      toast.success("New product registered — stock in to add quantity.");
+      setNewProdOpen(false);
+      setNotFound(null);
+      setNewProdImg(null);
+      setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" });
+      setConfirm(data);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -377,8 +462,130 @@ function StockIn() {
               {products.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products yet.</p>}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setNotFound(null)}>Cancel</Button>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button variant="ghost" onClick={() => setNotFound(null)} className="flex-1">Cancel</Button>
+            <Button
+              onClick={() => { setNewProdOpen(true); }}
+              className="flex-1 gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <PackagePlus className="size-4" /> Register as New Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Register New Product dialog ── */}
+      <Dialog open={newProdOpen} onOpenChange={(v) => { if (!v) { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" }); } }}>
+        <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto p-0 gap-0">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <PackagePlus className="size-5 text-primary" /> Register New Product
+            </DialogTitle>
+            {notFound && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Barcode: <span className="font-mono text-foreground">{notFound}</span>
+              </p>
+            )}
+          </DialogHeader>
+
+          <div className="p-4 space-y-4">
+            {/* Camera section */}
+            <div
+              onClick={() => !aiScanning && fileRef.current?.click()}
+              className={cn(
+                "relative rounded-2xl border-2 border-dashed overflow-hidden cursor-pointer transition-colors",
+                newProdImg ? "border-border" : "border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10",
+                aiScanning && "pointer-events-none",
+              )}
+              style={{ minHeight: 160 }}
+            >
+              {newProdImg ? (
+                <>
+                  <img src={newProdImg} alt="Product" className="w-full object-contain max-h-48" />
+                  {aiScanning && (
+                    <div className="absolute inset-0 bg-background/70 backdrop-blur-sm grid place-items-center gap-2 flex-col">
+                      <Loader2 className="size-8 text-primary animate-spin" />
+                      <span className="text-sm font-medium flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> AI reading product…</span>
+                    </div>
+                  )}
+                  {!aiScanning && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+                      className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/90 border border-border text-xs font-medium hover:bg-secondary"
+                    >
+                      <RotateCcw className="size-3" /> Retake
+                    </button>
+                  )}
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+                  <div className="size-14 rounded-2xl bg-primary/15 grid place-items-center">
+                    <Camera className="size-7 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">Take a photo of the product</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">AI will read the label automatically</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={async (e) => { const f = e.target.files?.[0]; if (f) await handlePhotoSelected(f); e.target.value = ""; }} />
+
+            {/* Form fields */}
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Product Name <span className="text-destructive">*</span></Label>
+                <Input className="mt-1" value={newProdFields.name} onChange={e => setNewProdFields(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Fish Sauce Premium" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Brand</Label>
+                  <Input className="mt-1" value={newProdFields.brand} onChange={e => setNewProdFields(p => ({ ...p, brand: e.target.value }))} placeholder="e.g. Tiparos" />
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Size / Weight</Label>
+                  <Input className="mt-1" value={newProdFields.size} onChange={e => setNewProdFields(p => ({ ...p, size: e.target.value }))} placeholder="e.g. 700ml" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
+                  <select
+                    value={newProdFields.unit}
+                    onChange={e => setNewProdFields(p => ({ ...p, unit: e.target.value }))}
+                    className="mt-1 w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">—</option>
+                    {["bottle", "bag", "can", "box", "pack", "jar", "sachet", "pcs"].map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Origin</Label>
+                  <Input className="mt-1" value={newProdFields.origin} onChange={e => setNewProdFields(p => ({ ...p, origin: e.target.value }))} placeholder="e.g. Thailand" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pcs per Case</Label>
+                <Input className="mt-1" type="number" inputMode="numeric" value={newProdFields.pcs_per_case} onChange={e => setNewProdFields(p => ({ ...p, pcs_per_case: e.target.value }))} placeholder="e.g. 12" />
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="px-4 pb-4 gap-2">
+            <Button variant="ghost" className="flex-1" onClick={() => { setNewProdOpen(false); setNewProdImg(null); setNewProdFields({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" }); }}>
+              Cancel
+            </Button>
+            <Button
+              className="flex-1 gradient-success text-success-foreground border-0 gap-2"
+              onClick={() => saveNewProduct.mutate()}
+              disabled={saveNewProduct.isPending || aiScanning || !newProdFields.name.trim()}
+            >
+              {saveNewProduct.isPending ? <Loader2 className="size-4 animate-spin" /> : <PackagePlus className="size-4" />}
+              Save to Uncategorized
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
