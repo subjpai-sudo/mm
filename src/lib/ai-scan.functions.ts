@@ -7,6 +7,7 @@ export const scanProductImage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
   .handler(async ({ data }) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
+    console.log("[ai-scan] apiKey present:", !!apiKey, "len:", apiKey?.length ?? 0);
     if (!apiKey) return { ok: false, error: "AI not configured" };
 
     const match = data.image.match(/^data:([^;]+);base64,(.+)$/);
@@ -48,7 +49,12 @@ export const scanProductImage = createServerFn({ method: "POST" })
         }),
       });
 
-      if (!res.ok) return { ok: false, error: `AI error: ${res.status}` };
+      console.log("[ai-scan] Anthropic response status:", res.status);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.log("[ai-scan] Anthropic error body:", errText.slice(0, 200));
+        return { ok: false, error: `AI error: ${res.status} ${errText.slice(0, 100)}` };
+      }
 
       const aiRes = await res.json() as any;
       const raw: string = aiRes?.content?.[0]?.text ?? "{}";

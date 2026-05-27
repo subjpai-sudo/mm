@@ -176,10 +176,10 @@ function StockIn() {
           pcs_per_case: p.pcs_per_case != null ? String(p.pcs_per_case) : "",
         });
       } else {
-        toast.error("AI couldn't read the product — please fill in manually.");
+        toast.error(`AI scan: ${(json as any)?.error ?? "no result"} — fill in manually.`);
       }
-    } catch {
-      toast.error("AI scan failed — fill in manually.");
+    } catch (e: any) {
+      toast.error(`AI scan error: ${e?.message ?? String(e)}`);
     } finally {
       setAiScanning(false);
     }
