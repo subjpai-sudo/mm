@@ -75,15 +75,26 @@ function swatchFor(name?: string | null): string {
   return categoryPalette(name).bg;
 }
 
-// If the category name matches a known origin/country (Myanmar, Thailand…),
-// use it as the product's origin when none is set on the row.
-const ORIGIN_LOOKUP = new Set(KNOWN_ORIGINS.map((o) => o.toLowerCase()));
+// Origins we can infer from a product's category color. If the category name
+// matches one of these (Myanmar/Thailand/Indonesia/Asian Halal — the locked
+// palette overrides), or any other known country origin, we print that as the
+// product's origin when none is explicitly set.
+const COLOR_ORIGIN_LABELS: Record<string, string> = {
+  myanmar: "Myanmar",
+  thailand: "Thailand",
+  indonesia: "Indonesia",
+  "asian halal": "Asian Halal",
+};
+const ORIGIN_LOOKUP = new Map<string, string>([
+  ...KNOWN_ORIGINS.map((o) => [o.toLowerCase(), o] as [string, string]),
+  ...Object.entries(COLOR_ORIGIN_LABELS),
+]);
 function originOf(p: Product): string {
   const explicit = (p.origin ?? "").trim();
   if (explicit) return explicit;
-  const cat = (p.categories?.name ?? "").trim();
-  if (cat && ORIGIN_LOOKUP.has(cat.toLowerCase())) return cat;
-  return "—";
+  const cat = (p.categories?.name ?? "").trim().toLowerCase();
+  const match = cat ? ORIGIN_LOOKUP.get(cat) : null;
+  return match ?? "—";
 }
 
 // Render an origin pill colored by its category palette
@@ -324,6 +335,7 @@ function buildReportHtml(opts: {
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
         <td>${originPill(origin)}</td>
+        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
         <td class="mono-sm">${esc(rackLabel(p))}</td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
         <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
@@ -358,10 +370,10 @@ function buildReportHtml(opts: {
           <thead><tr>
             <th style="width:14pt"></th>
             <th>Product</th><th>Brand</th><th>Origin</th>
-            <th>Rack</th>
+            <th>Size</th><th>Rack</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th><th class="right">Est. cost</th>
           </tr></thead>
-          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
+          <tbody>${body || `<tr><td colspan="10" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
         </table>
       </div>
       ${topMovers.length ? `<div class="section">
@@ -392,6 +404,7 @@ function buildReportHtml(opts: {
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
         <td>${originPill(origin)}</td>
+        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
         <td class="right qty" style="color:var(--warn)">${fmtNum(p.stock ?? 0)}</td>
         <td style="padding-right:12pt"><div class="bar"><span style="width:${coverage}%;background:var(--warn)"></span></div></td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
@@ -410,11 +423,11 @@ function buildReportHtml(opts: {
           <thead><tr>
             <th style="width:14pt"></th>
             <th>Product</th><th>Brand</th><th>Origin</th>
-            <th class="right">Stock</th>
+            <th>Size</th><th class="right">Stock</th>
             <th>Coverage</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th>
           </tr></thead>
-          <tbody>${body || `<tr><td colspan="8" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
+          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
         </table>
       </div>
       ${lowList.length ? `<div style="margin-top:14pt;padding:10pt 12pt;background:var(--primary-tint);border-radius:5pt;border:1px solid #cbe6e2;display:flex;align-items:center;gap:12pt">
