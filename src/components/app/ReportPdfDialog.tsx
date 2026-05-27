@@ -357,8 +357,8 @@ function buildReportHtml(opts: {
         <table>
           <thead><tr>
             <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Category</th>
-            <th>Origin</th><th>Rack</th>
+            <th>Product</th><th>Brand</th><th>Origin</th>
+            <th>Rack</th>
             <th class="right">Reorder</th><th class="right">¥ / case</th><th class="right">Est. cost</th>
           </tr></thead>
           <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
