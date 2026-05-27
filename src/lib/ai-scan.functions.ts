@@ -19,6 +19,7 @@ export const scanProductImage = createServerFn({ method: "POST" })
 {
   "name": "full product name as on label",
   "brand": "brand name or null",
+  "sku": "SKU / item code printed on label or null",
   "size": "size/weight like 500ml or 1kg or null",
   "unit": "bottle or bag or can or box or pack or jar or sachet or pcs or null",
   "origin": "country of origin or null",
