@@ -1,11 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type ScanResult = { ok: true; product: Record<string, any> } | { ok: false; error: string };
 
 export const scanProductImage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
   .handler(async ({ data }) => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
