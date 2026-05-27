@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FileText, Copy, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { sendReportLinkSms } from "@/lib/notifications.functions";
+import { categoryPalette } from "@/lib/category-colors";
+import { KNOWN_ORIGINS } from "@/lib/origin-colors";
 
 type Product = {
   id: string;
@@ -67,17 +69,21 @@ const fmtYen = (n: number) => {
   return `¥${Math.round(n)}`;
 };
 
-// Stable color from a string (for brand / category swatches)
-const SWATCH_PALETTE = [
-  "#dc2626", "#15803d", "#a16207", "#1d4ed8", "#facc15",
-  "#92400e", "#1e3a8a", "#7c2d12", "#ca8a04", "#3b82f6",
-  "#fbbf24", "#0ea5e9", "#a855f7", "#ec4899", "#10b981",
-  "#f59e0b", "#ef4444", "#84cc16", "#0891b2", "#d97706",
-];
-function swatchFor(key: string): string {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return SWATCH_PALETTE[h % SWATCH_PALETTE.length];
+// Swatch color comes from the category palette so Myanmar = green,
+// Thailand = blue, Indonesia = purple, Asian Halal = red, etc.
+function swatchFor(categoryName?: string | null): string {
+  return categoryPalette(categoryName).bg;
+}
+
+// If the category name matches a known origin/country (Myanmar, Thailand…),
+// use it as the product's origin when none is set on the row.
+const ORIGIN_LOOKUP = new Set(KNOWN_ORIGINS.map((o) => o.toLowerCase()));
+function originOf(p: Product): string {
+  const explicit = (p.origin ?? "").trim();
+  if (explicit) return explicit;
+  const cat = (p.categories?.name ?? "").trim();
+  if (cat && ORIGIN_LOOKUP.has(cat.toLowerCase())) return cat;
+  return "—";
 }
 
 function statusOf(p: Product) {
