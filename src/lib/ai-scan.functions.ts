@@ -1,12 +1,25 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+async function getCfEnv(): Promise<Record<string, string>> {
+  try {
+    const m = await import("cloudflare:workers" as string);
+    return (m.env as Record<string, string>) ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export const scanProductImage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
   .handler(async ({ data }) => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    console.log("[ai-scan] apiKey present:", !!apiKey, "len:", apiKey?.length ?? 0);
-    if (!apiKey) return { ok: false as const, error: "AI not configured (missing ANTHROPIC_API_KEY)" };
+    let apiKey = process.env.ANTHROPIC_API_KEY ?? "";
+    if (!apiKey) {
+      const cfEnv = await getCfEnv();
+      apiKey = cfEnv.ANTHROPIC_API_KEY ?? "";
+    }
+    console.log("[ai-scan] apiKey present:", !!apiKey, "len:", apiKey.length);
+    if (!apiKey) return { ok: false as const, error: "AI not configured — check ANTHROPIC_API_KEY secret" };
 
     const m = data.image.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
     if (!m) return { ok: false as const, error: "Invalid image" };
