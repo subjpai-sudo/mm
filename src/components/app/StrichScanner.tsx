@@ -192,7 +192,7 @@ export function StrichScanner({
         </DialogDescription>
 
         <div className="relative aspect-[16/10] w-full overflow-hidden bg-black">
-          <div ref={hostRef} className="absolute inset-0 h-full w-full" />
+          <div ref={hostRef} className="relative h-full w-full" />
 
           {errored && (
             <div className="absolute inset-0 grid place-items-center bg-black/75 p-6 text-center backdrop-blur-sm">
