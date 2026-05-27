@@ -9,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Camera, ImageIcon, PackageSearch, Package, PackagePlus, Sparkles, RotateCcw, Loader2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { scanProductImage } from "@/lib/ai-scan.functions";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -51,6 +53,7 @@ function StockIn() {
   const [aiScanning, setAiScanning] = useState(false);
   const [newProdFields, setNewProdFields] = useState({ name: "", brand: "", size: "", unit: "", origin: "", pcs_per_case: "" });
   const fileRef = useRef<HTMLInputElement>(null);
+  const callScanProduct = useServerFn(scanProductImage);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
@@ -161,14 +164,9 @@ function StockIn() {
     setNewProdImg(dataUrl);
     setAiScanning(true);
     try {
-      const res = await fetch("/api/public/scan-product", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ image: dataUrl }),
-      });
-      const json = await res.json() as any;
+      const json = await callScanProduct({ data: { image: dataUrl } });
       if (json.ok && json.product) {
-        const p = json.product;
+        const p = json.product as any;
         setNewProdFields({
           name: p.name ?? "",
           brand: p.brand ?? "",
