@@ -71,8 +71,8 @@ const fmtYen = (n: number) => {
 
 // Swatch color comes from the category palette so Myanmar = green,
 // Thailand = blue, Indonesia = purple, Asian Halal = red, etc.
-function swatchFor(categoryName?: string | null): string {
-  return categoryPalette(categoryName).bg;
+function swatchFor(name?: string | null): string {
+  return categoryPalette(name).bg;
 }
 
 // If the category name matches a known origin/country (Myanmar, Thailand…),
@@ -84,6 +84,14 @@ function originOf(p: Product): string {
   const cat = (p.categories?.name ?? "").trim();
   if (cat && ORIGIN_LOOKUP.has(cat.toLowerCase())) return cat;
   return "—";
+}
+
+// Render an origin pill colored by its category palette
+// (Myanmar = green, Thailand = blue, Indonesia = purple, Asian Halal = red…).
+function originPill(name: string): string {
+  if (!name || name === "—") return `<span class="mono-sm">—</span>`;
+  const pal = categoryPalette(name);
+  return `<span style="display:inline-block;padding:1.5pt 6pt;border-radius:99pt;background:${pal.bg};color:${pal.fg};font-size:7pt;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-family:'Geist Mono',monospace">${esc(name)}</span>`;
 }
 
 function statusOf(p: Product) {
