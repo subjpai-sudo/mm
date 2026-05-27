@@ -1,17 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-type ScanResult = { ok: true; product: Record<string, any> } | { ok: false; error: string };
-
 export const scanProductImage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
   .handler(async ({ data }) => {
-    const apiKey = process.env.LOVABLE_API_KEY;
-    if (!apiKey) return { ok: false, error: "AI not configured" };
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return { ok: false as const, error: "AI not configured (missing ANTHROPIC_API_KEY)" };
 
-    if (!/^data:image\/(jpeg|png|webp);base64,/.test(data.image)) {
-      return { ok: false, error: "Invalid image" };
-    }
+    const m = data.image.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
+    if (!m) return { ok: false as const, error: "Invalid image" };
+    const mediaType = m[1];
+    const base64 = m[2];
 
     const prompt = `Look at this product packaging photo. Return ONLY a valid JSON object, no markdown, no explanation:
 {
@@ -25,20 +24,22 @@ export const scanProductImage = createServerFn({ method: "POST" })
 }`;
 
     try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "Lovable-API-Key": apiKey,
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "claude-3-5-sonnet-20241022",
+          max_tokens: 512,
           messages: [
             {
               role: "user",
               content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
                 { type: "text", text: prompt },
-                { type: "image_url", image_url: { url: data.image } },
               ],
             },
           ],
@@ -47,23 +48,23 @@ export const scanProductImage = createServerFn({ method: "POST" })
 
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
-        console.error("Lovable AI scan error", res.status, errText);
-        return { ok: false, error: `AI error: ${res.status}` };
+        console.error("Anthropic scan error", res.status, errText);
+        return { ok: false as const, error: `AI error: ${res.status}` };
       }
 
       const aiRes = (await res.json()) as any;
-      const raw: string = aiRes?.choices?.[0]?.message?.content ?? "{}";
+      const raw: string = aiRes?.content?.[0]?.text ?? "{}";
       let parsed: Record<string, any> = {};
       try {
         parsed = JSON.parse(raw);
       } catch {
-        const m = raw.match(/\{[\s\S]*\}/);
-        try { parsed = m ? JSON.parse(m[0]) : {}; } catch { /* leave empty */ }
+        const mm = raw.match(/\{[\s\S]*\}/);
+        try { parsed = mm ? JSON.parse(mm[0]) : {}; } catch { /* leave empty */ }
       }
 
-      return { ok: true, product: parsed };
+      return { ok: true as const, product: parsed };
     } catch (e: any) {
       console.error("AI scan failed", e);
-      return { ok: false, error: e?.message ?? "Fetch failed" };
+      return { ok: false as const, error: e?.message ?? "Fetch failed" };
     }
   });
