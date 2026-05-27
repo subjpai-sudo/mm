@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FileText, Copy, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { sendReportLinkSms } from "@/lib/notifications.functions";
+import { categoryPalette } from "@/lib/category-colors";
+import { KNOWN_ORIGINS } from "@/lib/origin-colors";
 
 type Product = {
   id: string;
@@ -67,17 +69,21 @@ const fmtYen = (n: number) => {
   return `¥${Math.round(n)}`;
 };
 
-// Stable color from a string (for brand / category swatches)
-const SWATCH_PALETTE = [
-  "#dc2626", "#15803d", "#a16207", "#1d4ed8", "#facc15",
-  "#92400e", "#1e3a8a", "#7c2d12", "#ca8a04", "#3b82f6",
-  "#fbbf24", "#0ea5e9", "#a855f7", "#ec4899", "#10b981",
-  "#f59e0b", "#ef4444", "#84cc16", "#0891b2", "#d97706",
-];
-function swatchFor(key: string): string {
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
-  return SWATCH_PALETTE[h % SWATCH_PALETTE.length];
+// Swatch color comes from the category palette so Myanmar = green,
+// Thailand = blue, Indonesia = purple, Asian Halal = red, etc.
+function swatchFor(categoryName?: string | null): string {
+  return categoryPalette(categoryName).bg;
+}
+
+// If the category name matches a known origin/country (Myanmar, Thailand…),
+// use it as the product's origin when none is set on the row.
+const ORIGIN_LOOKUP = new Set(KNOWN_ORIGINS.map((o) => o.toLowerCase()));
+function originOf(p: Product): string {
+  const explicit = (p.origin ?? "").trim();
+  if (explicit) return explicit;
+  const cat = (p.categories?.name ?? "").trim();
+  if (cat && ORIGIN_LOOKUP.has(cat.toLowerCase())) return cat;
+  return "—";
 }
 
 function statusOf(p: Product) {
@@ -226,7 +232,7 @@ function buildReportHtml(opts: {
       .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
       .map((p) => {
         const s = statusOf(p);
-        const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+        const swColor = swatchFor(p.categories?.name);
         const stockColor =
           p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
         return `<tr>
@@ -299,7 +305,7 @@ function buildReportHtml(opts: {
   if (selected.out) {
     const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = outList.map((p) => {
-      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const swColor = swatchFor(p.categories?.name);
       const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
       const unitPrice = Number(p.price ?? 0);
       const estCost = reorder * unitPrice;
@@ -308,7 +314,7 @@ function buildReportHtml(opts: {
         <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
         <td>${esc((p.brand ?? "—").toUpperCase())}</td>
         <td>${esc(p.categories?.name ?? "—")}</td>
-        <td class="mono-sm">${esc(p.origin ?? "—")}</td>
+        <td class="mono-sm">${esc(originOf(p))}</td>
         <td class="mono-sm">${esc(rackLabel(p))}</td>
         <td class="right qty" style="color:var(--primary)">+${reorder}</td>
         <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
@@ -367,7 +373,7 @@ function buildReportHtml(opts: {
   if (selected.low) {
     const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
     const body = lowList.map((p) => {
-      const swColor = swatchFor((p.categories?.name ?? p.brand ?? p.name));
+      const swColor = swatchFor(p.categories?.name);
       const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
       const reorder = reorderQty(p);
       const unitPrice = Number(p.price ?? 0);
