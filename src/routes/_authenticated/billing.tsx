@@ -76,11 +76,12 @@ function BillingPage() {
     },
   });
 
-  const subtotal = useMemo(() => items.reduce((s, i) => s + i.qty * i.price, 0), [items]);
-  const discountAmt = useMemo(() => Math.max(0, Number(discount) || 0), [discount]);
-  const taxable = useMemo(() => Math.max(0, subtotal - discountAmt), [subtotal, discountAmt]);
-  const tax = useMemo(() => Math.round(taxable * (Number(taxRate) / 100)), [taxable, taxRate]);
-  const total = taxable + tax;
+  const subtotal    = useMemo(() => items.reduce((s, i) => s + i.qty * i.price, 0), [items]);
+  const discountPct = useMemo(() => Math.max(0, Math.min(100, Number(discount) || 0)), [discount]);
+  const discountAmt = useMemo(() => Math.round(subtotal * discountPct / 100), [subtotal, discountPct]);
+  const taxable     = useMemo(() => Math.max(0, subtotal - discountAmt), [subtotal, discountAmt]);
+  const tax         = useMemo(() => Math.round(taxable * (Number(taxRate) / 100)), [taxable, taxRate]);
+  const total       = taxable + tax;
 
   const issuingStore = stores.find(s => s.id === issuingStoreId) ?? null;
   const billToStore = stores.find(s => s.id === billToStoreId) ?? null;
@@ -97,7 +98,7 @@ function BillingPage() {
         customer_id: billToType === "customer" ? customerId || null : null,
         invoice_no: invNo, date: invDate,
         items: items.map(({ key: _k, ...rest }) => rest),
-        tax_rate: Number(taxRate), discount: discountAmt,
+        tax_rate: Number(taxRate), discount: discountPct,
         subtotal, tax, total, created_by: user?.id ?? null,
       };
       if (savedId) {
@@ -319,9 +320,13 @@ function BillingPage() {
                 <span className="tabular-nums">¥{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm items-center">
-                <span className="text-muted-foreground">Discount (¥)</span>
-                <Input type="number" min={0} className="h-6 w-28 text-xs text-right" value={discount}
-                  onChange={e => { setDiscount(e.target.value); dirty(); }} />
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Discount</span>
+                  <Input type="number" min={0} max={100} className="h-6 w-14 text-xs text-right" value={discount}
+                    onChange={e => { setDiscount(e.target.value); dirty(); }} />
+                  <span className="text-muted-foreground text-xs">%</span>
+                </div>
+                <span className="tabular-nums text-muted-foreground">−¥{discountAmt.toLocaleString()}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm items-center">
                 <div className="flex items-center gap-1.5">
@@ -393,7 +398,7 @@ function BillingPage() {
           issuingStore={issuingStore} billToType={billToType}
           billToStore={billToStore} billToCustomer={billToCustomer}
           invNo={invNo} date={invDate} items={items}
-          taxRate={Number(taxRate)} discount={discountAmt}
+          taxRate={Number(taxRate)} discount={discountAmt} discountPct={discountPct}
           subtotal={subtotal} tax={tax} total={total}
           onClose={() => setPrintOpen(false)}
         />
@@ -592,13 +597,13 @@ function BillingSettingsModal({ onClose }: { onClose: () => void }) {
 }
 
 // ── Print Modal ────────────────────────────────────────────────────────────────
-function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, invNo, date, items, taxRate, discount, subtotal, tax, total, onClose }: {
+function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, invNo, date, items, taxRate, discount, discountPct, subtotal, tax, total, onClose }: {
   issuingStore: BillingStore | null;
   billToType: BillToType;
   billToStore: BillingStore | null;
   billToCustomer: BillingCustomer | null;
   invNo: string; date: string; items: InvoiceItem[];
-  taxRate: number; discount: number; subtotal: number; tax: number; total: number;
+  taxRate: number; discount: number; discountPct: number; subtotal: number; tax: number; total: number;
   onClose: () => void;
 }) {
   const [stampB64] = useState<string>(() => localStorage.getItem("billing-stamp-b64") ?? "");
@@ -690,7 +695,7 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
     <td class="tot-wrap">
       <table class="tot-tbl">
         <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(subtotal)}</td></tr>
-        ${discount > 0 ? `<tr><td class="tl">DISCOUNT</td><td class="tv" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
+        ${discount > 0 ? `<tr><td class="tl">DISCOUNT (${discountPct}%)</td><td class="tv" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
         ${taxRate > 0 ? `<tr><td class="tl">TAX (${taxRate}%)</td><td class="tv">¥${fmt(tax)}</td></tr>` : ""}
         <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(total)}</td></tr>
       </table>
@@ -701,7 +706,7 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
 
     w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${invNo}</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;color:#111;background:#fff;padding:12px 14px}
 @page{size:A4;margin:10mm 12mm}
 .inv-page{width:100%;page-break-after:always}
@@ -740,13 +745,13 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 .inv-table tr.erow td{height:19px}
 /* footer */
 .inv-foot{width:100%;border-collapse:collapse;margin-top:8px}
-.bank{width:50%;font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
-.tot-wrap{width:50%;text-align:right;vertical-align:bottom}
-.tot-tbl{border-collapse:collapse;font-size:11px;margin-left:auto}
-.tot-tbl td{padding:4px 10px;border:1px solid #bbb}
-.tl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
-.tv{text-align:right;min-width:100px;font-weight:600}
-.tg{background:#1F4E79;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
+.bank{vertical-align:bottom;font-size:10px;color:#333;line-height:1.8}
+.tot-wrap{vertical-align:bottom;text-align:right;width:1px;white-space:nowrap;padding-left:16px}
+.tot-tbl{border-collapse:collapse;font-size:11px}
+.tot-tbl td{padding:4px 12px;border:1px solid #bbb}
+.tl{background:#f0f0f0!important;font-weight:600;text-align:right;white-space:nowrap}
+.tv{text-align:right;min-width:110px;font-weight:600}
+.tg{background:#1F4E79!important;color:#fff!important;font-weight:700;text-align:right;white-space:nowrap}
 .tgv{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
 </style></head><body>${pagesHtml}</body></html>`);
     w.document.close();
@@ -863,7 +868,7 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
                 </tr>
                 {discount > 0 && (
                   <tr>
-                    <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>DISCOUNT</td>
+                    <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>DISCOUNT ({discountPct}%)</td>
                     <td style={{ textAlign: "right", minWidth: 92, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb", color: "#e53e3e" }}>−¥{fmt(discount)}</td>
                   </tr>
                 )}
