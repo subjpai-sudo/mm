@@ -99,13 +99,16 @@ function BillingPage() {
         subtotal, tax, total, created_by: user?.id ?? null,
       };
       if (savedId) {
-        const { data } = await db().from("billing_invoices").update(payload).eq("id", savedId).select().single();
+        const { data, error } = await db().from("billing_invoices").update(payload).eq("id", savedId).select().single();
+        if (error) throw new Error(error.message);
         return data as SavedInvoice;
       }
-      const { data } = await db().from("billing_invoices").insert(payload).select().single();
+      const { data, error } = await db().from("billing_invoices").insert(payload).select().single();
+      if (error) throw new Error(error.message);
       return data as SavedInvoice;
     },
-    onSuccess: (d) => { setSavedId(d.id); qc.invalidateQueries({ queryKey: ["billing-invoices"] }); },
+    onSuccess: (d) => { setSavedId(d.id); qc.invalidateQueries({ queryKey: ["billing-invoices"] }); toast.success("Invoice saved"); },
+    onError: (e: any) => toast.error(e?.message ?? "Failed to save invoice"),
   });
 
   const addProduct = useCallback((p: any) => {
@@ -136,8 +139,12 @@ function BillingPage() {
   }
 
   async function handlePrint() {
-    await saveMut.mutateAsync();
-    setPrintOpen(true);
+    try {
+      await saveMut.mutateAsync();
+      setPrintOpen(true);
+    } catch {
+      // error already shown by onError
+    }
   }
 
   return (
@@ -207,9 +214,12 @@ function BillingPage() {
             ) : (
               <div className="flex gap-2">
                 <Select value={customerId} onValueChange={v => { setCustomerId(v); dirty(); }}>
-                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder={customers.length === 0 ? "No customers yet — add one →" : "Select customer…"} /></SelectTrigger>
                   <SelectContent>
-                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.company ? `${c.company} — ${c.name}` : c.name}</SelectItem>)}
+                    {customers.length === 0
+                      ? <div className="px-3 py-4 text-sm text-muted-foreground text-center">No customers yet.<br />Use the + button to add one.</div>
+                      : customers.map(c => <SelectItem key={c.id} value={c.id}>{c.company ? `${c.company} — ${c.name}` : c.name}</SelectItem>)
+                    }
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon" onClick={() => setManageCustomersOpen(true)} title="Manage customers"><Pencil className="size-4" /></Button>
@@ -600,7 +610,7 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
 
   function doPrint() {
     const w = window.open("", "_blank", "width=820,height=1100");
-    if (!w) return;
+    if (!w) { toast.error("Popup blocked — allow popups for this site then try again"); return; }
     const ROWS_PER_PAGE = 17;
     const filled = items.filter(i => i.name);
     if (!filled.length) { toast.error("No items to print"); return; }
