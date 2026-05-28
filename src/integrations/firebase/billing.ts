@@ -1,8 +1,9 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import {
-  getDatabase, ref, set, push, update, remove,
+  getDatabase, ref, set, push, remove,
   onValue, get, off, type Unsubscribe,
 } from "firebase/database";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBF02Uctly222wJh42zOzx4CFq0BfE3LTE",
@@ -14,8 +15,14 @@ const firebaseConfig = {
   appId: "1:185038751234:web:51eaf7763c02a9aa97091b",
 };
 
-const app = getApps().find(a => a.name === "billing") ?? initializeApp(firebaseConfig, "billing");
-const db  = getDatabase(app);
+const app  = getApps().find(a => a.name === "billing") ?? initializeApp(firebaseConfig, "billing");
+const db   = getDatabase(app);
+const auth = getAuth(app);
+
+// Ensure anonymous auth so RTDB rules that require auth don't block reads/writes
+onAuthStateChanged(auth, user => {
+  if (!user) signInAnonymously(auth).catch(() => {});
+});
 
 const ROOT = "billing";
 
