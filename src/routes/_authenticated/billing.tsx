@@ -620,8 +620,8 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
     ? `${issuingStore.name}${issuingStore.sub ? ` — ${issuingStore.sub}` : ""}`
     : "CITY STAR 株式会社";
   const coAddrLines = issuingStore
-    ? [issuingStore.zip ? `〒${issuingStore.zip}` : "", issuingStore.address ?? "", issuingStore.tel ? `TELL＝${issuingStore.tel}` : ""].filter(Boolean)
-    : ["東京都豊島区北大塚3-32-3-201", "TELL＝03-6903-6174", "FAX＝03-6903-6175"];
+    ? [issuingStore.zip ? `〒${issuingStore.zip}` : "", issuingStore.address ?? "", issuingStore.tel ? `TELL＝${issuingStore.tel}` : "", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"].filter(Boolean)
+    : ["東京都豊島区北大塚3-32-3-201", "TELL＝03-6903-6174", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"];
 
   // Customer address block
   const custAddrFull = [billToZip ? `〒${billToZip}` : "", billToAddr].filter(Boolean).join(" ");
@@ -659,8 +659,6 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
       <table class="meta-tbl">
         <tr><td class="mk">DATE</td><td class="mv">${date}</td></tr>
         <tr><td class="mk">INVOICE NO:</td><td class="mv">${invNo || "—"}</td></tr>
-        <tr><td class="mk" colspan="2" style="font-style:italic;color:#555;font-weight:400">CASH ON DELIVER</td></tr>
-        <tr><td class="mk">SHEET NO:</td><td class="mv">${pi + 1}-${pages.length}</td></tr>
       </table>
     </div>
   </div>
@@ -800,8 +798,6 @@ table.tot-tbl{margin-left:auto}
                 <tbody>
                   <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>DATE</td><td style={{ fontWeight: 700 }}>{date}</td></tr>
                   <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>INVOICE NO:</td><td style={{ fontWeight: 700 }}>{invNo || "—"}</td></tr>
-                  <tr><td colSpan={2} style={{ fontStyle: "italic", color: "#555", fontSize: 10 }}>CASH ON DELIVER</td></tr>
-                  <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>SHEET NO:</td><td style={{ fontWeight: 700 }}>1-1</td></tr>
                 </tbody>
               </table>
             </div>
