@@ -42,23 +42,12 @@ function groupByMonthWeek(invs: SavedInvoice[]) {
   return byMonth;
 }
 
-// ── Invoice Detail Modal ───────────────────────────────────────────────────────
-function InvoiceDetailModal({ inv, stores, customers, onClose }: {
-  inv: SavedInvoice; stores: BillingStore[]; customers: BillingCustomer[]; onClose: () => void;
-}) {
-  const nav      = useNavigate();
-  const stampB64 = localStorage.getItem("billing-stamp-b64") ?? "";
-
-  const issuingStore   = stores.find(s => s.id === inv.store_id) ?? null;
-  const billToStore    = stores.find(s => s.id === inv.bill_to_store_id) ?? null;
-  const billToCustomer = customers.find(c => c.id === inv.customer_id) ?? null;
-
-  const billToName = inv.bill_to_type === "customer"
-    ? (billToCustomer?.company || billToCustomer?.name || "—")
-    : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "—");
-  const billToAddr = inv.bill_to_type === "customer" ? (billToCustomer?.address ?? "") : (billToStore?.address ?? "");
-  const billToTel  = inv.bill_to_type === "customer" ? (billToCustomer?.tel ?? "")     : (billToStore?.tel ?? "");
-  const billToZip  = inv.bill_to_type === "store"    ? (billToStore?.zip ?? "")         : "";
+// ── Standalone print/PDF function ─────────────────────────────────────────────
+function printInvoice(inv: SavedInvoice, stores: BillingStore[], customers: BillingCustomer[]) {
+  const stampB64     = localStorage.getItem("billing-stamp-b64") ?? "";
+  const issuingStore = stores.find(s => s.id === inv.store_id) ?? null;
+  const billToStore  = stores.find(s => s.id === inv.bill_to_store_id) ?? null;
+  const billToCust   = customers.find(c => c.id === inv.customer_id) ?? null;
 
   const coName = issuingStore
     ? `${issuingStore.name}${issuingStore.sub ? ` — ${issuingStore.sub}` : ""}`
@@ -67,77 +56,83 @@ function InvoiceDetailModal({ inv, stores, customers, onClose }: {
     ? [issuingStore.zip ? `〒${issuingStore.zip}` : "", issuingStore.address ?? "", issuingStore.tel ? `TELL＝${issuingStore.tel}` : "", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"].filter(Boolean)
     : ["東京都豊島区北大塚3-32-3-201", "TELL＝03-6903-6174", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"];
 
+  const billToName = inv.bill_to_type === "customer"
+    ? (billToCust?.company || billToCust?.name || "—")
+    : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "—");
+  const billToAddr = inv.bill_to_type === "customer" ? (billToCust?.address ?? "") : (billToStore?.address ?? "");
+  const billToTel  = inv.bill_to_type === "customer" ? (billToCust?.tel ?? "") : (billToStore?.tel ?? "");
+  const billToZip  = inv.bill_to_type === "store" ? (billToStore?.zip ?? "") : "";
   const custAddrFull = [billToZip ? `〒${billToZip}` : "", billToAddr].filter(Boolean).join(" ");
-  const discountPct  = inv.discount;
-  const discountAmt  = Math.round(inv.subtotal * discountPct / 100);
-  const items        = Array.isArray(inv.items) ? inv.items : [];
 
-  const qtyLabel  = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty} Case` : String(it.qty);
-  const unitLabel = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty * it.pcs_per_case}pcs` : "PCS";
-  const itemNo    = (it: any, idx: number) => it.sku || it.barcode || String(idx + 1);
+  const discountPct = inv.discount;
+  const discountAmt = Math.round(inv.subtotal * discountPct / 100);
+  const items       = Array.isArray(inv.items) ? inv.items : [];
+  const qtyLabel    = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty} Case` : String(it.qty);
+  const unitLabel   = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty * it.pcs_per_case}pcs` : "PCS";
+  const itemNo      = (it: any, idx: number) => it.sku || it.barcode || String(idx + 1);
 
-  function doPrint() {
-    const w = window.open("", "_blank", "width=840,height=1160");
-    if (!w) { toast.error("Popup blocked — allow popups for this site"); return; }
-    const RPP = 20;
-    const filled = items.filter((i: any) => i.name);
-    const pages: any[][] = [];
-    for (let i = 0; i < filled.length; i += RPP) pages.push(filled.slice(i, i + RPP));
-    if (!pages.length) pages.push([]);
+  const w = window.open("", "_blank", "width=840,height=1160");
+  if (!w) { alert("Popup blocked — allow popups for this site"); return; }
 
-    const pagesHtml = pages.map((pg, pi) => {
-      const isLast   = pi === pages.length - 1;
-      const emptyRows = Math.max(0, RPP - pg.length);
-      return `<div class="inv-page">
-  <table class="inv-top"><tr>
-    <td class="co-text"><div class="co-name">${coName}</div><div class="co-addr">${coAddrLines.join("<br>")}</div></td>
-    <td class="stamp-cell">${stampB64 ? `<img src="${stampB64}" style="width:80px;height:auto;max-height:80px;object-fit:contain;opacity:.92" alt="stamp">` : ""}</td>
-  </tr></table>
-  <hr class="divider">
-  <table class="inv-cust"><tr>
-    <td class="cust-left">
-      <div class="cust-name">CUSTOMER:&nbsp;&nbsp;${billToName}</div>
-      <div class="cust-detail">DETAILS:&nbsp;&nbsp;${custAddrFull || "—"}</div>
-      ${billToTel ? `<div class="cust-detail">${billToTel}</div>` : ""}
-    </td>
-    <td class="meta-right">
-      <table class="meta-tbl">
-        <tr><td class="mk">DATE</td><td class="mv">${inv.date}</td></tr>
-        <tr><td class="mk">INVOICE NO:</td><td class="mv">${inv.invoice_no || "—"}</td></tr>
-      </table>
-    </td>
-  </tr></table>
-  ${pi === 0 ? `<div class="grand-banner">GRAND TOTAL :&nbsp;&nbsp;¥ ${fmt(inv.total)}</div>` : ""}
-  <div class="inv-title">INVOICE</div>
-  <table class="inv-table">
-    <colgroup><col style="width:34px"><col style="width:62px"><col><col style="width:58px"><col style="width:58px"><col style="width:84px"><col style="width:84px"></colgroup>
-    <thead><tr><th>S.NO</th><th>ITEM NO</th><th class="tleft">PRODUCT NAME</th><th>QNT</th><th>UNIT</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead>
-    <tbody>
-      ${pg.map((it: any, i: number) => `<tr>
-        <td class="tc">${pi * RPP + i + 1}</td>
-        <td class="tc mono">${itemNo(it, pi * RPP + i)}</td>
-        <td class="tname">${it.name}</td>
-        <td class="tc">${qtyLabel(it)}</td>
-        <td class="tc">${unitLabel(it)}</td>
-        <td class="tr2">¥${fmt(it.price)}</td>
-        <td class="tr2">¥${fmt(it.qty * it.price)}</td>
-      </tr>`).join("")}
-      ${Array(emptyRows).fill(`<tr class="erow"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
-    </tbody>
-  </table>
-  ${isLast ? `<table class="inv-foot"><tr>
-    <td class="bank">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</td>
-    <td class="tot-wrap"><table class="tot-tbl">
-      <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(inv.subtotal)}</td></tr>
-      ${discountAmt > 0 ? `<tr><td class="tl">DISCOUNT (${discountPct}%)</td><td class="tv" style="color:#e53e3e">−¥${fmt(discountAmt)}</td></tr>` : ""}
-      ${inv.tax_rate > 0 ? `<tr><td class="tl">TAX (${inv.tax_rate}%)</td><td class="tv">¥${fmt(inv.tax)}</td></tr>` : ""}
-      <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(inv.total)}</td></tr>
-    </table></td>
-  </tr></table>` : ""}
+  const RPP = 20;
+  const filled = items.filter((i: any) => i.name);
+  const pages: any[][] = [];
+  for (let i = 0; i < filled.length; i += RPP) pages.push(filled.slice(i, i + RPP));
+  if (!pages.length) pages.push([]);
+
+  const pagesHtml = pages.map((pg, pi) => {
+    const isLast    = pi === pages.length - 1;
+    const emptyRows = Math.max(0, RPP - pg.length);
+    return `<div class="inv-page">
+<table class="inv-top"><tr>
+  <td class="co-text"><div class="co-name">${coName}</div><div class="co-addr">${coAddrLines.join("<br>")}</div></td>
+  <td class="stamp-cell">${stampB64 ? `<img src="${stampB64}" style="width:80px;height:auto;max-height:80px;object-fit:contain;opacity:.92" alt="stamp">` : ""}</td>
+</tr></table>
+<hr class="divider">
+<table class="inv-cust"><tr>
+  <td class="cust-left">
+    <div class="cust-name">CUSTOMER:&nbsp;&nbsp;${billToName}</div>
+    <div class="cust-detail">DETAILS:&nbsp;&nbsp;${custAddrFull || "—"}</div>
+    ${billToTel ? `<div class="cust-detail">${billToTel}</div>` : ""}
+  </td>
+  <td class="meta-right">
+    <table class="meta-tbl">
+      <tr><td class="mk">DATE</td><td class="mv">${inv.date}</td></tr>
+      <tr><td class="mk">INVOICE NO:</td><td class="mv">${inv.invoice_no || "—"}</td></tr>
+    </table>
+  </td>
+</tr></table>
+${pi === 0 ? `<div class="grand-banner">GRAND TOTAL :&nbsp;&nbsp;¥ ${fmt(inv.total)}</div>` : ""}
+<div class="inv-title">INVOICE</div>
+<table class="inv-table">
+  <colgroup><col style="width:34px"><col style="width:62px"><col><col style="width:58px"><col style="width:58px"><col style="width:84px"><col style="width:84px"></colgroup>
+  <thead><tr><th>S.NO</th><th>ITEM NO</th><th class="tleft">PRODUCT NAME</th><th>QNT</th><th>UNIT</th><th>UNIT PRICE</th><th>AMOUNT</th></tr></thead>
+  <tbody>
+    ${pg.map((it: any, i: number) => `<tr>
+      <td class="tc">${pi * RPP + i + 1}</td>
+      <td class="tc mono">${itemNo(it, pi * RPP + i)}</td>
+      <td class="tname">${it.name}</td>
+      <td class="tc">${qtyLabel(it)}</td>
+      <td class="tc">${unitLabel(it)}</td>
+      <td class="tr2">¥${fmt(it.price)}</td>
+      <td class="tr2">¥${fmt(it.qty * it.price)}</td>
+    </tr>`).join("")}
+    ${Array(emptyRows).fill(`<tr class="erow"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
+  </tbody>
+</table>
+${isLast ? `<table class="inv-foot"><tr>
+  <td class="bank">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</td>
+  <td class="tot-wrap"><table class="tot-tbl">
+    <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(inv.subtotal)}</td></tr>
+    ${discountAmt > 0 ? `<tr><td class="tl">DISCOUNT (${discountPct}%)</td><td class="tv" style="color:#e53e3e">−¥${fmt(discountAmt)}</td></tr>` : ""}
+    ${inv.tax_rate > 0 ? `<tr><td class="tl">TAX (${inv.tax_rate}%)</td><td class="tv">¥${fmt(inv.tax)}</td></tr>` : ""}
+    <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(inv.total)}</td></tr>
+  </table></td>
+</tr></table>` : ""}
 </div>`;
-    }).join("");
+  }).join("");
 
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${inv.invoice_no || inv.id}</title>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${inv.invoice_no || inv.id}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;color:#111;background:#fff;padding:12px 14px}
@@ -175,13 +170,47 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 .tg{background:#1F4E79!important;color:#fff!important;font-weight:700;text-align:right;white-space:nowrap}
 .tgv{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
 </style></head><body>${pagesHtml}</body></html>`);
-    w.document.close();
-    const imgs = w.document.querySelectorAll("img");
-    if (!imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 250); return; }
-    let loaded = 0;
-    const tryPrint = () => { if (++loaded === imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 100); } };
-    imgs.forEach((img: any) => { if (img.complete) tryPrint(); else { img.onload = tryPrint; img.onerror = tryPrint; } });
-  }
+  w.document.close();
+  const imgs = w.document.querySelectorAll("img");
+  if (!imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 250); return; }
+  let loaded = 0;
+  const tryPrint = () => { if (++loaded === imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 100); } };
+  imgs.forEach((img: any) => { if (img.complete) tryPrint(); else { img.onload = tryPrint; img.onerror = tryPrint; } });
+}
+
+// ── Invoice Detail Modal ───────────────────────────────────────────────────────
+function InvoiceDetailModal({ inv, stores, customers, onClose }: {
+  inv: SavedInvoice; stores: BillingStore[]; customers: BillingCustomer[]; onClose: () => void;
+}) {
+  const nav      = useNavigate();
+  const stampB64 = localStorage.getItem("billing-stamp-b64") ?? "";
+
+  const issuingStore   = stores.find(s => s.id === inv.store_id) ?? null;
+  const billToStore    = stores.find(s => s.id === inv.bill_to_store_id) ?? null;
+  const billToCustomer = customers.find(c => c.id === inv.customer_id) ?? null;
+
+  const billToName = inv.bill_to_type === "customer"
+    ? (billToCustomer?.company || billToCustomer?.name || "—")
+    : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "—");
+  const billToAddr = inv.bill_to_type === "customer" ? (billToCustomer?.address ?? "") : (billToStore?.address ?? "");
+  const billToTel  = inv.bill_to_type === "customer" ? (billToCustomer?.tel ?? "")     : (billToStore?.tel ?? "");
+  const billToZip  = inv.bill_to_type === "store"    ? (billToStore?.zip ?? "")         : "";
+
+  const coName = issuingStore
+    ? `${issuingStore.name}${issuingStore.sub ? ` — ${issuingStore.sub}` : ""}`
+    : "CITY STAR 株式会社";
+  const coAddrLines = issuingStore
+    ? [issuingStore.zip ? `〒${issuingStore.zip}` : "", issuingStore.address ?? "", issuingStore.tel ? `TELL＝${issuingStore.tel}` : "", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"].filter(Boolean)
+    : ["東京都豊島区北大塚3-32-3-201", "TELL＝03-6903-6174", "FAX＝03-6903-6175", "MOBIL＝080-4243-8646", "T-5120901035433"];
+
+  const custAddrFull = [billToZip ? `〒${billToZip}` : "", billToAddr].filter(Boolean).join(" ");
+  const discountPct  = inv.discount;
+  const discountAmt  = Math.round(inv.subtotal * discountPct / 100);
+  const items        = Array.isArray(inv.items) ? inv.items : [];
+
+  const qtyLabel  = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty} Case` : String(it.qty);
+  const unitLabel = (it: any) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty * it.pcs_per_case}pcs` : "PCS";
+  const itemNo    = (it: any, idx: number) => it.sku || it.barcode || String(idx + 1);
 
   function loadInBilling() {
     localStorage.setItem("billing-reload-inv", JSON.stringify(inv));
@@ -309,7 +338,7 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
           </Button>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onClose}>Close</Button>
-            <Button className="gradient-primary text-primary-foreground border-0" onClick={doPrint}>
+            <Button className="gradient-primary text-primary-foreground border-0" onClick={() => printInvoice(inv, stores, customers)}>
               <Printer className="size-4 mr-2" /> Print / Save PDF
             </Button>
           </div>
@@ -326,9 +355,10 @@ interface EntityCardProps {
   expandedEntity: string | null; setExpandedEntity: (k: string | null) => void;
   expandedGroup: string | null;  setExpandedGroup:  (k: string | null) => void;
   onView: (inv: SavedInvoice) => void;
+  onPrint: (inv: SavedInvoice) => void;
 }
 
-function EntityCard({ entityKey, invs, label, isShop, stores, customers, expandedEntity, setExpandedEntity, expandedGroup, setExpandedGroup, onView }: EntityCardProps) {
+function EntityCard({ entityKey, invs, label, isShop, stores, customers, expandedEntity, setExpandedEntity, expandedGroup, setExpandedGroup, onView, onPrint }: EntityCardProps) {
   const totalAmt  = invs.reduce((s, i) => s + i.total, 0);
   const lastDate  = invs[0]?.date;
   const isExpanded = expandedEntity === entityKey;
@@ -390,27 +420,26 @@ function EntityCard({ entityKey, invs, label, isShop, stores, customers, expande
                           </div>
                           {/* Invoice rows */}
                           {weekInvs.map(inv => (
-                            <div key={inv.id} className="flex items-center gap-3 px-5 py-2.5 border-b border-border/20 hover:bg-accent/20 transition-colors group">
+                            <div key={inv.id} className="flex items-center gap-2 px-4 py-2.5 border-b border-border/20 hover:bg-accent/20 transition-colors">
                               <Receipt className="size-3.5 text-muted-foreground shrink-0" />
                               <div className="flex-1 min-w-0">
                                 <span className="font-mono text-xs font-semibold">{inv.invoice_no || "—"}</span>
                                 <span className="text-xs text-muted-foreground ml-2">{inv.date}</span>
+                                <span className="text-xs text-muted-foreground ml-2 hidden sm:inline">
+                                  {Array.isArray(inv.items) ? inv.items.length : 0} items
+                                </span>
                               </div>
-                              <span className="text-xs text-muted-foreground hidden sm:block">
-                                {Array.isArray(inv.items) ? inv.items.length : 0} items
-                              </span>
-                              <span className="font-semibold tabular-nums text-sm">¥{inv.total.toLocaleString()}</span>
-                              {/* Action buttons */}
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button size="icon" variant="ghost" className="size-7 rounded-lg"
-                                  title="View invoice" onClick={() => onView(inv)}>
-                                  <Eye className="size-3.5" />
-                                </Button>
-                                <Button size="icon" variant="ghost" className="size-7 rounded-lg"
-                                  title="Print / Save PDF" onClick={() => onView(inv)}>
-                                  <Printer className="size-3.5" />
-                                </Button>
-                              </div>
+                              <span className="font-semibold tabular-nums text-sm shrink-0">¥{inv.total.toLocaleString()}</span>
+                              <Button size="sm" variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1 shrink-0"
+                                onClick={() => onView(inv)}>
+                                <Eye className="size-3" /> View
+                              </Button>
+                              <Button size="sm" variant="outline"
+                                className="h-7 px-2.5 text-xs gap-1 shrink-0 border-primary/40 text-primary hover:bg-primary/10"
+                                onClick={() => onPrint(inv)}>
+                                <Printer className="size-3" /> PDF
+                              </Button>
                             </div>
                           ))}
                         </div>
@@ -572,6 +601,7 @@ function BillingHistoryPage() {
               expandedEntity={expandedEntity} setExpandedEntity={setExpandedEntity}
               expandedGroup={expandedGroup}   setExpandedGroup={setExpandedGroup}
               onView={setSelectedInv}
+              onPrint={inv => printInvoice(inv, stores, customers)}
             />
           ))}
         </div>
