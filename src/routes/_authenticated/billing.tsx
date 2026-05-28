@@ -65,11 +65,13 @@ function BillingPage() {
   });
   const { data: searchResults = [] } = useQuery({
     queryKey: ["billing-product-search", searchQ],
-    enabled: searchQ.trim().length >= 2,
+    enabled: searchQ.trim().length >= 1,
     queryFn: async () => {
       const q = searchQ.trim();
-      const { data } = await supabase.from("products").select("id, name, price, barcode, image_url, pcs_per_case")
-        .or(`name.ilike.%${q}%,barcode.eq.${q}`).limit(10);
+      const { data } = await supabase.from("products")
+        .select("id, name, price, barcode, sku, image_url, pcs_per_case")
+        .or(`name.ilike.%${q}%,barcode.ilike.%${q}%,sku.ilike.%${q}%`)
+        .limit(12);
       return data ?? [];
     },
   });
@@ -242,7 +244,12 @@ function BillingPage() {
                     {p.image_url
                       ? <img src={p.image_url} className="size-8 rounded object-cover shrink-0" />
                       : <div className="size-8 rounded bg-muted shrink-0 grid place-items-center"><Receipt className="size-3.5 text-muted-foreground" /></div>}
-                    <span className="flex-1 font-medium truncate">{p.name}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium truncate">{p.name}</div>
+                      {(p.sku || p.barcode) && (
+                        <div className="text-xs text-muted-foreground font-mono">{p.sku ?? p.barcode}</div>
+                      )}
+                    </div>
                     <span className="text-muted-foreground shrink-0">¥{(p.price ?? 0).toLocaleString()}</span>
                   </button>
                 ))}
