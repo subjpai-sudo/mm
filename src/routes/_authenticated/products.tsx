@@ -720,41 +720,35 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
               <span className="italic text-muted-foreground">Uncategorized</span>
             )}
           </div>
-          {Number(pcsPerCase) > 0 ? (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
-                <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+            <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
+          </div>
+          <div>
+            <Label>Pcs per box</Label>
+            <Input type="number" inputMode="numeric" placeholder="e.g. 48 (leave blank if not boxed)" value={pcsPerCase} onChange={e => setPcsPerCase(e.target.value)} />
+          </div>
+          <div>
+            <Label>Stock</Label>
+            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-1">
               <div>
-                <Label>Stock</Label>
-                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-1">
-                  <div>
-                    <Input type="number" inputMode="numeric" placeholder="Boxes" value={stockBoxes} onChange={e => setStockBoxes(e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground text-center mt-0.5">boxes × {pcsPerCase}</p>
-                  </div>
-                  <span className="text-muted-foreground font-medium">+</span>
-                  <div>
-                    <Input type="number" inputMode="numeric" placeholder="Pcs" value={stockPcs} onChange={e => setStockPcs(e.target.value)} />
-                    <p className="text-[10px] text-muted-foreground text-center mt-0.5">extra pcs</p>
-                  </div>
-                </div>
-                {(() => {
-                  const b = Number(stockBoxes) || 0;
-                  const p = Number(stockPcs) || 0;
-                  const ppc = Number(pcsPerCase);
-                  const total = b * ppc + p;
-                  return <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{b} boxes × {ppc} + {p} pcs = {total} total pcs</p>;
-                })()}
+                <Input type="number" inputMode="numeric" placeholder="Boxes" value={stockBoxes} onChange={e => setStockBoxes(e.target.value)} />
+                <p className="text-[10px] text-muted-foreground text-center mt-0.5">{Number(pcsPerCase) > 0 ? `boxes × ${pcsPerCase}` : "boxes"}</p>
               </div>
-            </>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
-              <div><Label>Stock</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
-              <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
+              <span className="text-muted-foreground font-medium">+</span>
+              <div>
+                <Input type="number" inputMode="numeric" placeholder="Pcs" value={stockPcs} onChange={e => setStockPcs(e.target.value)} />
+                <p className="text-[10px] text-muted-foreground text-center mt-0.5">extra pcs</p>
+              </div>
             </div>
-          )}
+            {Number(pcsPerCase) > 0 ? (() => {
+              const b = Number(stockBoxes) || 0;
+              const p = Number(stockPcs) || 0;
+              const ppc = Number(pcsPerCase);
+              const total = b * ppc + p;
+              return <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{b} boxes × {ppc} + {p} pcs = {total} total pcs</p>;
+            })() : <p className="text-[11px] text-muted-foreground mt-1">Set pcs per box above to use boxes, or enter pcs directly.</p>}
+          </div>
           <div className="grid grid-cols-[1fr_120px] gap-3">
             <div><Label>Size</Label><Input type="number" step="0.01" inputMode="decimal" placeholder="400" value={sizeNum} onChange={e => setSizeNum(e.target.value)} /></div>
             <div><Label>Unit</Label>
@@ -763,11 +757,6 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
                 <SelectContent>{SIZE_UNITS.map(u => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-          </div>
-          <div>
-            <Label>Pcs per box</Label>
-            <Input type="number" inputMode="numeric" placeholder="e.g. 24" value={pcsPerCase} onChange={e => setPcsPerCase(e.target.value)} />
-            <p className="text-[11px] text-muted-foreground mt-1">Used to convert boxes → pcs on stock in/out.</p>
           </div>
         </div>
         <DialogFooter>
@@ -778,9 +767,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
             size: sizeNum ? sizeNum : null,
             unit: sizeNum ? sizeUnit : null,
             price: Number(price),
-            stock: Number(pcsPerCase) > 0
-              ? Number(stockBoxes) * Number(pcsPerCase) + Number(stockPcs)
-              : Number(stock),
+            stock: Number(stockBoxes) * (Number(pcsPerCase) || 0) + Number(stockPcs),
             low_stock_threshold: Number(threshold),
             pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
           })}>Save changes</Button>
