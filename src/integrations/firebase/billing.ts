@@ -64,6 +64,13 @@ function snapToArray<T extends { id: string }>(snap: any): T[] {
   return Object.entries(val).map(([id, v]: any) => ({ id, ...v })) as T[];
 }
 
+/** Strip undefined/null values so Firebase never rejects the write */
+function clean(obj: Record<string, any>): Record<string, any> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined && v !== null)
+  );
+}
+
 // ── Stores ────────────────────────────────────────────────────────────────────
 export async function fbGetStores(): Promise<BillingStore[]> {
   const snap = await get(rpath("stores"));
@@ -118,17 +125,18 @@ export async function fbDeleteCustomer(id: string): Promise<void> {
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
 export async function fbSaveInvoice(inv: Omit<BillingInvoice, "id" | "created_at"> & { id?: string; created_at?: string }): Promise<BillingInvoice> {
-  if (inv.id) {
-    // Update existing
-    const { id, ...rest } = inv as BillingInvoice;
-    await set(rpath("invoices", id), { ...rest, updated_at: new Date().toISOString() });
-    return inv as BillingInvoice;
+  // Always strip id + undefined values before writing — Firebase rejects undefined
+  const { id: existingId, ...fields } = inv as any;
+  const data = clean(fields);
+
+  if (existingId) {
+    await set(rpath("invoices", existingId), { ...data, updated_at: new Date().toISOString() });
+    return { id: existingId, ...data } as BillingInvoice;
   }
-  // New invoice
+
   const newRef  = push(rpath("invoices"));
   const id      = newRef.key!;
-  const created = new Date().toISOString();
-  const payload = { ...inv, created_at: created };
+  const payload = { ...data, created_at: new Date().toISOString() };
   await set(newRef, payload);
   return { id, ...payload } as BillingInvoice;
 }

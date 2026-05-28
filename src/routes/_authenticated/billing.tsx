@@ -97,7 +97,7 @@ function BillingPage() {
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload = {
-        id: savedId ?? undefined,
+        ...(savedId ? { id: savedId } : {}),
         store_id: issuingStoreId || null,
         bill_to_type: billToType,
         bill_to_store_id: billToType === "store" ? billToStoreId || null : null,
@@ -105,7 +105,7 @@ function BillingPage() {
         invoice_no: invNo, date: invDate,
         items: items.map(({ key: _k, ...rest }) => rest),
         tax_rate: Number(taxRate), discount: discountPct,
-        subtotal, tax, total, created_by: user?.id ?? null,
+        subtotal, tax, total,
       };
       return fbSaveInvoice(payload) as Promise<SavedInvoice>;
     },
