@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo, useRef, useCallback } from "react";
+import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -9,18 +9,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Printer, Plus, Search, History, X, Receipt } from "lucide-react";
+import { Printer, Plus, Search, History, X, Receipt, Store, Truck, Settings, Pencil, Trash2, Upload } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/billing")({ component: BillingPage });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BillingStore { id: string; name: string; sub: string | null; address: string | null; tel: string | null; email: string | null; zip: string | null; }
+interface BillingCustomer { id: string; name: string; company: string | null; address: string | null; tel: string | null; email: string | null; notes: string | null; }
 interface InvoiceItem { key: string; product_id: string | null; name: string; qty: number; price: number; }
-interface SavedInvoice { id: string; store_id: string | null; invoice_no: string | null; date: string; items: any[]; tax_rate: number; subtotal: number; tax: number; total: number; created_at: string; }
+interface SavedInvoice { id: string; store_id: string | null; bill_to_type: string; bill_to_store_id: string | null; customer_id: string | null; invoice_no: string | null; date: string; items: any[]; tax_rate: number; discount: number; subtotal: number; tax: number; total: number; created_at: string; }
+type BillToType = "store" | "customer";
 
 const db = () => supabase as any;
 const uid = () => crypto.randomUUID();
@@ -31,48 +34,70 @@ function BillingPage() {
   const qc = useQueryClient();
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const [storeId, setStoreId] = useState("");
+  const [issuingStoreId, setIssuingStoreId] = useState("");
+  const [billToType, setBillToType] = useState<BillToType>("store");
+  const [billToStoreId, setBillToStoreId] = useState("");
+  const [customerId, setCustomerId] = useState("");
   const [invDate, setInvDate] = useState(today);
   const [invNo, setInvNo] = useState("INV-" + String(Date.now()).slice(-4));
   const [taxRate, setTaxRate] = useState("8");
+  const [discount, setDiscount] = useState("0");
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [searchQ, setSearchQ] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [manageStoresOpen, setManageStoresOpen] = useState(false);
+  const [manageCustomersOpen, setManageCustomersOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedId, setSavedId] = useState<string | null>(null);
 
   const { data: stores = [] } = useQuery<BillingStore[]>({
     queryKey: ["billing-stores"],
     queryFn: async () => (await db().from("billing_stores").select("*").order("sub")).data ?? [],
   });
-
+  const { data: customers = [] } = useQuery<BillingCustomer[]>({
+    queryKey: ["billing-customers"],
+    queryFn: async () => (await db().from("billing_customers").select("*").order("name")).data ?? [],
+  });
   const { data: history = [] } = useQuery<SavedInvoice[]>({
     queryKey: ["billing-invoices"],
     queryFn: async () => (await db().from("billing_invoices").select("*").order("created_at", { ascending: false }).limit(60)).data ?? [],
   });
-
   const { data: searchResults = [] } = useQuery({
     queryKey: ["billing-product-search", searchQ],
     enabled: searchQ.trim().length >= 2,
     queryFn: async () => {
       const q = searchQ.trim();
-      const { data } = await supabase
-        .from("products")
-        .select("id, name, price, barcode, image_url")
-        .or(`name.ilike.%${q}%,barcode.eq.${q}`)
-        .limit(10);
+      const { data } = await supabase.from("products").select("id, name, price, barcode, image_url")
+        .or(`name.ilike.%${q}%,barcode.eq.${q}`).limit(10);
       return data ?? [];
     },
   });
 
   const subtotal = useMemo(() => items.reduce((s, i) => s + i.qty * i.price, 0), [items]);
-  const tax = useMemo(() => Math.round(subtotal * (Number(taxRate) / 100)), [subtotal, taxRate]);
-  const total = subtotal + tax;
-  const selectedStore = stores.find(s => s.id === storeId) ?? null;
+  const discountAmt = useMemo(() => Math.max(0, Number(discount) || 0), [discount]);
+  const taxable = useMemo(() => Math.max(0, subtotal - discountAmt), [subtotal, discountAmt]);
+  const tax = useMemo(() => Math.round(taxable * (Number(taxRate) / 100)), [taxable, taxRate]);
+  const total = taxable + tax;
+
+  const issuingStore = stores.find(s => s.id === issuingStoreId) ?? null;
+  const billToStore = stores.find(s => s.id === billToStoreId) ?? null;
+  const billToCustomer = customers.find(c => c.id === customerId) ?? null;
+
+  const dirty = () => setSavedId(null);
 
   const saveMut = useMutation({
     mutationFn: async () => {
-      const payload = { store_id: storeId || null, invoice_no: invNo, date: invDate, items: items.map(({ key: _k, ...rest }) => rest), tax_rate: Number(taxRate), subtotal, tax, total, created_by: user?.id ?? null };
+      const payload = {
+        store_id: issuingStoreId || null,
+        bill_to_type: billToType,
+        bill_to_store_id: billToType === "store" ? billToStoreId || null : null,
+        customer_id: billToType === "customer" ? customerId || null : null,
+        invoice_no: invNo, date: invDate,
+        items: items.map(({ key: _k, ...rest }) => rest),
+        tax_rate: Number(taxRate), discount: discountAmt,
+        subtotal, tax, total, created_by: user?.id ?? null,
+      };
       if (savedId) {
         const { data } = await db().from("billing_invoices").update(payload).eq("id", savedId).select().single();
         return data as SavedInvoice;
@@ -85,24 +110,27 @@ function BillingPage() {
 
   const addProduct = useCallback((p: any) => {
     setItems(prev => [...prev, { key: uid(), product_id: p.id, name: p.name, qty: 1, price: p.price ?? 0 }]);
-    setSearchQ(""); setSearchOpen(false); setSavedId(null);
+    setSearchQ(""); setSearchOpen(false); dirty();
   }, []);
-
-  const removeItem = (key: string) => { setItems(p => p.filter(i => i.key !== key)); setSavedId(null); };
-
+  const removeItem = (key: string) => { setItems(p => p.filter(i => i.key !== key)); dirty(); };
   const updateItem = (key: string, field: "qty" | "price" | "name", val: string) => {
     setItems(p => p.map(i => i.key === key ? { ...i, [field]: field === "name" ? val : Math.max(0, Number(val) || 0) } : i));
-    setSavedId(null);
+    dirty();
   };
 
   function reset() {
-    setStoreId(""); setInvDate(today); setInvNo("INV-" + String(Date.now()).slice(-4));
-    setTaxRate("8"); setItems([]); setSavedId(null);
+    setIssuingStoreId(""); setBillToType("store"); setBillToStoreId(""); setCustomerId("");
+    setInvDate(today); setInvNo("INV-" + String(Date.now()).slice(-4));
+    setTaxRate("8"); setDiscount("0"); setItems([]); setSavedId(null);
   }
 
   function loadInvoice(inv: SavedInvoice) {
-    setStoreId(inv.store_id ?? ""); setInvDate(inv.date); setInvNo(inv.invoice_no ?? "");
-    setTaxRate(String(inv.tax_rate));
+    setIssuingStoreId(inv.store_id ?? "");
+    setBillToType((inv.bill_to_type as BillToType) ?? "store");
+    setBillToStoreId(inv.bill_to_store_id ?? "");
+    setCustomerId(inv.customer_id ?? "");
+    setInvDate(inv.date); setInvNo(inv.invoice_no ?? "");
+    setTaxRate(String(inv.tax_rate)); setDiscount(String(inv.discount ?? 0));
     setItems((Array.isArray(inv.items) ? inv.items : []).map((i: any) => ({ ...i, key: uid() })));
     setSavedId(inv.id);
   }
@@ -114,57 +142,91 @@ function BillingPage() {
 
   return (
     <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto">
-      <PageHeader eyebrow="Point of Sale" title="Billing" subtitle="Create invoices and print receipts for your shops." />
+      <div className="flex items-center justify-between mb-1">
+        <PageHeader eyebrow="Point of Sale" title="Billing" subtitle="Create invoices and print receipts." />
+        <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)} title="Stamp & settings">
+          <Settings className="size-4" />
+        </Button>
+      </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-5 items-start">
 
-        {/* ── New invoice ───────────────────────────────────────────────── */}
-        <Card className="card-elevated p-5">
-          {/* Store / Date / No */}
-          <div className="grid sm:grid-cols-[1fr_150px_150px] gap-3 mb-4">
+        {/* ── Invoice creation ─────────────────────────────────────────── */}
+        <Card className="card-elevated p-5 space-y-4">
+
+          {/* Issuing store + date + invoice no */}
+          <div className="grid sm:grid-cols-[1fr_150px_150px] gap-3">
             <div>
-              <Label className="upper-label mb-1.5 block">Store</Label>
-              <Select value={storeId} onValueChange={v => { setStoreId(v); setSavedId(null); }}>
-                <SelectTrigger><SelectValue placeholder="Select store…" /></SelectTrigger>
+              <Label className="upper-label mb-1.5 block">Our Store (FROM)</Label>
+              <Select value={issuingStoreId} onValueChange={v => { setIssuingStoreId(v); dirty(); }}>
+                <SelectTrigger><SelectValue placeholder="Select issuing store…" /></SelectTrigger>
                 <SelectContent>
-                  {stores.map(s => (
-                    <SelectItem key={s.id} value={s.id}>{s.name}{s.sub ? ` — ${s.sub}` : ""}</SelectItem>
-                  ))}
+                  {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}{s.sub ? ` — ${s.sub}` : ""}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
               <Label className="upper-label mb-1.5 block">Date</Label>
-              <Input type="date" value={invDate} onChange={e => { setInvDate(e.target.value); setSavedId(null); }} />
+              <Input type="date" value={invDate} onChange={e => { setInvDate(e.target.value); dirty(); }} />
             </div>
             <div>
               <Label className="upper-label mb-1.5 block">Invoice No.</Label>
-              <Input value={invNo} onChange={e => { setInvNo(e.target.value); setSavedId(null); }} />
+              <Input value={invNo} onChange={e => { setInvNo(e.target.value); dirty(); }} />
             </div>
           </div>
 
+          {/* Bill To */}
+          <div>
+            <Label className="upper-label mb-2 block">Bill To</Label>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["store", "customer"] as BillToType[]).map(t => (
+                <button key={t} onClick={() => { setBillToType(t); dirty(); }}
+                  className={cn("h-10 rounded-xl border flex items-center justify-center gap-2 text-sm font-semibold transition",
+                    billToType === t ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary/40 hover:bg-secondary")}>
+                  {t === "store" ? <Store className="size-4" /> : <Truck className="size-4" />}
+                  {t === "store" ? "Store / Shop" : "Customer / Delivery"}
+                </button>
+              ))}
+            </div>
+            {billToType === "store" ? (
+              <div className="flex gap-2">
+                <Select value={billToStoreId} onValueChange={v => { setBillToStoreId(v); dirty(); }}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select destination shop…" /></SelectTrigger>
+                  <SelectContent>
+                    {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}{s.sub ? ` — ${s.sub}` : ""}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" onClick={() => setManageStoresOpen(true)} title="Manage stores"><Pencil className="size-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => { setManageStoresOpen(true); }} title="Add store"><Plus className="size-4" /></Button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <Select value={customerId} onValueChange={v => { setCustomerId(v); dirty(); }}>
+                  <SelectTrigger className="flex-1"><SelectValue placeholder="Select customer…" /></SelectTrigger>
+                  <SelectContent>
+                    {customers.map(c => <SelectItem key={c.id} value={c.id}>{c.company ? `${c.company} — ${c.name}` : c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" onClick={() => setManageCustomersOpen(true)} title="Manage customers"><Pencil className="size-4" /></Button>
+                <Button variant="outline" size="icon" onClick={() => setManageCustomersOpen(true)} title="Add customer"><Plus className="size-4" /></Button>
+              </div>
+            )}
+          </div>
+
           {/* Product search */}
-          <div className="relative mb-4">
+          <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              className="pl-9"
-              placeholder="Search by product name or scan barcode…"
-              value={searchQ}
-              onChange={e => { setSearchQ(e.target.value); setSearchOpen(true); }}
-              onFocus={() => setSearchOpen(true)}
-              onBlur={() => setTimeout(() => setSearchOpen(false), 180)}
-            />
-            {searchOpen && searchResults.length > 0 && (
+            <Input className="pl-9" placeholder="Search product by name or scan barcode…"
+              value={searchQ} onChange={e => { setSearchQ(e.target.value); setSearchOpen(true); }}
+              onFocus={() => setSearchOpen(true)} onBlur={() => setTimeout(() => setSearchOpen(false), 180)} />
+            {searchOpen && (searchResults as any[]).length > 0 && (
               <div className="absolute z-50 w-full top-full mt-1 bg-popover border border-border rounded-lg shadow-xl overflow-hidden">
                 {(searchResults as any[]).map(p => (
-                  <button
-                    key={p.id}
-                    onMouseDown={() => addProduct(p)}
-                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent/50 flex items-center gap-3"
-                  >
+                  <button key={p.id} onMouseDown={() => addProduct(p)}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-accent/50 flex items-center gap-3">
                     {p.image_url
                       ? <img src={p.image_url} className="size-8 rounded object-cover shrink-0" />
-                      : <div className="size-8 rounded bg-muted shrink-0 flex items-center justify-center"><Receipt className="size-4 text-muted-foreground" /></div>}
+                      : <div className="size-8 rounded bg-muted shrink-0 grid place-items-center"><Receipt className="size-3.5 text-muted-foreground" /></div>}
                     <span className="flex-1 font-medium truncate">{p.name}</span>
                     <span className="text-muted-foreground shrink-0">¥{(p.price ?? 0).toLocaleString()}</span>
                   </button>
@@ -175,18 +237,18 @@ function BillingPage() {
 
           {/* Items table */}
           {items.length === 0 ? (
-            <div className="border border-dashed border-border rounded-lg py-14 text-center text-muted-foreground text-sm">
+            <div className="border border-dashed border-border rounded-lg py-12 text-center text-muted-foreground text-sm">
               Search a product above or add a manual row
             </div>
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden mb-3">
+            <div className="rounded-lg border border-border overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-muted/40">
                   <tr>
                     <th className="text-left px-3 py-2 text-muted-foreground font-medium text-xs w-8">#</th>
                     <th className="text-left px-3 py-2 text-muted-foreground font-medium text-xs">Product</th>
-                    <th className="text-right px-3 py-2 text-muted-foreground font-medium text-xs w-20">Qty</th>
-                    <th className="text-right px-3 py-2 text-muted-foreground font-medium text-xs w-28">Unit ¥</th>
+                    <th className="text-right px-2 py-2 text-muted-foreground font-medium text-xs w-20">Qty</th>
+                    <th className="text-right px-2 py-2 text-muted-foreground font-medium text-xs w-28">Unit ¥</th>
                     <th className="text-right px-3 py-2 text-muted-foreground font-medium text-xs w-24">Total</th>
                     <th className="w-8" />
                   </tr>
@@ -196,35 +258,20 @@ function BillingPage() {
                     <tr key={item.key} className="hover:bg-muted/20">
                       <td className="px-3 py-1.5 text-muted-foreground text-xs">{idx + 1}</td>
                       <td className="px-2 py-1">
-                        <Input
-                          className="h-7 text-sm border-0 bg-transparent px-1 focus-visible:ring-1"
-                          value={item.name}
-                          onChange={e => updateItem(item.key, "name", e.target.value)}
-                        />
+                        <Input className="h-7 text-sm border-0 bg-transparent px-1 focus-visible:ring-1" value={item.name}
+                          onChange={e => updateItem(item.key, "name", e.target.value)} />
                       </td>
                       <td className="px-2 py-1">
-                        <Input
-                          type="number" min={1}
-                          className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
-                          value={item.qty}
-                          onChange={e => updateItem(item.key, "qty", e.target.value)}
-                        />
+                        <Input type="number" min={1} className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
+                          value={item.qty} onChange={e => updateItem(item.key, "qty", e.target.value)} />
                       </td>
                       <td className="px-2 py-1">
-                        <Input
-                          type="number" min={0}
-                          className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
-                          value={item.price}
-                          onChange={e => updateItem(item.key, "price", e.target.value)}
-                        />
+                        <Input type="number" min={0} className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
+                          value={item.price} onChange={e => updateItem(item.key, "price", e.target.value)} />
                       </td>
-                      <td className="px-3 py-1.5 text-right font-medium tabular-nums">
-                        ¥{(item.qty * item.price).toLocaleString()}
-                      </td>
+                      <td className="px-3 py-1.5 text-right font-medium tabular-nums">¥{(item.qty * item.price).toLocaleString()}</td>
                       <td className="px-2 py-1.5">
-                        <button onClick={() => removeItem(item.key)} className="text-muted-foreground hover:text-destructive">
-                          <X className="size-4" />
-                        </button>
+                        <button onClick={() => removeItem(item.key)} className="text-muted-foreground hover:text-destructive"><X className="size-4" /></button>
                       </td>
                     </tr>
                   ))}
@@ -233,24 +280,29 @@ function BillingPage() {
             </div>
           )}
 
-          {/* Footer: actions + totals */}
-          <div className="flex items-end justify-between gap-4 mt-2 flex-wrap">
+          {/* Totals + actions */}
+          <div className="flex items-end justify-between gap-4 flex-wrap">
             <div className="flex gap-2">
               <Button variant="ghost" size="sm" onClick={reset}>Clear</Button>
-              <Button variant="outline" size="sm" onClick={() => { setItems(p => [...p, { key: uid(), product_id: null, name: "", qty: 1, price: 0 }]); setSavedId(null); }}>
+              <Button variant="outline" size="sm" onClick={() => { setItems(p => [...p, { key: uid(), product_id: null, name: "", qty: 1, price: 0 }]); dirty(); }}>
                 <Plus className="size-3.5 mr-1" /> Add row
               </Button>
             </div>
-
-            <div className="text-right space-y-1 min-w-[210px]">
+            <div className="text-right space-y-1 min-w-[220px]">
               <div className="flex justify-between gap-8 text-sm">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="tabular-nums">¥{subtotal.toLocaleString()}</span>
               </div>
               <div className="flex justify-between gap-4 text-sm items-center">
+                <span className="text-muted-foreground">Discount (¥)</span>
+                <Input type="number" min={0} className="h-6 w-28 text-xs text-right" value={discount}
+                  onChange={e => { setDiscount(e.target.value); dirty(); }} />
+              </div>
+              <div className="flex justify-between gap-4 text-sm items-center">
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground">Tax</span>
-                  <Input type="number" min={0} max={100} className="h-6 w-14 text-xs text-right" value={taxRate} onChange={e => setTaxRate(e.target.value)} />
+                  <Input type="number" min={0} max={100} className="h-6 w-14 text-xs text-right" value={taxRate}
+                    onChange={e => { setTaxRate(e.target.value); dirty(); }} />
                   <span className="text-muted-foreground text-xs">%</span>
                 </div>
                 <span className="tabular-nums">¥{tax.toLocaleString()}</span>
@@ -259,11 +311,8 @@ function BillingPage() {
                 <span>Total</span>
                 <span className="tabular-nums">¥{total.toLocaleString()}</span>
               </div>
-              <Button
-                className="gradient-primary text-primary-foreground border-0 w-full mt-2"
-                disabled={items.length === 0 || saveMut.isPending}
-                onClick={handlePrint}
-              >
+              <Button className="gradient-primary text-primary-foreground border-0 w-full mt-2"
+                disabled={items.length === 0 || saveMut.isPending} onClick={handlePrint}>
                 <Printer className="size-4 mr-2" />
                 {saveMut.isPending ? "Saving…" : "Print / Save Invoice"}
               </Button>
@@ -273,36 +322,32 @@ function BillingPage() {
 
         {/* ── Invoice history ───────────────────────────────────────────── */}
         <Card className="card-elevated p-5">
-          <div className="upper-label mb-3 flex items-center gap-1.5">
-            <History className="size-3.5" /> Invoice History
-          </div>
+          <div className="upper-label mb-3 flex items-center gap-1.5"><History className="size-3.5" /> Invoice History</div>
           {history.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-10">No invoices yet</p>
           ) : (
             <ScrollArea className="h-[calc(100vh-260px)] min-h-[300px]">
               <div className="space-y-2 pr-1">
                 {history.map(inv => {
-                  const st = stores.find(s => s.id === inv.store_id);
+                  const fromStore = stores.find(s => s.id === inv.store_id);
+                  const toStore = stores.find(s => s.id === inv.bill_to_store_id);
+                  const cust = customers.find(c => c.id === inv.customer_id);
+                  const toLabel = inv.bill_to_type === "customer"
+                    ? (cust?.company || cust?.name || "Customer")
+                    : (toStore ? `${toStore.name}${toStore.sub ? ` ${toStore.sub}` : ""}` : "—");
                   return (
-                    <button
-                      key={inv.id}
-                      onClick={() => loadInvoice(inv)}
-                      className={cn(
-                        "w-full text-left rounded-lg border border-border p-3 hover:bg-accent/40 transition-colors",
-                        savedId === inv.id && "border-primary/50 bg-primary/5"
-                      )}
-                    >
+                    <button key={inv.id} onClick={() => loadInvoice(inv)}
+                      className={cn("w-full text-left rounded-lg border border-border p-3 hover:bg-accent/40 transition-colors",
+                        savedId === inv.id && "border-primary/50 bg-primary/5")}>
                       <div className="flex justify-between items-center mb-0.5">
                         <span className="font-mono text-xs font-semibold">{inv.invoice_no || "—"}</span>
                         <span className="text-xs text-muted-foreground">{inv.date}</span>
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {st ? `${st.name}${st.sub ? ` — ${st.sub}` : ""}` : "No store"}
+                        {fromStore ? `${fromStore.sub ?? fromStore.name} → ` : ""}{toLabel}
                       </div>
                       <div className="flex justify-between items-center mt-1.5">
-                        <span className="text-xs text-muted-foreground">
-                          {Array.isArray(inv.items) ? inv.items.length : 0} items
-                        </span>
+                        <span className="text-xs text-muted-foreground">{Array.isArray(inv.items) ? inv.items.length : 0} items</span>
                         <span className="font-semibold tabular-nums">¥{inv.total.toLocaleString()}</span>
                       </div>
                     </button>
@@ -314,16 +359,17 @@ function BillingPage() {
         </Card>
       </div>
 
+      {/* Modals */}
+      {manageStoresOpen && <ManageStoresModal onClose={() => { setManageStoresOpen(false); qc.invalidateQueries({ queryKey: ["billing-stores"] }); }} />}
+      {manageCustomersOpen && <ManageCustomersModal onClose={() => { setManageCustomersOpen(false); qc.invalidateQueries({ queryKey: ["billing-customers"] }); }} />}
+      {settingsOpen && <BillingSettingsModal onClose={() => setSettingsOpen(false)} />}
       {printOpen && (
         <PrintModal
-          store={selectedStore}
-          invNo={invNo}
-          date={invDate}
-          items={items}
-          taxRate={Number(taxRate)}
-          subtotal={subtotal}
-          tax={tax}
-          total={total}
+          issuingStore={issuingStore} billToType={billToType}
+          billToStore={billToStore} billToCustomer={billToCustomer}
+          invNo={invNo} date={invDate} items={items}
+          taxRate={Number(taxRate)} discount={discountAmt}
+          subtotal={subtotal} tax={tax} total={total}
           onClose={() => setPrintOpen(false)}
         />
       )}
@@ -331,42 +377,248 @@ function BillingPage() {
   );
 }
 
-// ── Print Modal ───────────────────────────────────────────────────────────────
-function PrintModal({ store, invNo, date, items, taxRate, subtotal, tax, total, onClose }: {
-  store: BillingStore | null;
-  invNo: string; date: string;
-  items: InvoiceItem[];
-  taxRate: number; subtotal: number; tax: number; total: number;
+// ── Manage Stores Modal ────────────────────────────────────────────────────────
+function ManageStoresModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: stores = [] } = useQuery<BillingStore[]>({
+    queryKey: ["billing-stores"],
+    queryFn: async () => (await db().from("billing_stores").select("*").order("sub")).data ?? [],
+  });
+  const blank = (): Omit<BillingStore, "id"> => ({ name: "MM-MART", sub: "", address: "", tel: "", email: "", zip: "" });
+  const [form, setForm] = useState<Omit<BillingStore, "id"> | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!form) return;
+      if (editId) {
+        await db().from("billing_stores").update(form).eq("id", editId);
+      } else {
+        const id = form.sub ? form.sub.toLowerCase().replace(/\s+/g, "_") : uid();
+        await db().from("billing_stores").insert({ id, ...form });
+      }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-stores"] }); setForm(null); setEditId(null); toast.success("Store saved"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => { await db().from("billing_stores").delete().eq("id", id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-stores"] }); toast.success("Deleted"); },
+  });
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Manage Stores</DialogTitle></DialogHeader>
+        <div className="space-y-2">
+          {stores.map(s => (
+            <div key={s.id} className="flex items-center gap-2 p-3 border border-border rounded-lg">
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm">{s.name}{s.sub ? ` — ${s.sub}` : ""}</div>
+                <div className="text-xs text-muted-foreground truncate">{s.address || "—"} {s.tel ? `· Tel: ${s.tel}` : ""}</div>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => { setEditId(s.id); setForm({ name: s.name, sub: s.sub ?? "", address: s.address ?? "", tel: s.tel ?? "", email: s.email ?? "", zip: s.zip ?? "" }); }}><Pencil className="size-4" /></Button>
+              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this store?")) deleteMut.mutate(s.id); }}><Trash2 className="size-4" /></Button>
+            </div>
+          ))}
+        </div>
+        <Button variant="outline" className="w-full mt-2" onClick={() => { setEditId(null); setForm(blank()); }}>
+          <Plus className="size-4 mr-2" /> Add Store
+        </Button>
+        {form && (
+          <div className="mt-4 p-4 border border-border rounded-lg space-y-3 bg-muted/20">
+            <div className="text-sm font-semibold">{editId ? "Edit Store" : "Add Store"}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Name</Label><Input value={form.name} onChange={e => setForm(f => f ? { ...f, name: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">Branch / Sub</Label><Input value={form.sub ?? ""} onChange={e => setForm(f => f ? { ...f, sub: e.target.value } : f)} /></div>
+              <div className="col-span-2"><Label className="text-xs">Address</Label><Input value={form.address ?? ""} onChange={e => setForm(f => f ? { ...f, address: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">Tel</Label><Input value={form.tel ?? ""} onChange={e => setForm(f => f ? { ...f, tel: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">ZIP</Label><Input value={form.zip ?? ""} onChange={e => setForm(f => f ? { ...f, zip: e.target.value } : f)} /></div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setForm(null); setEditId(null); }}>Cancel</Button>
+              <Button className="gradient-primary text-primary-foreground border-0" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>Save</Button>
+            </div>
+          </div>
+        )}
+        <DialogFooter className="mt-2"><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Manage Customers Modal ────────────────────────────────────────────────────
+function ManageCustomersModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: customers = [] } = useQuery<BillingCustomer[]>({
+    queryKey: ["billing-customers"],
+    queryFn: async () => (await db().from("billing_customers").select("*").order("name")).data ?? [],
+  });
+  const blank = () => ({ name: "", company: "", address: "", tel: "", email: "", notes: "" });
+  const [form, setForm] = useState<Record<string, string> | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+
+  const saveMut = useMutation({
+    mutationFn: async () => {
+      if (!form) return;
+      const payload = { name: form.name, company: form.company || null, address: form.address || null, tel: form.tel || null, email: form.email || null, notes: form.notes || null };
+      if (editId) { await db().from("billing_customers").update(payload).eq("id", editId); }
+      else { await db().from("billing_customers").insert(payload); }
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-customers"] }); setForm(null); setEditId(null); toast.success("Customer saved"); },
+    onError: (e: any) => toast.error(e.message),
+  });
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => { await db().from("billing_customers").delete().eq("id", id); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-customers"] }); toast.success("Deleted"); },
+  });
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Manage Customers</DialogTitle></DialogHeader>
+        <div className="space-y-2">
+          {customers.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No customers yet</p>}
+          {customers.map(c => (
+            <div key={c.id} className="flex items-center gap-2 p-3 border border-border rounded-lg">
+              <div className="flex-1 min-w-0">
+                <div className="font-semibold text-sm">{c.company ? `${c.company} — ` : ""}{c.name}</div>
+                <div className="text-xs text-muted-foreground truncate">{c.address || "—"} {c.tel ? `· ${c.tel}` : ""}</div>
+              </div>
+              <Button size="icon" variant="ghost" onClick={() => { setEditId(c.id); setForm({ name: c.name, company: c.company ?? "", address: c.address ?? "", tel: c.tel ?? "", email: c.email ?? "", notes: c.notes ?? "" }); }}><Pencil className="size-4" /></Button>
+              <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this customer?")) deleteMut.mutate(c.id); }}><Trash2 className="size-4" /></Button>
+            </div>
+          ))}
+        </div>
+        <Button variant="outline" className="w-full mt-2" onClick={() => { setEditId(null); setForm(blank()); }}>
+          <Plus className="size-4 mr-2" /> Add Customer
+        </Button>
+        {form && (
+          <div className="mt-4 p-4 border border-border rounded-lg space-y-3 bg-muted/20">
+            <div className="text-sm font-semibold">{editId ? "Edit Customer" : "Add Customer"}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label className="text-xs">Name</Label><Input value={form.name} onChange={e => setForm(f => f ? { ...f, name: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">Company</Label><Input value={form.company} onChange={e => setForm(f => f ? { ...f, company: e.target.value } : f)} /></div>
+              <div className="col-span-2"><Label className="text-xs">Address</Label><Input value={form.address} onChange={e => setForm(f => f ? { ...f, address: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">Tel</Label><Input value={form.tel} onChange={e => setForm(f => f ? { ...f, tel: e.target.value } : f)} /></div>
+              <div><Label className="text-xs">Email</Label><Input value={form.email} onChange={e => setForm(f => f ? { ...f, email: e.target.value } : f)} /></div>
+              <div className="col-span-2"><Label className="text-xs">Notes</Label><Input value={form.notes} onChange={e => setForm(f => f ? { ...f, notes: e.target.value } : f)} /></div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => { setForm(null); setEditId(null); }}>Cancel</Button>
+              <Button className="gradient-primary text-primary-foreground border-0" onClick={() => saveMut.mutate()} disabled={!form.name || saveMut.isPending}>Save</Button>
+            </div>
+          </div>
+        )}
+        <DialogFooter className="mt-2"><Button variant="outline" onClick={onClose}>Close</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Billing Settings Modal ────────────────────────────────────────────────────
+function BillingSettingsModal({ onClose }: { onClose: () => void }) {
+  const [stampB64, setStampB64] = useState<string>(() => localStorage.getItem("billing-stamp-b64") ?? "");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const b64 = ev.target?.result as string;
+      setStampB64(b64);
+      localStorage.setItem("billing-stamp-b64", b64);
+      toast.success("Stamp saved");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearStamp() { setStampB64(""); localStorage.removeItem("billing-stamp-b64"); toast.success("Stamp removed"); }
+
+  return (
+    <Dialog open onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Billing Settings</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label className="text-sm font-semibold mb-2 block">Company Stamp / Seal</Label>
+            <p className="text-xs text-muted-foreground mb-3">Upload your stamp image. It will appear in the top-right of printed invoices. Saved in this browser.</p>
+            {stampB64 ? (
+              <div className="flex items-center gap-3">
+                <img src={stampB64} className="size-20 object-contain border border-border rounded-lg bg-white p-1" alt="Stamp" />
+                <div className="space-y-2">
+                  <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Upload className="size-3.5 mr-1.5" /> Replace</Button>
+                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive w-full" onClick={clearStamp}><Trash2 className="size-3.5 mr-1.5" /> Remove</Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()}>
+                <Upload className="size-4 mr-2" /> Upload Stamp Image
+              </Button>
+            )}
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+          </div>
+        </div>
+        <DialogFooter><Button className="gradient-primary text-primary-foreground border-0" onClick={onClose}>Done</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Print Modal ────────────────────────────────────────────────────────────────
+function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, invNo, date, items, taxRate, discount, subtotal, tax, total, onClose }: {
+  issuingStore: BillingStore | null;
+  billToType: BillToType;
+  billToStore: BillingStore | null;
+  billToCustomer: BillingCustomer | null;
+  invNo: string; date: string; items: InvoiceItem[];
+  taxRate: number; discount: number; subtotal: number; tax: number; total: number;
   onClose: () => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
+  const [stampB64] = useState<string>(() => localStorage.getItem("billing-stamp-b64") ?? "");
+  const discounted = subtotal - discount;
+
+  const billToName = billToType === "customer"
+    ? (billToCustomer?.company || billToCustomer?.name || "")
+    : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "");
+  const billToAddr = billToType === "customer" ? billToCustomer?.address : billToStore?.address;
+  const billToTel = billToType === "customer" ? billToCustomer?.tel : billToStore?.tel;
 
   function doPrint() {
     const html = previewRef.current?.innerHTML ?? "";
-    const w = window.open("", "_blank", "width=700,height=900");
+    const w = window.open("", "_blank", "width=760,height=960");
     if (!w) return;
     w.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8">
-<title>Invoice ${invNo}</title>
+<meta charset="utf-8"><title>Invoice ${invNo}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:24px;max-width:580px;margin:0 auto}
-.logo{text-align:center;font-size:24px;font-weight:900;letter-spacing:3px;margin-bottom:3px}
-.store-sub{text-align:center;font-size:13px;color:#444;margin-bottom:2px}
-.store-addr{text-align:center;font-size:11px;color:#777}
-.store-tel{text-align:center;font-size:11px;color:#777;margin-bottom:4px}
+body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:30px 36px;max-width:620px;margin:0 auto}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.from{flex:1}
+.company{font-size:22px;font-weight:900;letter-spacing:2px;margin-bottom:3px}
+.branch{font-size:13px;color:#444;margin-bottom:2px}
+.addr{font-size:11px;color:#777}
+.stamp{width:90px;height:90px;object-fit:contain;opacity:.9}
+.inv-title{font-size:28px;font-weight:900;letter-spacing:4px;color:#222;text-align:center;margin:14px 0 10px}
 hr{border:none;border-top:1px solid #d0d0d0;margin:10px 0}
-.meta{display:flex;justify-content:space-between;font-size:11px;margin-bottom:14px;color:#555}
+.meta{display:flex;justify-content:space-between;font-size:11px;margin-bottom:12px;color:#555}
 .meta b{color:#1a1a1a}
+.bill-to{background:#f8f8f8;border:1px solid #e8e8e8;border-radius:4px;padding:10px 14px;margin-bottom:14px}
+.bill-to .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:4px}
+.bill-to .name{font-weight:700;font-size:13px;margin-bottom:2px}
+.bill-to .detail{font-size:11px;color:#666}
 table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
-thead th{padding:5px 4px;border-bottom:2px solid #1a1a1a;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#444}
+thead th{padding:6px 4px;border-bottom:2px solid #1a1a1a;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#444}
 thead th.r{text-align:right}
 tbody td{padding:5px 4px;border-bottom:1px solid #efefef}
 tbody td.r{text-align:right}
-.totals{margin-left:auto;width:200px}
-.trow{display:flex;justify-content:space-between;padding:3px 0;font-size:12px;color:#444}
-.grand{font-weight:700;font-size:16px;color:#1a1a1a;border-top:2px solid #1a1a1a;padding-top:5px;margin-top:4px}
-.thanks{text-align:center;margin-top:22px;font-size:10px;color:#aaa}
+.totals{margin-left:auto;width:210px;border-top:1px solid #ddd;padding-top:8px}
+.trow{display:flex;justify-content:space-between;padding:2px 0;font-size:12px;color:#555}
+.disc{color:#e53e3e;font-weight:600}
+.grand{font-weight:900;font-size:16px;color:#1a1a1a;border-top:2px solid #1a1a1a;padding-top:6px;margin-top:5px}
+.footer{text-align:center;margin-top:28px;padding-top:14px;border-top:1px solid #eee;font-size:10px;color:#aaa}
 @media print{body{padding:8px}}
 </style>
 </head><body>${html}</body></html>`);
@@ -377,56 +629,72 @@ tbody td.r{text-align:right}
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Invoice Preview</DialogTitle>
-        </DialogHeader>
-
-        {/* Preview rendered in white */}
-        <div ref={previewRef} className="bg-white text-black rounded border border-border p-6 font-sans text-sm">
+        <DialogHeader><DialogTitle>Invoice Preview</DialogTitle></DialogHeader>
+        <div ref={previewRef} className="bg-white text-black rounded border border-border p-7 font-sans text-sm">
           {/* Header */}
-          <div className="logo">{store?.name ?? "MM-MART"}</div>
-          {store?.sub && <div className="store-sub">{store.sub}</div>}
-          {store?.address && <div className="store-addr">{store.address}</div>}
-          {store?.tel && <div className="store-tel">Tel: {store.tel}</div>}
-
-          <hr />
-
-          <div className="meta">
-            <div>Invoice No: <b>{invNo}</b></div>
-            <div>Date: <b>{date}</b></div>
-            {taxRate > 0 && <div>Tax: <b>{taxRate}%</b></div>}
+          <div className="header flex justify-between items-start mb-5">
+            <div className="from">
+              <div className="company font-black text-2xl tracking-widest">{issuingStore?.name ?? "MM-MART"}</div>
+              {issuingStore?.sub && <div className="branch text-sm text-gray-600">{issuingStore.sub}</div>}
+              {issuingStore?.address && <div className="addr text-xs text-gray-500 mt-0.5">{issuingStore.address}</div>}
+              {issuingStore?.tel && <div className="addr text-xs text-gray-500">Tel: {issuingStore.tel}</div>}
+            </div>
+            {stampB64 && <img src={stampB64} className="stamp w-20 h-20 object-contain opacity-90" alt="Stamp" />}
           </div>
 
-          <table>
+          <div className="inv-title text-center font-black text-3xl tracking-widest mb-3">INVOICE</div>
+          <hr />
+
+          <div className="meta flex justify-between text-xs mb-4">
+            <div>Invoice No: <b>{invNo}</b></div>
+            <div>Date: <b>{date}</b></div>
+          </div>
+
+          {/* Bill To */}
+          {(billToName || billToAddr) && (
+            <div className="bill-to bg-gray-50 border border-gray-200 rounded p-3 mb-4">
+              <div className="lbl text-xs text-gray-400 uppercase tracking-widest mb-1">Bill To</div>
+              {billToName && <div className="name font-bold text-sm">{billToName}</div>}
+              {billToAddr && <div className="detail text-xs text-gray-600 mt-0.5">{billToAddr}</div>}
+              {billToTel && <div className="detail text-xs text-gray-600">Tel: {billToTel}</div>}
+            </div>
+          )}
+
+          {/* Items */}
+          <table className="w-full border-collapse mb-3">
             <thead>
-              <tr>
-                <th style={{ width: 24 }}>#</th>
-                <th>Product</th>
-                <th className="r" style={{ width: 44 }}>Qty</th>
-                <th className="r" style={{ width: 80 }}>Unit ¥</th>
-                <th className="r" style={{ width: 80 }}>Total</th>
+              <tr className="border-b-2 border-gray-800">
+                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-7">#</th>
+                <th className="text-left py-1.5 text-xs uppercase tracking-wide pl-2">Product</th>
+                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-12">Qty</th>
+                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-24">Unit ¥</th>
+                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-24">Total</th>
               </tr>
             </thead>
             <tbody>
               {items.map((item, i) => (
-                <tr key={item.key}>
-                  <td style={{ color: "#888", fontSize: 11 }}>{i + 1}</td>
-                  <td>{item.name}</td>
-                  <td className="r">{item.qty}</td>
-                  <td className="r">¥{item.price.toLocaleString()}</td>
-                  <td className="r"><b>¥{(item.qty * item.price).toLocaleString()}</b></td>
+                <tr key={item.key} className="border-b border-gray-100">
+                  <td className="r text-right py-1.5 text-gray-400 text-xs">{i + 1}</td>
+                  <td className="py-1.5 pl-2">{item.name}</td>
+                  <td className="r text-right py-1.5">{item.qty}</td>
+                  <td className="r text-right py-1.5">¥{item.price.toLocaleString()}</td>
+                  <td className="r text-right py-1.5 font-semibold">¥{(item.qty * item.price).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          <div className="totals">
-            <div className="trow"><span>Subtotal</span><span>¥{subtotal.toLocaleString()}</span></div>
-            {taxRate > 0 && <div className="trow"><span>Tax ({taxRate}%)</span><span>¥{tax.toLocaleString()}</span></div>}
-            <div className="trow grand"><span>TOTAL</span><span>¥{total.toLocaleString()}</span></div>
+          {/* Totals */}
+          <div className="totals ml-auto w-52">
+            <div className="trow flex justify-between py-0.5 text-sm text-gray-600"><span>Subtotal</span><span>¥{subtotal.toLocaleString()}</span></div>
+            {discount > 0 && <div className="trow disc flex justify-between py-0.5 text-sm text-red-600 font-semibold"><span>Discount</span><span>−¥{discount.toLocaleString()}</span></div>}
+            {taxRate > 0 && <div className="trow flex justify-between py-0.5 text-sm text-gray-600"><span>Tax ({taxRate}%)</span><span>¥{tax.toLocaleString()}</span></div>}
+            <div className="grand flex justify-between py-1.5 font-black text-base border-t-2 border-gray-800 mt-1"><span>TOTAL</span><span>¥{total.toLocaleString()}</span></div>
           </div>
 
-          <div className="thanks">Thank you for your business!</div>
+          <div className="footer text-center mt-6 text-xs text-gray-400 border-t border-gray-100 pt-4">
+            Thank you for your business!
+          </div>
         </div>
 
         <div className="flex justify-end gap-2 mt-3">

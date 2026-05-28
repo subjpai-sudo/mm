@@ -7,14 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2, X } from "lucide-react";
+import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2, X, Plus } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
-import { SHOPS } from "@/lib/shops";
 import { displaySize, displayStock } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
@@ -55,6 +54,10 @@ function StockOut() {
   const [outPcs, setOutPcs] = useState("1");
   const [destKind, setDestKind] = useState<DestKind>("Delivery");
   const [shop, setShop] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [addingCustomer, setAddingCustomer] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustCompany, setNewCustCompany] = useState("");
   const [camOpen, setCamOpen] = useState(false);
   const [parent, setParent] = useState<any | null>(null);
   const [child, setChild] = useState<any | null>(null);
@@ -78,6 +81,24 @@ function StockOut() {
   const { data: categories = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
+  });
+  const { data: billingStores = [] } = useQuery<{ id: string; name: string; sub: string | null }[]>({
+    queryKey: ["billing-stores"],
+    queryFn: async () => ((await (supabase as any).from("billing_stores").select("id,name,sub").order("sub")).data ?? []),
+  });
+  const { data: billingCustomers = [] } = useQuery<{ id: string; name: string; company: string | null }[]>({
+    queryKey: ["billing-customers"],
+    queryFn: async () => ((await (supabase as any).from("billing_customers").select("id,name,company").order("name")).data ?? []),
+  });
+  const selectedCustomer = billingCustomers.find((c) => c.id === customerId) ?? null;
+  const addCustomerMut = useMutation({
+    mutationFn: async () => {
+      if (!newCustName.trim()) throw new Error("Name required");
+      const { data } = await (supabase as any).from("billing_customers").insert({ name: newCustName.trim(), company: newCustCompany.trim() || null }).select().single();
+      return data;
+    },
+    onSuccess: (d) => { setCustomerId(d.id); setAddingCustomer(false); setNewCustName(""); setNewCustCompany(""); toast.success("Customer added"); },
+    onError: (e: any) => toast.error(e.message),
   });
   const parents = categories.filter((c: any) => !c.parent_id);
   const children = parent ? categories.filter((c: any) => c.parent_id === parent.id) : [];
@@ -155,8 +176,8 @@ function StockOut() {
   const submitAll = useMutation({
     mutationFn: async () => {
       if (scanned.length === 0) throw new Error("Nothing scanned yet");
-      const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
-      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
+      const finalDestination = destKind === "Shops" ? (shop ?? "") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery");
+      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : `Delivery · ${finalDestination}`;
       const rows = scanned.map((r) => {
         const b = Math.max(0, Number(r.boxes) || 0);
         const p = Math.max(0, Number(r.qty) || 0);
@@ -206,8 +227,8 @@ function StockOut() {
       const actual = perBox > 0 ? b * perBox + p : p;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
-      const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
-      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
+      const finalDestination = destKind === "Shops" ? (shop ?? "") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery");
+      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : `Delivery · ${finalDestination}`;
       const parts = perBox > 0 && b > 0
         ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
         : `${actual} pcs`;
@@ -262,25 +283,65 @@ function StockOut() {
             <div>
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Choose shop</Label>
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
-                {SHOPS.map((s) => (
-                  <button key={s} type="button" onClick={() => setShop(s)}
-                    className={cn(
-                      "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
-                      shop === s
-                        ? "border-warning bg-warning text-warning-foreground shadow-sm"
-                        : "border-border bg-secondary/40 hover:bg-secondary",
-                    )}>
-                    {s}
-                  </button>
-                ))}
+                {billingStores.map((s) => {
+                  const label = s.sub || s.name;
+                  return (
+                    <button key={s.id} type="button" onClick={() => setShop(label)}
+                      className={cn(
+                        "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                        shop === label
+                          ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                          : "border-border bg-secondary/40 hover:bg-secondary",
+                      )}>
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               {!shop && <p className="text-[11px] text-warning mt-1.5 font-medium">Pick a shop before scanning.</p>}
+            </div>
+          )}
+          {destKind === "Delivery" && (
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground mb-2 block">Customer</Label>
+              <div className="flex gap-2 flex-wrap">
+                {billingCustomers.map((c) => {
+                  const label = c.company || c.name;
+                  return (
+                    <button key={c.id} type="button" onClick={() => setCustomerId(c.id)}
+                      className={cn(
+                        "h-10 px-4 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                        customerId === c.id
+                          ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                          : "border-border bg-secondary/40 hover:bg-secondary",
+                      )}>
+                      {label}
+                    </button>
+                  );
+                })}
+                <button type="button" onClick={() => setAddingCustomer(v => !v)}
+                  className="h-10 px-3 rounded-xl border border-dashed border-border bg-secondary/20 hover:bg-secondary text-sm text-muted-foreground transition flex items-center gap-1">
+                  <Plus className="size-3.5" /> Add customer
+                </button>
+              </div>
+              {addingCustomer && (
+                <div className="mt-2 p-3 rounded-xl border border-border bg-muted/20 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Name</Label><Input className="h-8 text-sm" value={newCustName} onChange={e => setNewCustName(e.target.value)} placeholder="Contact name" /></div>
+                    <div><Label className="text-xs">Company</Label><Input className="h-8 text-sm" value={newCustCompany} onChange={e => setNewCustCompany(e.target.value)} placeholder="Optional" /></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => setAddingCustomer(false)}>Cancel</Button>
+                    <Button size="sm" className="gradient-primary text-primary-foreground border-0" onClick={() => addCustomerMut.mutate()} disabled={!newCustName.trim() || addCustomerMut.isPending}>Save</Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {(destKind === "Delivery" || (destKind === "Shops" && shop)) && (
             <>
               <Button onClick={() => setCamOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
-                <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : "→ Delivery"}
+                <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : `→ ${selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery"}`}
               </Button>
               <div className="relative">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Or type SKU / product name to add</Label>
@@ -329,7 +390,7 @@ function StockOut() {
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-sm">Scanned items · {scanned.length}</div>
                 <div className="text-[11px] text-muted-foreground">
-                  → {destKind === "Shops" ? shop : "Delivery"} · set quantity then submit
+                  → {destKind === "Shops" ? (shop ?? "—") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery")} · set quantity then submit
                 </div>
               </div>
               <Button size="sm" variant="ghost" onClick={() => setScanned([])} className="text-muted-foreground">
@@ -509,7 +570,7 @@ function StockOut() {
                   Stock: <span className="font-bold">{displayStock(selected)}</span>
                 </div>
                 <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-semibold border border-border">
-                  → {destKind === "Shops" ? shop : "Delivery"}
+                  → {destKind === "Shops" ? (shop ?? "—") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery")}
                 </div>
               </div>
               <div className="p-4 sm:p-5 space-y-4">
