@@ -26,6 +26,7 @@ const NAV = [
   { id: "racks", to: "/racks", label: "Racks", icon: Warehouse },
   { id: "shops", to: "/shops", label: "Shops", icon: Store },
   { id: "billing", to: "/billing", label: "Billing", icon: Receipt },
+  { id: "billing-history", to: "/billing-history", label: "Inv. History", icon: ScrollText },
   { id: "order-request", to: "/order-request", label: "Order Request", icon: ShoppingCart },
   { id: "shipments", to: "/shipments", label: "Shipments", icon: PackageCheck },
   { id: "order-history", to: "/order-history", label: "Order History", icon: ClipboardList },

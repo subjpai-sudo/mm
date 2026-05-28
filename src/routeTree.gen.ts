@@ -28,6 +28,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
 import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
+import { Route as AuthenticatedBillingHistoryRouteImport } from './routes/_authenticated/billing-history'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as ApiPublicScanProductRouteImport } from './routes/api/public/scan-product'
@@ -134,6 +135,11 @@ const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBillingHistoryRoute = AuthenticatedBillingHistoryRouteImport.update({
+  id: '/billing-history',
+  path: '/billing-history',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -190,6 +196,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/billing': typeof AuthenticatedBillingRoute
+  '/billing-history': typeof AuthenticatedBillingHistoryRoute
   '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
   '/billing': typeof AuthenticatedBillingRoute
+  '/billing-history': typeof AuthenticatedBillingHistoryRoute
   '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -250,6 +258,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRoute
+  '/_authenticated/billing-history': typeof AuthenticatedBillingHistoryRoute
   '/_authenticated/backups': typeof AuthenticatedBackupsRoute
   '/_authenticated/change-pin': typeof AuthenticatedChangePinRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit'
     | '/billing'
+    | '/billing-history'
     | '/backups'
     | '/change-pin'
     | '/dashboard'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/audit'
     | '/billing'
+    | '/billing-history'
     | '/backups'
     | '/change-pin'
     | '/dashboard'
@@ -340,6 +351,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authenticated/audit'
     | '/_authenticated/billing'
+    | '/_authenticated/billing-history'
     | '/_authenticated/backups'
     | '/_authenticated/change-pin'
     | '/_authenticated/dashboard'
@@ -517,6 +529,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBillingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/billing-history': {
+      id: '/_authenticated/billing-history'
+      path: '/billing-history'
+      fullPath: '/billing-history'
+      preLoaderRoute: typeof AuthenticatedBillingHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/server-health': {
       id: '/api/public/server-health'
       path: '/api/public/server-health'
@@ -592,6 +611,7 @@ const AuthenticatedRacksRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
+  AuthenticatedBillingHistoryRoute: typeof AuthenticatedBillingHistoryRoute
   AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
   AuthenticatedChangePinRoute: typeof AuthenticatedChangePinRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -614,6 +634,7 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRoute,
+  AuthenticatedBillingHistoryRoute: AuthenticatedBillingHistoryRoute,
   AuthenticatedBackupsRoute: AuthenticatedBackupsRoute,
   AuthenticatedChangePinRoute: AuthenticatedChangePinRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,

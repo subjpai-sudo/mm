@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/billing")({ component: Bil
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface BillingStore { id: string; name: string; sub: string | null; address: string | null; tel: string | null; email: string | null; zip: string | null; }
 interface BillingCustomer { id: string; name: string; company: string | null; address: string | null; tel: string | null; email: string | null; notes: string | null; }
-interface InvoiceItem { key: string; product_id: string | null; name: string; qty: number; price: number; }
+interface InvoiceItem { key: string; product_id: string | null; name: string; qty: number; price: number; pcs_per_case?: number | null; }
 interface SavedInvoice { id: string; store_id: string | null; bill_to_type: string; bill_to_store_id: string | null; customer_id: string | null; invoice_no: string | null; date: string; items: any[]; tax_rate: number; discount: number; subtotal: number; tax: number; total: number; created_at: string; }
 type BillToType = "store" | "customer";
 
@@ -68,7 +68,7 @@ function BillingPage() {
     enabled: searchQ.trim().length >= 2,
     queryFn: async () => {
       const q = searchQ.trim();
-      const { data } = await supabase.from("products").select("id, name, price, barcode, image_url")
+      const { data } = await supabase.from("products").select("id, name, price, barcode, image_url, pcs_per_case")
         .or(`name.ilike.%${q}%,barcode.eq.${q}`).limit(10);
       return data ?? [];
     },
@@ -109,7 +109,7 @@ function BillingPage() {
   });
 
   const addProduct = useCallback((p: any) => {
-    setItems(prev => [...prev, { key: uid(), product_id: p.id, name: p.name, qty: 1, price: p.price ?? 0 }]);
+    setItems(prev => [...prev, { key: uid(), product_id: p.id, name: p.name, qty: 1, price: p.price ?? 0, pcs_per_case: p.pcs_per_case ?? null }]);
     setSearchQ(""); setSearchOpen(false); dirty();
   }, []);
   const removeItem = (key: string) => { setItems(p => p.filter(i => i.key !== key)); dirty(); };
@@ -144,9 +144,14 @@ function BillingPage() {
     <div className="p-3 sm:p-6 md:p-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-1">
         <PageHeader eyebrow="Point of Sale" title="Billing" subtitle="Create invoices and print receipts." />
-        <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)} title="Stamp & settings">
-          <Settings className="size-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/billing-history">
+            <Button variant="outline" size="icon" title="Invoice History"><History className="size-4" /></Button>
+          </Link>
+          <Button variant="outline" size="icon" onClick={() => setSettingsOpen(true)} title="Stamp & settings">
+            <Settings className="size-4" />
+          </Button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-[1fr_320px] gap-5 items-start">
@@ -264,6 +269,9 @@ function BillingPage() {
                       <td className="px-2 py-1">
                         <Input type="number" min={1} className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
                           value={item.qty} onChange={e => updateItem(item.key, "qty", e.target.value)} />
+                        {item.pcs_per_case && item.pcs_per_case > 1 && (
+                          <div className="text-xs text-muted-foreground text-right tabular-nums pr-1">{item.qty * item.pcs_per_case}pcs</div>
+                        )}
                       </td>
                       <td className="px-2 py-1">
                         <Input type="number" min={0} className="h-7 text-sm text-right border-0 bg-transparent px-1 focus-visible:ring-1 w-full"
@@ -576,124 +584,242 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
   taxRate: number; discount: number; subtotal: number; tax: number; total: number;
   onClose: () => void;
 }) {
-  const previewRef = useRef<HTMLDivElement>(null);
   const [stampB64] = useState<string>(() => localStorage.getItem("billing-stamp-b64") ?? "");
-  const discounted = subtotal - discount;
 
   const billToName = billToType === "customer"
     ? (billToCustomer?.company || billToCustomer?.name || "")
     : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "");
   const billToAddr = billToType === "customer" ? billToCustomer?.address : billToStore?.address;
   const billToTel = billToType === "customer" ? billToCustomer?.tel : billToStore?.tel;
+  const billToZip = billToType === "store" ? billToStore?.zip : null;
+
+  const fmt = (n: number) => n.toLocaleString("ja-JP");
+  const qtyLabel = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty}×${it.pcs_per_case}` : String(it.qty);
+  const unitLabel = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? "BOX" : "PCS";
+  const remarkLabel = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty * it.pcs_per_case}pcs` : "";
 
   function doPrint() {
-    const html = previewRef.current?.innerHTML ?? "";
-    const w = window.open("", "_blank", "width=760,height=960");
+    const w = window.open("", "_blank", "width=820,height=1100");
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head>
-<meta charset="utf-8"><title>Invoice ${invNo}</title>
-<style>
+    const ROWS_PER_PAGE = 17;
+    const filled = items.filter(i => i.name);
+    if (!filled.length) { toast.error("No items to print"); return; }
+    const pages: InvoiceItem[][] = [];
+    for (let i = 0; i < filled.length; i += ROWS_PER_PAGE) pages.push(filled.slice(i, i + ROWS_PER_PAGE));
+
+    const issuingName = `${issuingStore?.name ?? "MM-MART"}${issuingStore?.sub ? ` — ${issuingStore.sub}` : ""}`;
+    const addrParts = [issuingStore?.zip ? `〒${issuingStore.zip}` : "", issuingStore?.address ?? "", issuingStore?.tel ? `TEL: ${issuingStore.tel}` : ""].filter(Boolean);
+    const billAddrParts = [billToZip ? `〒${billToZip}` : "", billToAddr ?? "", billToTel ? `TEL：${billToTel}` : ""].filter(Boolean);
+
+    const pagesHtml = pages.map((pg, pi) => {
+      const isLast = pi === pages.length - 1;
+      const emptyRows = ROWS_PER_PAGE - pg.length;
+      return `<div class="inv-page">
+  <div class="inv-top">
+    <div class="inv-left">
+      <div class="store-name">${billToName || "—"}</div>
+      ${billAddrParts.length ? `<div class="store-addr">${billAddrParts.join("<br>")}</div>` : ""}
+    </div>
+    <div class="inv-right">
+      ${stampB64 ? `<img src="${stampB64}" class="stamp-img" alt="stamp">` : ""}
+      <div class="page-num">Page ${pi + 1} / ${pages.length}</div>
+      <div class="inv-date">DATE &nbsp; ${date}</div>
+      <div class="company">${issuingName}</div>
+      ${addrParts.length ? `<div class="company-addr">${addrParts.join("<br>")}</div>` : ""}
+      <div class="tax-num">${invNo || ""}</div>
+    </div>
+  </div>
+  ${pi === 0 ? `<div><span class="total-banner">TOTAL AMOUNT ¥ ${fmt(total)}</span></div>` : ""}
+  <table class="inv-table">
+    <thead><tr>
+      <th style="width:28px">NO</th>
+      <th class="left" style="width:55px">ITEM No</th>
+      <th class="left">Name of item</th>
+      <th style="width:48px">Qty</th>
+      <th style="width:34px">Unit</th>
+      <th style="width:70px">Unit Price</th>
+      <th style="width:70px">Amount</th>
+      <th style="width:52px">Remark</th>
+    </tr></thead>
+    <tbody>
+      ${pg.map((it, i) => `<tr>
+        <td class="ctr">${pi * ROWS_PER_PAGE + i + 1}</td>
+        <td class="ctr bold" style="font-family:monospace;font-size:9px">${it.product_id ? it.product_id.slice(0, 8) : ""}</td>
+        <td>${it.name}</td>
+        <td class="ctr">${qtyLabel(it)}</td>
+        <td class="ctr">${unitLabel(it)}</td>
+        <td class="rgt">¥${fmt(it.price)}</td>
+        <td class="rgt">¥${fmt(it.qty * it.price)}</td>
+        <td class="ctr" style="font-size:9px">${remarkLabel(it)}</td>
+      </tr>`).join("")}
+      ${Array(emptyRows).fill(`<tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
+    </tbody>
+  </table>
+  ${isLast ? `<div class="inv-footer">
+    <div class="bank-info">三菱UFJ銀行<br>大塚支店　普通 0340734<br>シテイースターカブシキカイシャ</div>
+    <table class="totals-tbl">
+      <tr><td class="lbl">AMOUNT</td><td class="val">¥${fmt(subtotal)}</td></tr>
+      ${discount > 0 ? `<tr><td class="lbl">Discount</td><td class="val" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
+      ${taxRate > 0 ? `<tr><td class="lbl">Tax (${taxRate}%)</td><td class="val">¥${fmt(tax)}</td></tr>` : ""}
+      <tr><td class="grand-lbl">TOTAL</td><td class="grand-val">¥${fmt(total)}</td></tr>
+    </table>
+  </div>` : ""}
+</div>`;
+    }).join("");
+
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${invNo}</title><style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;color:#1a1a1a;padding:30px 36px;max-width:620px;margin:0 auto}
-.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
-.from{flex:1}
-.company{font-size:22px;font-weight:900;letter-spacing:2px;margin-bottom:3px}
-.branch{font-size:13px;color:#444;margin-bottom:2px}
-.addr{font-size:11px;color:#777}
-.stamp{width:90px;height:90px;object-fit:contain;opacity:.9}
-.inv-title{font-size:28px;font-weight:900;letter-spacing:4px;color:#222;text-align:center;margin:14px 0 10px}
-hr{border:none;border-top:1px solid #d0d0d0;margin:10px 0}
-.meta{display:flex;justify-content:space-between;font-size:11px;margin-bottom:12px;color:#555}
-.meta b{color:#1a1a1a}
-.bill-to{background:#f8f8f8;border:1px solid #e8e8e8;border-radius:4px;padding:10px 14px;margin-bottom:14px}
-.bill-to .lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:4px}
-.bill-to .name{font-weight:700;font-size:13px;margin-bottom:2px}
-.bill-to .detail{font-size:11px;color:#666}
-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
-thead th{padding:6px 4px;border-bottom:2px solid #1a1a1a;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#444}
-thead th.r{text-align:right}
-tbody td{padding:5px 4px;border-bottom:1px solid #efefef}
-tbody td.r{text-align:right}
-.totals{margin-left:auto;width:210px;border-top:1px solid #ddd;padding-top:8px}
-.trow{display:flex;justify-content:space-between;padding:2px 0;font-size:12px;color:#555}
-.disc{color:#e53e3e;font-weight:600}
-.grand{font-weight:900;font-size:16px;color:#1a1a1a;border-top:2px solid #1a1a1a;padding-top:6px;margin-top:5px}
-.footer{text-align:center;margin-top:28px;padding-top:14px;border-top:1px solid #eee;font-size:10px;color:#aaa}
-@media print{body{padding:8px}}
-</style>
-</head><body>${html}</body></html>`);
+body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;background:#fff;padding:8px}
+@page{size:A4;margin:12mm 14mm}
+.inv-page{background:#fff;width:100%;page-break-after:always;padding:2px}
+.inv-page:last-child{page-break-after:avoid}
+.inv-top{display:grid;grid-template-columns:1fr auto;gap:8px;margin-bottom:4px;border-bottom:1px solid #555;padding-bottom:6px}
+.inv-left .store-name{font-size:18px;font-weight:700;color:#00B050;line-height:1.1}
+.inv-left .store-addr{font-size:10px;line-height:1.6;color:#333;margin-top:3px}
+.inv-right{text-align:right;position:relative;padding-right:8px;min-width:180px}
+.inv-right .page-num{font-size:10px;color:#555;margin-bottom:2px}
+.inv-right .inv-date{font-size:11px;font-weight:600;margin-bottom:2px}
+.inv-right .company{font-size:13px;font-weight:700;color:#222;margin-bottom:1px}
+.inv-right .company-addr{font-size:9.5px;line-height:1.55;color:#333}
+.inv-right .tax-num{font-size:9px;color:#555;margin-top:2px}
+.stamp-img{position:absolute;top:0;right:0;width:72px;height:62px;object-fit:contain;opacity:.92}
+.total-banner{background:#1F4E79;color:#fff;padding:3px 12px;font-size:12px;font-weight:700;display:inline-block;border-radius:3px;margin:4px 0 6px}
+.inv-table{width:100%;border-collapse:collapse;font-size:10px}
+.inv-table th{background:#1F4E79;color:#fff;padding:4px 6px;text-align:center;border:1px solid #1F4E79;font-size:10px;font-weight:600}
+.inv-table th.left{text-align:left}
+.inv-table td{padding:3px 6px;border:1px solid #bbb;height:18px;vertical-align:middle}
+.inv-table td.ctr{text-align:center}
+.inv-table td.rgt{text-align:right}
+.inv-table td.bold{font-weight:700}
+.inv-table .empty-row td{height:18px}
+.inv-footer{margin-top:5px;display:grid;grid-template-columns:1fr auto;align-items:end;gap:12px}
+.bank-info{font-size:9.5px;color:#333;line-height:1.7}
+.totals-tbl{border-collapse:collapse;font-size:11px}
+.totals-tbl td{padding:3px 10px;border:1px solid #bbb}
+.totals-tbl .lbl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
+.totals-tbl .val{text-align:right;min-width:80px;font-weight:600}
+.totals-tbl .grand-lbl{background:#1F4E79;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
+.totals-tbl .grand-val{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
+</style></head><body>${pagesHtml}</body></html>`);
     w.document.close();
-    setTimeout(() => { w.focus(); w.print(); }, 300);
+    const imgs = w.document.querySelectorAll("img");
+    if (!imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 200); return; }
+    let loaded = 0;
+    const tryPrint = () => { if (++loaded === imgs.length) { w.focus(); w.print(); } };
+    imgs.forEach(img => { if ((img as HTMLImageElement).complete) tryPrint(); else { img.onload = tryPrint; img.onerror = tryPrint; } });
   }
+
+  // ── inline styles matching the MM-MART template ──
+  const s = {
+    top: { display: "grid" as const, gridTemplateColumns: "1fr auto", gap: 8, marginBottom: 4, borderBottom: "1px solid #555", paddingBottom: 6 },
+    storeName: { fontSize: 18, fontWeight: 700, color: "#00B050", lineHeight: 1.1 },
+    storeAddr: { fontSize: 10, lineHeight: 1.6, color: "#333", marginTop: 3 },
+    right: { textAlign: "right" as const, position: "relative" as const, paddingRight: stampB64 ? 80 : 8, minWidth: 180 },
+    stampImg: { position: "absolute" as const, top: 0, right: 0, width: 72, height: 62, objectFit: "contain" as const, opacity: 0.92 },
+    company: { fontSize: 13, fontWeight: 700, color: "#222", marginBottom: 1 },
+    companyAddr: { fontSize: 9.5, lineHeight: 1.55, color: "#333" },
+    banner: { background: "#1F4E79", color: "#fff", padding: "3px 12px", fontSize: 12, fontWeight: 700, display: "inline-block", borderRadius: 3, margin: "4px 0 6px" },
+    th: { background: "#1F4E79", color: "#fff", padding: "4px 6px", textAlign: "center" as const, border: "1px solid #1F4E79", fontSize: 10, fontWeight: 600 },
+    thLeft: { background: "#1F4E79", color: "#fff", padding: "4px 6px", textAlign: "left" as const, border: "1px solid #1F4E79", fontSize: 10, fontWeight: 600 },
+    td: { padding: "3px 6px", border: "1px solid #bbb", height: 18, verticalAlign: "middle" as const },
+    tdCtr: { padding: "3px 6px", border: "1px solid #bbb", height: 18, verticalAlign: "middle" as const, textAlign: "center" as const },
+    tdRgt: { padding: "3px 6px", border: "1px solid #bbb", height: 18, verticalAlign: "middle" as const, textAlign: "right" as const },
+    lbl: { background: "#f0f0f0", fontWeight: 600, textAlign: "right" as const, padding: "3px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" as const },
+    val: { textAlign: "right" as const, minWidth: 80, fontWeight: 600, padding: "3px 10px", border: "1px solid #bbb" },
+    grandLbl: { background: "#1F4E79", color: "#fff", fontWeight: 700, textAlign: "right" as const, padding: "3px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" as const },
+    grandVal: { textAlign: "right" as const, fontWeight: 700, fontSize: 13, padding: "3px 10px", border: "1px solid #bbb", color: "#1F4E79" },
+  };
+
+  const filledItems = items.filter(i => i.name);
+  const emptyPad = Math.max(0, 8 - filledItems.length);
 
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Invoice Preview</DialogTitle></DialogHeader>
-        <div ref={previewRef} className="bg-white text-black rounded border border-border p-7 font-sans text-sm">
+
+        <div className="bg-white rounded border border-border p-5 text-black" style={{ fontFamily: "Arial,'Yu Gothic',sans-serif", fontSize: 11 }}>
           {/* Header */}
-          <div className="header flex justify-between items-start mb-5">
-            <div className="from">
-              <div className="company font-black text-2xl tracking-widest">{issuingStore?.name ?? "MM-MART"}</div>
-              {issuingStore?.sub && <div className="branch text-sm text-gray-600">{issuingStore.sub}</div>}
-              {issuingStore?.address && <div className="addr text-xs text-gray-500 mt-0.5">{issuingStore.address}</div>}
-              {issuingStore?.tel && <div className="addr text-xs text-gray-500">Tel: {issuingStore.tel}</div>}
+          <div style={s.top}>
+            <div>
+              <div style={s.storeName}>{billToName || "—"}</div>
+              {(billToAddr || billToTel) && (
+                <div style={s.storeAddr}>
+                  {billToZip && <>{`〒${billToZip}`}<br /></>}
+                  {billToAddr && <>{billToAddr}<br /></>}
+                  {billToTel && <>TEL：{billToTel}</>}
+                </div>
+              )}
             </div>
-            {stampB64 && <img src={stampB64} className="stamp w-20 h-20 object-contain opacity-90" alt="Stamp" />}
+            <div style={s.right}>
+              {stampB64 && <img src={stampB64} style={s.stampImg} alt="stamp" />}
+              <div style={{ fontSize: 10, color: "#555", marginBottom: 2 }}>Page 1 / 1</div>
+              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 2 }}>DATE &nbsp; {date}</div>
+              <div style={s.company}>{issuingStore?.name ?? "MM-MART"}{issuingStore?.sub ? ` — ${issuingStore.sub}` : ""}</div>
+              {issuingStore?.address && (
+                <div style={s.companyAddr}>
+                  {issuingStore.zip && <>{`〒${issuingStore.zip}`}<br /></>}
+                  {issuingStore.address}
+                  {issuingStore.tel && <><br />TEL: {issuingStore.tel}</>}
+                </div>
+              )}
+              <div style={{ fontSize: 9, color: "#555", marginTop: 2 }}>{invNo}</div>
+            </div>
           </div>
 
-          <div className="inv-title text-center font-black text-3xl tracking-widest mb-3">INVOICE</div>
-          <hr />
+          {/* Total banner */}
+          <div><span style={s.banner}>TOTAL AMOUNT ¥ {fmt(total)}</span></div>
 
-          <div className="meta flex justify-between text-xs mb-4">
-            <div>Invoice No: <b>{invNo}</b></div>
-            <div>Date: <b>{date}</b></div>
-          </div>
-
-          {/* Bill To */}
-          {(billToName || billToAddr) && (
-            <div className="bill-to bg-gray-50 border border-gray-200 rounded p-3 mb-4">
-              <div className="lbl text-xs text-gray-400 uppercase tracking-widest mb-1">Bill To</div>
-              {billToName && <div className="name font-bold text-sm">{billToName}</div>}
-              {billToAddr && <div className="detail text-xs text-gray-600 mt-0.5">{billToAddr}</div>}
-              {billToTel && <div className="detail text-xs text-gray-600">Tel: {billToTel}</div>}
-            </div>
-          )}
-
-          {/* Items */}
-          <table className="w-full border-collapse mb-3">
+          {/* Items table */}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
             <thead>
-              <tr className="border-b-2 border-gray-800">
-                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-7">#</th>
-                <th className="text-left py-1.5 text-xs uppercase tracking-wide pl-2">Product</th>
-                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-12">Qty</th>
-                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-24">Unit ¥</th>
-                <th className="r text-right py-1.5 text-xs uppercase tracking-wide w-24">Total</th>
+              <tr>
+                <th style={{ ...s.th, width: 28 }}>NO</th>
+                <th style={{ ...s.thLeft, width: 55 }}>ITEM No</th>
+                <th style={s.thLeft}>Name of item</th>
+                <th style={{ ...s.th, width: 48 }}>Qty</th>
+                <th style={{ ...s.th, width: 34 }}>Unit</th>
+                <th style={{ ...s.th, width: 70 }}>Unit Price</th>
+                <th style={{ ...s.th, width: 70 }}>Amount</th>
+                <th style={{ ...s.th, width: 52 }}>Remark</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item, i) => (
-                <tr key={item.key} className="border-b border-gray-100">
-                  <td className="r text-right py-1.5 text-gray-400 text-xs">{i + 1}</td>
-                  <td className="py-1.5 pl-2">{item.name}</td>
-                  <td className="r text-right py-1.5">{item.qty}</td>
-                  <td className="r text-right py-1.5">¥{item.price.toLocaleString()}</td>
-                  <td className="r text-right py-1.5 font-semibold">¥{(item.qty * item.price).toLocaleString()}</td>
+              {filledItems.map((it, i) => (
+                <tr key={it.key}>
+                  <td style={s.tdCtr}>{i + 1}</td>
+                  <td style={{ ...s.tdCtr, fontFamily: "monospace", fontWeight: 700, fontSize: 9 }}>{it.product_id ? it.product_id.slice(0, 8) : ""}</td>
+                  <td style={s.td}>{it.name}</td>
+                  <td style={s.tdCtr}>{qtyLabel(it)}</td>
+                  <td style={s.tdCtr}>{unitLabel(it)}</td>
+                  <td style={s.tdRgt}>¥{fmt(it.price)}</td>
+                  <td style={s.tdRgt}>¥{fmt(it.qty * it.price)}</td>
+                  <td style={{ ...s.tdCtr, fontSize: 9 }}>{remarkLabel(it)}</td>
+                </tr>
+              ))}
+              {Array.from({ length: emptyPad }).map((_, i) => (
+                <tr key={`e${i}`}>
+                  {Array.from({ length: 8 }).map((__, j) => <td key={j} style={s.td} />)}
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* Totals */}
-          <div className="totals ml-auto w-52">
-            <div className="trow flex justify-between py-0.5 text-sm text-gray-600"><span>Subtotal</span><span>¥{subtotal.toLocaleString()}</span></div>
-            {discount > 0 && <div className="trow disc flex justify-between py-0.5 text-sm text-red-600 font-semibold"><span>Discount</span><span>−¥{discount.toLocaleString()}</span></div>}
-            {taxRate > 0 && <div className="trow flex justify-between py-0.5 text-sm text-gray-600"><span>Tax ({taxRate}%)</span><span>¥{tax.toLocaleString()}</span></div>}
-            <div className="grand flex justify-between py-1.5 font-black text-base border-t-2 border-gray-800 mt-1"><span>TOTAL</span><span>¥{total.toLocaleString()}</span></div>
-          </div>
-
-          <div className="footer text-center mt-6 text-xs text-gray-400 border-t border-gray-100 pt-4">
-            Thank you for your business!
+          {/* Footer */}
+          <div style={{ marginTop: 5, display: "grid", gridTemplateColumns: "1fr auto", alignItems: "end", gap: 12 }}>
+            <div style={{ fontSize: 9.5, color: "#333", lineHeight: 1.7 }}>
+              三菱UFJ銀行<br />
+              大塚支店　普通 0340734<br />
+              シテイースターカブシキカイシャ
+            </div>
+            <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
+              <tbody>
+                <tr><td style={s.lbl}>AMOUNT</td><td style={s.val}>¥{fmt(subtotal)}</td></tr>
+                {discount > 0 && <tr><td style={s.lbl}>Discount</td><td style={{ ...s.val, color: "#e53e3e" }}>−¥{fmt(discount)}</td></tr>}
+                {taxRate > 0 && <tr><td style={s.lbl}>Tax ({taxRate}%)</td><td style={s.val}>¥{fmt(tax)}</td></tr>}
+                <tr><td style={s.grandLbl}>TOTAL</td><td style={s.grandVal}>¥{fmt(total)}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
