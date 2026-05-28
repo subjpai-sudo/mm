@@ -40,8 +40,8 @@ function StockIn() {
   const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [confirm, setConfirm] = useState<any | null>(null);
-  const [qty, setQty] = useState("1");
-  const [unit, setUnit] = useState<"pcs" | "boxes">("pcs");
+  const [boxQty, setBoxQty] = useState("0");
+  const [xPcs, setXPcs] = useState("1");
   const LOCATIONS = ["Kita Otsuka", "Kawaguchi"] as const;
   type Location = (typeof LOCATIONS)[number];
   const [location, setLocation] = useState<Location>("Kita Otsuka");
@@ -104,15 +104,17 @@ function StockIn() {
 
   const apply = useMutation({
     mutationFn: async () => {
-      const qtyNum = Number(qty);
-      if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
-      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 1;
-      const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
+      const b = Math.max(0, Number(boxQty) || 0);
+      const p = Math.max(0, Number(xPcs) || 0);
+      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
+      const actual = perBox > 0 ? b * perBox + p : p;
+      if (!actual || actual < 1) throw new Error("Enter a quantity");
+      const parts = perBox > 0 && b > 0
+        ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
+        : `${actual} pcs`;
       const { error } = await supabase.from("stock_movements").insert({
         product_id: confirm.id, type: "in", quantity: actual, user_id: user?.id,
-        reason: unit === "boxes"
-          ? `Stock In · ${qtyNum} boxes × ${perBox} = ${actual} pcs · ${location}`
-          : `Stock In · ${actual} pcs · ${location}`,
+        reason: `Stock In · ${parts} · ${location}`,
         destination: location,
       });
       if (error) throw error;
@@ -120,8 +122,12 @@ function StockIn() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
-      toast.success(`Added ${qty} ${unit} × ${confirm.name}`);
-      setConfirm(null); setQty("1");
+      const b = Number(boxQty) || 0;
+      const p = Number(xPcs) || 0;
+      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
+      const actual = perBox > 0 ? b * perBox + p : p;
+      toast.success(`Added ${actual} pcs to ${confirm.name}`);
+      setConfirm(null); setBoxQty("0"); setXPcs("1");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -351,7 +357,7 @@ function StockIn() {
         )}
       </div>
 
-      <Dialog open={!!confirm} onOpenChange={(v) => !v && setConfirm(null)}>
+      <Dialog open={!!confirm} onOpenChange={(v) => { if (!v) { setConfirm(null); setBoxQty("0"); setXPcs("1"); } }}>
         <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {confirm && (
             <>
@@ -374,31 +380,55 @@ function StockIn() {
                     {displaySize(confirm) && <span>Size <span className="font-semibold text-foreground">{displaySize(confirm)}</span></span>}
                   </div>
                 </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(["pcs", "boxes"] as const).map((u) => (
-                      <button key={u} type="button" onClick={() => setUnit(u)}
-                        className={cn(
-                          "h-11 rounded-xl border text-sm font-semibold capitalize transition active:scale-[0.98]",
-                          unit === u ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-secondary/40 hover:bg-secondary",
-                        )}>
-                        {u}
-                      </button>
-                    ))}
+                {confirm.pcs_per_case > 0 ? (
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Boxes <span className="text-foreground">× {confirm.pcs_per_case} pcs</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setBoxQty(String(Math.max(0, Number(boxQty) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={boxQty}
+                            onChange={e => setBoxQty(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setBoxQty(String(Number(boxQty) + 1))}>+</Button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Extra Pcs</div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setXPcs(String(Math.max(0, Number(xPcs) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={xPcs}
+                            onChange={e => setXPcs(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setXPcs(String(Number(xPcs) + 1))}>+</Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-sm font-semibold text-center">
+                      {Number(boxQty) > 0 && <span>{boxQty} box{Number(boxQty) !== 1 ? "es" : ""} × {confirm.pcs_per_case}</span>}
+                      {Number(boxQty) > 0 && Number(xPcs) > 0 && <span className="text-muted-foreground"> + </span>}
+                      {Number(xPcs) > 0 && <span>{xPcs} pcs</span>}
+                      <span className="text-success font-bold"> = {Number(boxQty) * confirm.pcs_per_case + Number(xPcs)} total pcs</span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add ({unit})</Label>
-                  <div className="mt-2 flex items-center gap-3">
-                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
-                    <Input type="number" inputMode="numeric" min="1" value={qty} onChange={e => setQty(e.target.value)}
-                      className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
-                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Number(qty) + 1))}>+</Button>
+                ) : (
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pieces to add</Label>
+                    <div className="mt-2 flex items-center gap-3">
+                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                        onClick={() => setXPcs(String(Math.max(1, Number(xPcs) - 1)))}>−</Button>
+                      <Input type="number" inputMode="numeric" min="1" value={xPcs} onChange={e => setXPcs(e.target.value)}
+                        className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
+                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                        onClick={() => setXPcs(String(Number(xPcs) + 1))}>+</Button>
+                    </div>
                   </div>
-                </div>
+                )}
                 <div>
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Location</Label>
                   <div className="mt-2 grid grid-cols-2 gap-2">
@@ -420,9 +450,13 @@ function StockIn() {
                   </div>
                 </div>
                 <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
-                  <Button variant="ghost" onClick={() => setConfirm(null)} className="flex-1 h-12">Cancel</Button>
+                  <Button variant="ghost" onClick={() => { setConfirm(null); setBoxQty("0"); setXPcs("1"); }} className="flex-1 h-12">Cancel</Button>
                   <Button className="gradient-success text-success-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
-                    OK · Add {qty} {unit}
+                    {(() => {
+                      const perBox = confirm.pcs_per_case ?? 0;
+                      const total = perBox > 0 ? Number(boxQty) * perBox + Number(xPcs) : Number(xPcs);
+                      return `OK · Add ${total} pcs`;
+                    })()}
                   </Button>
                 </DialogFooter>
               </div>

@@ -27,15 +27,14 @@ export const Route = createFileRoute("/_authenticated/stock-out")({
 
 const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
 type DestKind = (typeof TOP_DESTINATIONS)[number];
-type Unit = "pcs" | "boxes";
 type ScanRow = {
   productId: string;
   name: string;
   image_url: string | null;
   stock: number;
   barcode: string | null;
+  boxes: string;
   qty: string;
-  unit: Unit;
   pcsPerCase: number | null;
 };
 
@@ -52,8 +51,8 @@ function StockOut() {
   const [scan, setScan] = useState("");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<any | null>(null);
-  const [qty, setQty] = useState("1");
-  const [unit, setUnit] = useState<Unit>("pcs");
+  const [outBoxes, setOutBoxes] = useState("0");
+  const [outPcs, setOutPcs] = useState("1");
   const [destKind, setDestKind] = useState<DestKind>("Delivery");
   const [shop, setShop] = useState<string | null>(null);
   const [camOpen, setCamOpen] = useState(false);
@@ -112,7 +111,7 @@ function StockOut() {
         }
         return [...rows, {
           productId: p.id, name: p.name, image_url: p.image_url ?? null,
-          stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+          stock: p.stock, barcode: p.barcode ?? null, boxes: "0", qty: "1",
           pcsPerCase: p.pcs_per_case ?? null,
         }];
       });
@@ -140,7 +139,7 @@ function StockOut() {
       }
       return [...rows, {
         productId: p.id, name: p.name, image_url: p.image_url ?? null,
-        stock: p.stock, barcode: p.barcode ?? null, qty: "1", unit: "pcs",
+        stock: p.stock, barcode: p.barcode ?? null, boxes: "0", qty: "1",
         pcsPerCase: p.pcs_per_case ?? null,
       }];
     });
@@ -159,16 +158,18 @@ function StockOut() {
       const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
       const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
       const rows = scanned.map((r) => {
-        const q = Number(r.qty);
-        if (!q || q < 1) throw new Error(`Set quantity for ${r.name}`);
-        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 1;
-        const actual = r.unit === "boxes" ? q * perBox : q;
+        const b = Math.max(0, Number(r.boxes) || 0);
+        const p = Math.max(0, Number(r.qty) || 0);
+        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 0;
+        const actual = perBox > 0 ? b * perBox + p : p;
+        if (!actual || actual < 1) throw new Error(`Set quantity for ${r.name}`);
         if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
+        const parts = perBox > 0 && b > 0
+          ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
+          : `${actual} pcs`;
         return {
           product_id: r.productId, type: "out" as const, quantity: actual, user_id: user?.id,
-          reason: r.unit === "boxes"
-            ? `${reasonBase} · ${q} boxes × ${perBox} = ${actual} pcs`
-            : `${reasonBase} · ${actual} pcs`,
+          reason: `${reasonBase} · ${parts}`,
           destination: finalDestination,
         };
       });
@@ -199,29 +200,34 @@ function StockOut() {
 
   const apply = useMutation({
     mutationFn: async () => {
-      const qtyNum = Number(qty);
-      if (!qtyNum || qtyNum < 1) throw new Error("Enter a quantity");
-      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 1;
-      const actual = unit === "boxes" ? qtyNum * perBox : qtyNum;
+      const b = Math.max(0, Number(outBoxes) || 0);
+      const p = Math.max(0, Number(outPcs) || 0);
+      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
+      const actual = perBox > 0 ? b * perBox + p : p;
+      if (!actual || actual < 1) throw new Error("Enter a quantity");
       if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
       const finalDestination = destKind === "Shops" ? (shop ?? "") : "Delivery";
       const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : "Delivery";
+      const parts = perBox > 0 && b > 0
+        ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
+        : `${actual} pcs`;
       const { error } = await supabase.from("stock_movements").insert({
         product_id: selected.id, type: "out", quantity: actual, user_id: user?.id,
-        reason: unit === "boxes"
-          ? `${reasonBase} · ${qtyNum} boxes × ${perBox} = ${actual} pcs`
-          : `${reasonBase} · ${actual} pcs`,
+        reason: `${reasonBase} · ${parts}`,
         destination: finalDestination,
       });
       if (error) throw error;
-      // Fire-and-forget low-stock alert. Don't block the UX if it fails.
       checkLowStockAlert({ data: { productId: selected.id } }).catch(() => {});
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
-      toast.success(`Removed ${qty} ${unit} × ${selected.name}`);
-      setSelected(null); setQty("1");
+      const b = Number(outBoxes) || 0;
+      const p = Number(outPcs) || 0;
+      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
+      const actual = perBox > 0 ? b * perBox + p : p;
+      toast.success(`Removed ${actual} pcs from ${selected.name}`);
+      setSelected(null); setOutBoxes("0"); setOutPcs("1");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -343,17 +349,39 @@ function StockOut() {
                     <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {r.stock}</div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <button type="button" onClick={() => updateRow(r.productId, { unit: r.unit === "pcs" ? "boxes" : "pcs" })}
-                      className={cn("h-9 px-2 rounded-lg border text-[11px] font-bold uppercase",
-                        r.unit === "boxes" ? "bg-primary text-primary-foreground border-primary" : "bg-secondary border-border")}>
-                      {r.unit}
-                    </button>
-                    <Input
-                      type="number" inputMode="numeric" min="1" max={r.stock}
-                      value={r.qty}
-                      onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
-                      className="h-9 w-16 text-center font-bold"
-                    />
+                    {r.pcsPerCase && r.pcsPerCase > 0 ? (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <Input
+                            type="number" inputMode="numeric" min="0"
+                            value={r.boxes}
+                            onChange={(e) => updateRow(r.productId, { boxes: e.target.value })}
+                            className="h-9 w-12 text-center font-bold text-xs"
+                          />
+                          <span className="text-[9px] text-muted-foreground leading-none mt-0.5">box</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-bold">+</span>
+                        <div className="flex flex-col items-center">
+                          <Input
+                            type="number" inputMode="numeric" min="0"
+                            value={r.qty}
+                            onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
+                            className="h-9 w-12 text-center font-bold text-xs"
+                          />
+                          <span className="text-[9px] text-muted-foreground leading-none mt-0.5">pcs</span>
+                        </div>
+                        <span className="text-[9px] font-bold text-success whitespace-nowrap">
+                          ={Number(r.boxes) * r.pcsPerCase + Number(r.qty)}
+                        </span>
+                      </>
+                    ) : (
+                      <Input
+                        type="number" inputMode="numeric" min="1" max={r.stock}
+                        value={r.qty}
+                        onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
+                        className="h-9 w-16 text-center font-bold"
+                      />
+                    )}
                     <button type="button" onClick={() => removeRow(r.productId)}
                       className="size-9 rounded-lg bg-secondary text-muted-foreground hover:text-destructive grid place-items-center border border-border">
                       <X className="size-4" />
@@ -467,7 +495,7 @@ function StockOut() {
         )}
       </div>
 
-      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setQty("1"); } }}>
+      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setOutBoxes("0"); setOutPcs("1"); } }}>
         <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {selected && (
             <>
@@ -493,35 +521,63 @@ function StockOut() {
                     {displaySize(selected) && <span>Size <span className="font-semibold text-foreground">{displaySize(selected)}</span></span>}
                   </div>
                 </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Unit</Label>
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    {(["pcs", "boxes"] as Unit[]).map((u) => (
-                      <button key={u} type="button" onClick={() => setUnit(u)}
-                        className={cn(
-                          "h-11 rounded-xl border text-sm font-semibold capitalize transition active:scale-[0.98]",
-                          unit === u ? "border-primary bg-primary text-primary-foreground shadow-sm" : "border-border bg-secondary/40 hover:bg-secondary",
-                        )}>
-                        {u}
-                      </button>
-                    ))}
+                {selected.pcs_per_case > 0 ? (
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Boxes <span className="text-foreground">× {selected.pcs_per_case} pcs</span></div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setOutBoxes(String(Math.max(0, Number(outBoxes) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={outBoxes}
+                            onChange={e => setOutBoxes(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setOutBoxes(String(Number(outBoxes) + 1))}>+</Button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Extra Pcs</div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setOutPcs(String(Math.max(0, Number(outPcs) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={outPcs}
+                            onChange={e => setOutPcs(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setOutPcs(String(Number(outPcs) + 1))}>+</Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-warning/10 border border-warning/30 text-sm font-semibold text-center">
+                      {Number(outBoxes) > 0 && <span>{outBoxes} box{Number(outBoxes) !== 1 ? "es" : ""} × {selected.pcs_per_case}</span>}
+                      {Number(outBoxes) > 0 && Number(outPcs) > 0 && <span className="text-muted-foreground"> + </span>}
+                      {Number(outPcs) > 0 && <span>{outPcs} pcs</span>}
+                      <span className="text-warning font-bold"> = {Number(outBoxes) * selected.pcs_per_case + Number(outPcs)} total pcs</span>
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove ({unit})</Label>
-                  <div className="mt-2 flex items-center gap-3">
-                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Math.max(1, Number(qty) - 1)))}>−</Button>
-                    <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={qty} onChange={e => setQty(e.target.value)}
-                      className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
-                    <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                      onClick={() => setQty(String(Math.min(selected.stock, Number(qty) + 1)))}>+</Button>
+                ) : (
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pieces to remove</Label>
+                    <div className="mt-2 flex items-center gap-3">
+                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                        onClick={() => setOutPcs(String(Math.max(1, Number(outPcs) - 1)))}>−</Button>
+                      <Input type="number" inputMode="numeric" min="1" max={selected.stock} value={outPcs} onChange={e => setOutPcs(e.target.value)}
+                        className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
+                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
+                        onClick={() => setOutPcs(String(Math.min(selected.stock, Number(outPcs) + 1)))}>+</Button>
+                    </div>
                   </div>
-                </div>
+                )}
                 <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
-                  <Button variant="ghost" onClick={() => setSelected(null)} className="flex-1 h-12">Cancel</Button>
+                  <Button variant="ghost" onClick={() => { setSelected(null); setOutBoxes("0"); setOutPcs("1"); }} className="flex-1 h-12">Cancel</Button>
                   <Button className="gradient-warning text-warning-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
-                    OK · Remove {qty} {unit}
+                    {(() => {
+                      const perBox = selected.pcs_per_case ?? 0;
+                      const total = perBox > 0 ? Number(outBoxes) * perBox + Number(outPcs) : Number(outPcs);
+                      return `OK · Remove ${total} pcs`;
+                    })()}
                   </Button>
                 </DialogFooter>
               </div>
