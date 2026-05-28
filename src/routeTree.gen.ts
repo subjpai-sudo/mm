@@ -26,9 +26,9 @@ import { Route as AuthenticatedOrderHistoryRouteImport } from './routes/_authent
 import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated/health'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
-import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
-import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedBillingHistoryRouteImport } from './routes/_authenticated/billing-history'
+import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
+import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as ApiPublicScanProductRouteImport } from './routes/api/public/scan-product'
@@ -125,19 +125,20 @@ const AuthenticatedChangePinRoute = AuthenticatedChangePinRouteImport.update({
   path: '/change-pin',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBackupsRoute = AuthenticatedBackupsRouteImport.update({
-  id: '/backups',
-  path: '/backups',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedBillingHistoryRoute =
+  AuthenticatedBillingHistoryRouteImport.update({
+    id: '/billing-history',
+    path: '/billing-history',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
   id: '/billing',
   path: '/billing',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBillingHistoryRoute = AuthenticatedBillingHistoryRouteImport.update({
-  id: '/billing-history',
-  path: '/billing-history',
+const AuthenticatedBackupsRoute = AuthenticatedBackupsRouteImport.update({
+  id: '/backups',
+  path: '/backups',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
@@ -195,9 +196,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/backups': typeof AuthenticatedBackupsRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/billing-history': typeof AuthenticatedBillingHistoryRoute
-  '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/health': typeof AuthenticatedHealthRoute
@@ -225,9 +226,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/backups': typeof AuthenticatedBackupsRoute
   '/billing': typeof AuthenticatedBillingRoute
   '/billing-history': typeof AuthenticatedBillingHistoryRoute
-  '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/health': typeof AuthenticatedHealthRoute
@@ -257,9 +258,9 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/backups': typeof AuthenticatedBackupsRoute
   '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/billing-history': typeof AuthenticatedBillingHistoryRoute
-  '/_authenticated/backups': typeof AuthenticatedBackupsRoute
   '/_authenticated/change-pin': typeof AuthenticatedChangePinRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/health': typeof AuthenticatedHealthRoute
@@ -289,9 +290,9 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/backups'
     | '/billing'
     | '/billing-history'
-    | '/backups'
     | '/change-pin'
     | '/dashboard'
     | '/health'
@@ -319,9 +320,9 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/backups'
     | '/billing'
     | '/billing-history'
-    | '/backups'
     | '/change-pin'
     | '/dashboard'
     | '/health'
@@ -350,9 +351,9 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audit'
+    | '/_authenticated/backups'
     | '/_authenticated/billing'
     | '/_authenticated/billing-history'
-    | '/_authenticated/backups'
     | '/_authenticated/change-pin'
     | '/_authenticated/dashboard'
     | '/_authenticated/health'
@@ -508,6 +509,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChangePinRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/billing-history': {
+      id: '/_authenticated/billing-history'
+      path: '/billing-history'
+      fullPath: '/billing-history'
+      preLoaderRoute: typeof AuthenticatedBillingHistoryRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/billing': {
+      id: '/_authenticated/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedBillingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/backups': {
       id: '/_authenticated/backups'
       path: '/backups'
@@ -520,20 +535,6 @@ declare module '@tanstack/react-router' {
       path: '/audit'
       fullPath: '/audit'
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/billing': {
-      id: '/_authenticated/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof AuthenticatedBillingRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/billing-history': {
-      id: '/_authenticated/billing-history'
-      path: '/billing-history'
-      fullPath: '/billing-history'
-      preLoaderRoute: typeof AuthenticatedBillingHistoryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/api/public/server-health': {
@@ -610,9 +611,9 @@ const AuthenticatedRacksRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
   AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedBillingHistoryRoute: typeof AuthenticatedBillingHistoryRoute
-  AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
   AuthenticatedChangePinRoute: typeof AuthenticatedChangePinRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedHealthRoute: typeof AuthenticatedHealthRoute
@@ -633,9 +634,9 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedBackupsRoute: AuthenticatedBackupsRoute,
   AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedBillingHistoryRoute: AuthenticatedBillingHistoryRoute,
-  AuthenticatedBackupsRoute: AuthenticatedBackupsRoute,
   AuthenticatedChangePinRoute: AuthenticatedChangePinRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedHealthRoute: AuthenticatedHealthRoute,
