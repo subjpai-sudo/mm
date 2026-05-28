@@ -606,16 +606,28 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
   const billToName = billToType === "customer"
     ? (billToCustomer?.company || billToCustomer?.name || "")
     : (billToStore ? `${billToStore.name}${billToStore.sub ? ` — ${billToStore.sub}` : ""}` : "");
-  const billToAddr = billToType === "customer" ? billToCustomer?.address : billToStore?.address;
-  const billToTel  = billToType === "customer" ? billToCustomer?.tel    : billToStore?.tel;
+  const billToAddr = billToType === "customer" ? (billToCustomer?.address ?? "") : (billToStore?.address ?? "");
+  const billToTel  = billToType === "customer" ? (billToCustomer?.tel ?? "")    : (billToStore?.tel ?? "");
+  const billToZip  = billToType === "store" ? (billToStore?.zip ?? "") : "";
 
-  const fmt     = (n: number) => n.toLocaleString("ja-JP");
-  const qtyLabel = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty} Case` : String(it.qty);
+  const fmt       = (n: number) => n.toLocaleString("ja-JP");
+  const qtyLabel  = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty} Case` : String(it.qty);
   const unitLabel = (it: InvoiceItem) => it.pcs_per_case && it.pcs_per_case > 1 ? `${it.qty * it.pcs_per_case}pcs` : "PCS";
-  const itemNo   = (it: InvoiceItem, idx: number) => it.sku || it.barcode || String(idx + 1);
+  const itemNo    = (it: InvoiceItem, idx: number) => it.sku || it.barcode || String(idx + 1);
+
+  // Company with hardcoded fallback so it always shows even if no store selected
+  const coName = issuingStore
+    ? `${issuingStore.name}${issuingStore.sub ? ` — ${issuingStore.sub}` : ""}`
+    : "CITY STAR 株式会社";
+  const coAddrLines = issuingStore
+    ? [issuingStore.zip ? `〒${issuingStore.zip}` : "", issuingStore.address ?? "", issuingStore.tel ? `TELL＝${issuingStore.tel}` : ""].filter(Boolean)
+    : ["東京都豊島区北大塚3-32-3-201", "TELL＝03-6903-6174", "FAX＝03-6903-6175"];
+
+  // Customer address block
+  const custAddrFull = [billToZip ? `〒${billToZip}` : "", billToAddr].filter(Boolean).join(" ");
 
   function doPrint() {
-    const w = window.open("", "_blank", "width=820,height=1100");
+    const w = window.open("", "_blank", "width=840,height=1160");
     if (!w) { toast.error("Popup blocked — allow popups for this site then try again"); return; }
     const ROWS_PER_PAGE = 20;
     const filled = items.filter(i => i.name);
@@ -623,220 +635,225 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
     const pages: InvoiceItem[][] = [];
     for (let i = 0; i < filled.length; i += ROWS_PER_PAGE) pages.push(filled.slice(i, i + ROWS_PER_PAGE));
 
-    const issuingName = `${issuingStore?.name ?? "CITY STAR 株式会社"}${issuingStore?.sub ? ` — ${issuingStore.sub}` : ""}`;
-    const addrLines = [
-      issuingStore?.zip ? `〒${issuingStore.zip}` : null,
-      issuingStore?.address ?? null,
-      issuingStore?.tel ? `TELL＝${issuingStore.tel}` : null,
-    ].filter(Boolean) as string[];
-
     const pagesHtml = pages.map((pg, pi) => {
       const isLast = pi === pages.length - 1;
       const emptyRows = Math.max(0, ROWS_PER_PAGE - pg.length);
       return `<div class="inv-page">
-  <div class="inv-header">
-    <div></div>
-    <div class="inv-header-right">
-      ${stampB64 ? `<img src="${stampB64}" class="stamp-img" alt="stamp">` : ""}
-      <div class="co-name">${issuingName}</div>
-      ${addrLines.length ? `<div class="co-addr">${addrLines.join("<br>")}</div>` : ""}
+  <!-- ── Company header: text left of stamp ── -->
+  <div class="inv-top">
+    <div class="co-text">
+      <div class="co-name">${coName}</div>
+      <div class="co-addr">${coAddrLines.join("<br>")}</div>
     </div>
+    <div class="stamp-box">${stampB64 ? `<img src="${stampB64}" style="width:100%;height:100%;object-fit:contain;opacity:.92" alt="stamp">` : ""}</div>
   </div>
   <hr class="divider">
-  <div class="inv-customer">
+  <!-- ── Customer + invoice meta ── -->
+  <div class="inv-cust">
     <div>
-      <div class="cust-name">CUSTOMER: &nbsp;${billToName || "—"}</div>
-      ${billToAddr ? `<div class="cust-detail">DETAILS: &nbsp;${billToAddr}</div>` : ""}
-      ${billToTel  ? `<div class="cust-detail">${billToTel}</div>` : ""}
+      <div class="cust-name">CUSTOMER:&nbsp;&nbsp;${billToName || "—"}</div>
+      <div class="cust-detail">DETAILS:&nbsp;&nbsp;${custAddrFull || "—"}</div>
+      ${billToTel ? `<div class="cust-detail">${billToTel}</div>` : ""}
     </div>
-    <div class="cust-right">
-      <div><span class="mlbl">DATE</span> &nbsp; <span class="mval">${date}</span></div>
-      <div><span class="mlbl">INVOICE NO:</span> &nbsp; <span class="mval">${invNo || "—"}</span></div>
-      <div class="cod">CASH ON DELIVER</div>
-      <div><span class="mlbl">SHEET NO:</span> &nbsp; <span class="mval">${pi + 1}-${pages.length}</span></div>
+    <div class="meta-right">
+      <table class="meta-tbl">
+        <tr><td class="mk">DATE</td><td class="mv">${date}</td></tr>
+        <tr><td class="mk">INVOICE NO:</td><td class="mv">${invNo || "—"}</td></tr>
+        <tr><td class="mk" colspan="2" style="font-style:italic;color:#555;font-weight:400">CASH ON DELIVER</td></tr>
+        <tr><td class="mk">SHEET NO:</td><td class="mv">${pi + 1}-${pages.length}</td></tr>
+      </table>
     </div>
   </div>
-  ${pi === 0 ? `<div class="grand-total-banner">GRAND TOTAL : &nbsp;¥ ${fmt(total)}</div>` : ""}
-  <div class="invoice-title">INVOICE</div>
+  ${pi === 0 ? `<div class="grand-banner">GRAND TOTAL :&nbsp;&nbsp;¥ ${fmt(total)}</div>` : ""}
+  <div class="inv-title">INVOICE</div>
+  <!-- ── Items ── -->
   <table class="inv-table">
+    <colgroup>
+      <col style="width:34px"><col style="width:62px"><col><col style="width:58px"><col style="width:58px"><col style="width:84px"><col style="width:84px">
+    </colgroup>
     <thead><tr>
-      <th style="width:32px">S.NO</th>
-      <th style="width:60px">ITEM NO</th>
-      <th class="left">PRODUCT NAME</th>
-      <th style="width:56px">QNT</th>
-      <th style="width:56px">UNIT</th>
-      <th style="width:80px">UNIT PRICE</th>
-      <th style="width:80px">AMOUNT</th>
+      <th>S.NO</th><th>ITEM NO</th><th class="tleft">PRODUCT NAME</th><th>QNT</th><th>UNIT</th><th>UNIT PRICE</th><th>AMOUNT</th>
     </tr></thead>
     <tbody>
       ${pg.map((it, i) => `<tr>
-        <td class="ctr">${pi * ROWS_PER_PAGE + i + 1}</td>
-        <td class="ctr mono">${itemNo(it, pi * ROWS_PER_PAGE + i)}</td>
-        <td>${it.name}</td>
-        <td class="ctr">${qtyLabel(it)}</td>
-        <td class="ctr">${unitLabel(it)}</td>
-        <td class="rgt">¥${fmt(it.price)}</td>
-        <td class="rgt">¥${fmt(it.qty * it.price)}</td>
+        <td class="tc">${pi * ROWS_PER_PAGE + i + 1}</td>
+        <td class="tc mono">${itemNo(it, pi * ROWS_PER_PAGE + i)}</td>
+        <td class="tname">${it.name}</td>
+        <td class="tc">${qtyLabel(it)}</td>
+        <td class="tc">${unitLabel(it)}</td>
+        <td class="tr2">¥${fmt(it.price)}</td>
+        <td class="tr2">¥${fmt(it.qty * it.price)}</td>
       </tr>`).join("")}
-      ${Array(emptyRows).fill(`<tr class="empty-row"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
+      ${Array(emptyRows).fill(`<tr class="erow"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
     </tbody>
   </table>
-  ${isLast ? `<div class="inv-footer">
-    <div class="bank-info">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</div>
-    <table class="totals-tbl">
-      <tr><td class="lbl">TOTAL</td><td class="val">¥${fmt(subtotal)}</td></tr>
-      ${discount > 0 ? `<tr><td class="lbl">DISCOUNT</td><td class="val dsc">−¥${fmt(discount)}</td></tr>` : ""}
-      ${taxRate > 0 ? `<tr><td class="lbl">TAX (${taxRate}%)</td><td class="val">¥${fmt(tax)}</td></tr>` : ""}
-      <tr><td class="grand-lbl">TOTAL</td><td class="grand-val">¥${fmt(total)}</td></tr>
+  ${isLast ? `<div class="inv-foot">
+    <div class="bank">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</div>
+    <table class="tot-tbl">
+      <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(subtotal)}</td></tr>
+      ${discount > 0 ? `<tr><td class="tl">DISCOUNT</td><td class="tv" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
+      ${taxRate > 0 ? `<tr><td class="tl">TAX (${taxRate}%)</td><td class="tv">¥${fmt(tax)}</td></tr>` : ""}
+      <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(total)}</td></tr>
     </table>
   </div>` : ""}
 </div>`;
     }).join("");
 
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${invNo}</title><style>
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Invoice ${invNo}</title>
+<style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;background:#fff;padding:10px}
+body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;color:#111;background:#fff;padding:12px 14px}
 @page{size:A4;margin:10mm 12mm}
-.inv-page{background:#fff;width:100%;page-break-after:always;padding:2px}
+.inv-page{width:100%;page-break-after:always}
 .inv-page:last-child{page-break-after:avoid}
-.inv-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
-.inv-header-right{text-align:right;position:relative;padding-right:${stampB64 ? "90px" : "4px"};min-width:260px}
-.co-name{font-size:20px;font-weight:700;color:#1a1a1a;line-height:1.2}
-.co-addr{font-size:9.5px;color:#333;line-height:1.7;margin-top:3px}
-.stamp-img{position:absolute;top:0;right:0;width:80px;height:72px;object-fit:contain;opacity:.92}
-hr.divider{border:none;border-top:2px solid #1a1a1a;margin:6px 0}
-.inv-customer{display:grid;grid-template-columns:1fr auto;gap:12px;margin-bottom:6px}
-.cust-name{font-size:13px;font-weight:700;color:#1a1a1a;margin-bottom:3px}
+/* header: company text + stamp side by side */
+.inv-top{display:table;width:100%;margin-bottom:5px}
+.co-text{display:table-cell;text-align:right;vertical-align:top;padding-right:10px}
+.stamp-box{display:table-cell;width:82px;height:74px;vertical-align:top}
+.co-name{font-size:19px;font-weight:700;line-height:1.2}
+.co-addr{font-size:9.5px;line-height:1.7;margin-top:2px;color:#333}
+/* divider */
+hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
+/* customer block */
+.inv-cust{display:table;width:100%;margin-bottom:5px}
+.inv-cust>div:first-child{display:table-cell;vertical-align:top}
+.meta-right{display:table-cell;vertical-align:top;text-align:right;white-space:nowrap}
+.cust-name{font-size:13px;font-weight:700;margin-bottom:2px}
 .cust-detail{font-size:10px;color:#333;line-height:1.6}
-.cust-right{text-align:right;font-size:11px;line-height:2}
-.mlbl{font-weight:600}
-.mval{font-weight:700}
-.cod{font-size:10px;color:#555;font-style:italic}
-.grand-total-banner{background:#1F4E79;color:#fff;text-align:center;padding:5px 12px;font-size:13px;font-weight:700;letter-spacing:1px;margin:4px 0}
-.invoice-title{text-align:center;font-size:22px;font-weight:900;letter-spacing:6px;border-top:2px solid #1a1a1a;border-bottom:2px solid #1a1a1a;padding:5px 0;margin:6px 0}
-.inv-table{width:100%;border-collapse:collapse;font-size:10px}
-.inv-table th{background:#1F4E79;color:#fff;padding:5px 6px;text-align:center;border:1px solid #1F4E79;font-size:10px;font-weight:700}
-.inv-table th.left{text-align:left}
-.inv-table td{padding:3px 6px;border:1px solid #bbb;height:20px;vertical-align:middle}
-.inv-table td.ctr{text-align:center}
-.inv-table td.rgt{text-align:right}
-.inv-table td.mono{font-family:monospace;font-size:9px}
-.inv-table .empty-row td{height:20px}
-.inv-footer{margin-top:8px;display:grid;grid-template-columns:1fr auto;align-items:end;gap:12px}
-.bank-info{font-size:10px;color:#333;line-height:1.8}
-.totals-tbl{border-collapse:collapse;font-size:11px}
-.totals-tbl td{padding:4px 10px;border:1px solid #bbb}
-.totals-tbl .lbl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
-.totals-tbl .val{text-align:right;min-width:90px;font-weight:600}
-.totals-tbl .dsc{color:#e53e3e}
-.totals-tbl .grand-lbl{background:#1F4E79;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
-.totals-tbl .grand-val{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
+.meta-tbl{border-collapse:collapse;margin-left:auto;font-size:11px}
+.meta-tbl td{padding:1px 4px}
+.mk{font-weight:600;text-align:right;padding-right:6px}
+.mv{font-weight:700;text-align:left}
+/* grand total banner */
+.grand-banner{background:#1F4E79;color:#fff;text-align:center;padding:5px 10px;font-size:13px;font-weight:700;letter-spacing:1px;margin:4px 0}
+/* INVOICE title */
+.inv-title{text-align:center;font-size:22px;font-weight:900;letter-spacing:6px;border-top:2px solid #111;border-bottom:2px solid #111;padding:5px 0;margin:5px 0 6px}
+/* items table — fixed layout so columns never overflow */
+.inv-table{width:100%;border-collapse:collapse;font-size:10px;table-layout:fixed}
+.inv-table th{background:#1F4E79;color:#fff;padding:5px 4px;text-align:center;border:1px solid #1F4E79;font-weight:700;overflow:hidden}
+.inv-table th.tleft{text-align:left}
+.inv-table td{padding:3px 4px;border:1px solid #bbb;height:19px;vertical-align:middle;overflow:hidden}
+.inv-table td.tc{text-align:center}
+.inv-table td.tr2{text-align:right}
+.inv-table td.mono{font-family:monospace;font-size:9px;text-align:center}
+.inv-table td.tname{text-align:left;word-break:break-word;overflow-wrap:break-word;white-space:normal}
+.inv-table tr.erow td{height:19px}
+/* footer */
+.inv-foot{margin-top:8px;display:table;width:100%}
+.bank{display:table-cell;font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
+.tot-tbl{display:table-cell;text-align:right;vertical-align:bottom}
+.tot-tbl table,.tot-tbl{border-collapse:collapse;font-size:11px}
+table.tot-tbl{margin-left:auto}
+.tot-tbl td{padding:4px 10px;border:1px solid #bbb}
+.tl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
+.tv{text-align:right;min-width:92px;font-weight:600}
+.tg{background:#1F4E79;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
+.tgv{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
 </style></head><body>${pagesHtml}</body></html>`);
     w.document.close();
     const imgs = w.document.querySelectorAll("img");
-    if (!imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 200); return; }
+    if (!imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 250); return; }
     let loaded = 0;
-    const tryPrint = () => { if (++loaded === imgs.length) { w.focus(); w.print(); } };
+    const tryPrint = () => { if (++loaded === imgs.length) { setTimeout(() => { w.focus(); w.print(); }, 100); } };
     imgs.forEach(img => { if ((img as HTMLImageElement).complete) tryPrint(); else { img.onload = tryPrint; img.onerror = tryPrint; } });
   }
 
+  // ── Dialog preview ─────────────────────────────────────────────────────────
   const filledItems = items.filter(i => i.name);
-  const emptyPad   = Math.max(0, 8 - filledItems.length);
-  const issuingName = `${issuingStore?.name ?? "CITY STAR 株式会社"}${issuingStore?.sub ? ` — ${issuingStore.sub}` : ""}`;
+  const emptyPad    = Math.max(0, 8 - filledItems.length);
 
-  const TH = (props: React.ThHTMLAttributes<HTMLTableCellElement>) => (
-    <th style={{ background: "#1F4E79", color: "#fff", padding: "5px 6px", border: "1px solid #1F4E79", fontSize: 10, fontWeight: 700, ...props.style }} {...props} />
-  );
-  const TD = (props: React.TdHTMLAttributes<HTMLTableCellElement>) => (
-    <td style={{ padding: "3px 6px", border: "1px solid #bbb", height: 20, verticalAlign: "middle", ...props.style }} {...props} />
-  );
+  const thS: React.CSSProperties = { background: "#1F4E79", color: "#fff", padding: "5px 4px", border: "1px solid #1F4E79", fontSize: 10, fontWeight: 700, textAlign: "center" };
+  const tdS: React.CSSProperties = { padding: "3px 4px", border: "1px solid #bbb", height: 19, verticalAlign: "middle" };
 
   return (
     <Dialog open onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Invoice Preview</DialogTitle></DialogHeader>
 
-        <div className="bg-white rounded border border-border p-5 text-black" style={{ fontFamily: "Arial,'Yu Gothic',sans-serif", fontSize: 11 }}>
+        <div className="bg-white rounded border border-border p-4 text-black text-[11px]" style={{ fontFamily: "Arial,'Yu Gothic',sans-serif" }}>
 
-          {/* ── Company header (right-aligned) ── */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-            <div style={{ textAlign: "right", position: "relative", paddingRight: stampB64 ? 90 : 4, minWidth: 260 }}>
-              {stampB64 && <img src={stampB64} style={{ position: "absolute", top: 0, right: 0, width: 80, height: 72, objectFit: "contain", opacity: 0.92 }} alt="stamp" />}
-              <div style={{ fontSize: 20, fontWeight: 700, color: "#1a1a1a", lineHeight: 1.2 }}>{issuingName}</div>
-              {(issuingStore?.address || issuingStore?.tel) && (
-                <div style={{ fontSize: 9.5, color: "#333", lineHeight: 1.7, marginTop: 3 }}>
-                  {issuingStore.zip && <>{`〒${issuingStore.zip}`}<br /></>}
-                  {issuingStore.address && <>{issuingStore.address}<br /></>}
-                  {issuingStore.tel && <>TELL＝{issuingStore.tel}</>}
-                </div>
-              )}
+          {/* ── Company header: text + stamp side by side ── */}
+          <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", gap: 10, marginBottom: 5 }}>
+            <div style={{ textAlign: "right", flex: 1 }}>
+              <div style={{ fontSize: 19, fontWeight: 700, lineHeight: 1.2 }}>{coName}</div>
+              <div style={{ fontSize: 9.5, color: "#333", lineHeight: 1.7, marginTop: 2 }}>
+                {coAddrLines.map((l, i) => <span key={i}>{l}{i < coAddrLines.length - 1 && <br />}</span>)}
+              </div>
+            </div>
+            <div style={{ width: 82, height: 74, flexShrink: 0 }}>
+              {stampB64 && <img src={stampB64} style={{ width: "100%", height: "100%", objectFit: "contain", opacity: 0.92 }} alt="stamp" />}
             </div>
           </div>
 
           {/* ── Divider ── */}
-          <hr style={{ border: "none", borderTop: "2px solid #1a1a1a", margin: "6px 0" }} />
+          <hr style={{ border: "none", borderTop: "2px solid #111", margin: "5px 0" }} />
 
-          {/* ── Customer + meta ── */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, marginBottom: 6 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a", marginBottom: 3 }}>CUSTOMER: &nbsp;{billToName || "—"}</div>
-              {billToAddr && <div style={{ fontSize: 10, color: "#333", lineHeight: 1.6 }}>DETAILS: &nbsp;{billToAddr}</div>}
-              {billToTel  && <div style={{ fontSize: 10, color: "#333" }}>{billToTel}</div>}
+          {/* ── Customer + invoice meta ── */}
+          <div style={{ display: "flex", gap: 12, marginBottom: 5 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>CUSTOMER:&nbsp;&nbsp;{billToName || "—"}</div>
+              <div style={{ fontSize: 10, color: "#333", lineHeight: 1.6 }}>DETAILS:&nbsp;&nbsp;{custAddrFull || "—"}</div>
+              {billToTel && <div style={{ fontSize: 10, color: "#333" }}>{billToTel}</div>}
             </div>
-            <div style={{ textAlign: "right", fontSize: 11, lineHeight: 2 }}>
-              <div><span style={{ fontWeight: 600 }}>DATE</span> &nbsp; <span style={{ fontWeight: 700 }}>{date}</span></div>
-              <div><span style={{ fontWeight: 600 }}>INVOICE NO:</span> &nbsp; <span style={{ fontWeight: 700 }}>{invNo || "—"}</span></div>
-              <div style={{ fontSize: 10, color: "#555", fontStyle: "italic" }}>CASH ON DELIVER</div>
-              <div><span style={{ fontWeight: 600 }}>SHEET NO:</span> &nbsp; <span style={{ fontWeight: 700 }}>1-1</span></div>
+            <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+              <table style={{ borderCollapse: "collapse", fontSize: 11, marginLeft: "auto" }}>
+                <tbody>
+                  <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>DATE</td><td style={{ fontWeight: 700 }}>{date}</td></tr>
+                  <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>INVOICE NO:</td><td style={{ fontWeight: 700 }}>{invNo || "—"}</td></tr>
+                  <tr><td colSpan={2} style={{ fontStyle: "italic", color: "#555", fontSize: 10 }}>CASH ON DELIVER</td></tr>
+                  <tr><td style={{ fontWeight: 600, textAlign: "right", paddingRight: 6 }}>SHEET NO:</td><td style={{ fontWeight: 700 }}>1-1</td></tr>
+                </tbody>
+              </table>
             </div>
           </div>
 
           {/* ── Grand total banner ── */}
-          <div style={{ background: "#1F4E79", color: "#fff", textAlign: "center", padding: "5px 12px", fontSize: 13, fontWeight: 700, letterSpacing: 1, margin: "4px 0" }}>
-            GRAND TOTAL : &nbsp;¥ {fmt(total)}
+          <div style={{ background: "#1F4E79", color: "#fff", textAlign: "center", padding: "5px 10px", fontSize: 13, fontWeight: 700, letterSpacing: 1, margin: "4px 0" }}>
+            GRAND TOTAL :&nbsp;&nbsp;¥ {fmt(total)}
           </div>
 
           {/* ── INVOICE title ── */}
-          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 900, letterSpacing: 6, borderTop: "2px solid #1a1a1a", borderBottom: "2px solid #1a1a1a", padding: "5px 0", margin: "6px 0" }}>
+          <div style={{ textAlign: "center", fontSize: 22, fontWeight: 900, letterSpacing: 6, borderTop: "2px solid #111", borderBottom: "2px solid #111", padding: "5px 0", margin: "5px 0 6px" }}>
             INVOICE
           </div>
 
           {/* ── Items table ── */}
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 10, tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: 34 }} /><col style={{ width: 62 }} /><col /><col style={{ width: 58 }} /><col style={{ width: 58 }} /><col style={{ width: 84 }} /><col style={{ width: 84 }} />
+            </colgroup>
             <thead>
               <tr>
-                <TH style={{ width: 32, textAlign: "center" }}>S.NO</TH>
-                <TH style={{ width: 60, textAlign: "center" }}>ITEM NO</TH>
-                <TH style={{ textAlign: "left" }}>PRODUCT NAME</TH>
-                <TH style={{ width: 56, textAlign: "center" }}>QNT</TH>
-                <TH style={{ width: 56, textAlign: "center" }}>UNIT</TH>
-                <TH style={{ width: 80, textAlign: "center" }}>UNIT PRICE</TH>
-                <TH style={{ width: 80, textAlign: "center" }}>AMOUNT</TH>
+                <th style={thS}>S.NO</th>
+                <th style={thS}>ITEM NO</th>
+                <th style={{ ...thS, textAlign: "left" }}>PRODUCT NAME</th>
+                <th style={thS}>QNT</th>
+                <th style={thS}>UNIT</th>
+                <th style={thS}>UNIT PRICE</th>
+                <th style={thS}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
               {filledItems.map((it, i) => (
                 <tr key={it.key}>
-                  <TD style={{ textAlign: "center" }}>{i + 1}</TD>
-                  <TD style={{ textAlign: "center", fontFamily: "monospace", fontSize: 9 }}>{itemNo(it, i)}</TD>
-                  <TD>{it.name}</TD>
-                  <TD style={{ textAlign: "center" }}>{qtyLabel(it)}</TD>
-                  <TD style={{ textAlign: "center" }}>{unitLabel(it)}</TD>
-                  <TD style={{ textAlign: "right" }}>¥{fmt(it.price)}</TD>
-                  <TD style={{ textAlign: "right" }}>¥{fmt(it.qty * it.price)}</TD>
+                  <td style={{ ...tdS, textAlign: "center" }}>{i + 1}</td>
+                  <td style={{ ...tdS, textAlign: "center", fontFamily: "monospace", fontSize: 9 }}>{itemNo(it, i)}</td>
+                  <td style={{ ...tdS, wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>{it.name}</td>
+                  <td style={{ ...tdS, textAlign: "center" }}>{qtyLabel(it)}</td>
+                  <td style={{ ...tdS, textAlign: "center" }}>{unitLabel(it)}</td>
+                  <td style={{ ...tdS, textAlign: "right" }}>¥{fmt(it.price)}</td>
+                  <td style={{ ...tdS, textAlign: "right" }}>¥{fmt(it.qty * it.price)}</td>
                 </tr>
               ))}
               {Array.from({ length: emptyPad }).map((_, i) => (
-                <tr key={`e${i}`}>
-                  {Array.from({ length: 7 }).map((__, j) => <TD key={j} />)}
-                </tr>
+                <tr key={`e${i}`}>{Array.from({ length: 7 }).map((__, j) => <td key={j} style={tdS} />)}</tr>
               ))}
             </tbody>
           </table>
 
           {/* ── Footer ── */}
-          <div style={{ marginTop: 8, display: "grid", gridTemplateColumns: "1fr auto", alignItems: "end", gap: 12 }}>
-            <div style={{ fontSize: 10, color: "#333", lineHeight: 1.8 }}>
+          <div style={{ marginTop: 8, display: "flex", alignItems: "flex-end", gap: 12 }}>
+            <div style={{ flex: 1, fontSize: 10, color: "#333", lineHeight: 1.8 }}>
               シティスター株式会社<br />
               ゆうちょ銀行　11370-03843431<br />
               マツモト
@@ -845,18 +862,18 @@ hr.divider{border:none;border-top:2px solid #1a1a1a;margin:6px 0}
               <tbody>
                 <tr>
                   <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>TOTAL</td>
-                  <td style={{ textAlign: "right", minWidth: 90, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb" }}>¥{fmt(subtotal)}</td>
+                  <td style={{ textAlign: "right", minWidth: 92, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb" }}>¥{fmt(subtotal)}</td>
                 </tr>
                 {discount > 0 && (
                   <tr>
                     <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>DISCOUNT</td>
-                    <td style={{ textAlign: "right", minWidth: 90, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb", color: "#e53e3e" }}>−¥{fmt(discount)}</td>
+                    <td style={{ textAlign: "right", minWidth: 92, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb", color: "#e53e3e" }}>−¥{fmt(discount)}</td>
                   </tr>
                 )}
                 {taxRate > 0 && (
                   <tr>
                     <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>TAX ({taxRate}%)</td>
-                    <td style={{ textAlign: "right", minWidth: 90, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb" }}>¥{fmt(tax)}</td>
+                    <td style={{ textAlign: "right", minWidth: 92, fontWeight: 600, padding: "4px 10px", border: "1px solid #bbb" }}>¥{fmt(tax)}</td>
                   </tr>
                 )}
                 <tr>
