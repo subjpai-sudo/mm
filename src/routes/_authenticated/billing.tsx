@@ -639,29 +639,29 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
       const isLast = pi === pages.length - 1;
       const emptyRows = Math.max(0, ROWS_PER_PAGE - pg.length);
       return `<div class="inv-page">
-  <!-- ── Company header: text left of stamp ── -->
-  <div class="inv-top">
-    <div class="co-text">
+  <!-- ── Company header: real table so stamp never clips address text ── -->
+  <table class="inv-top"><tr>
+    <td class="co-text">
       <div class="co-name">${coName}</div>
       <div class="co-addr">${coAddrLines.join("<br>")}</div>
-    </div>
-    <div class="stamp-box">${stampB64 ? `<img src="${stampB64}" style="width:100%;height:100%;object-fit:contain;opacity:.92" alt="stamp">` : ""}</div>
-  </div>
+    </td>
+    <td class="stamp-cell">${stampB64 ? `<img src="${stampB64}" style="width:80px;height:auto;max-height:80px;object-fit:contain;opacity:.92" alt="stamp">` : ""}</td>
+  </tr></table>
   <hr class="divider">
   <!-- ── Customer + invoice meta ── -->
-  <div class="inv-cust">
-    <div>
+  <table class="inv-cust"><tr>
+    <td class="cust-left">
       <div class="cust-name">CUSTOMER:&nbsp;&nbsp;${billToName || "—"}</div>
       <div class="cust-detail">DETAILS:&nbsp;&nbsp;${custAddrFull || "—"}</div>
       ${billToTel ? `<div class="cust-detail">${billToTel}</div>` : ""}
-    </div>
-    <div class="meta-right">
+    </td>
+    <td class="meta-right">
       <table class="meta-tbl">
         <tr><td class="mk">DATE</td><td class="mv">${date}</td></tr>
         <tr><td class="mk">INVOICE NO:</td><td class="mv">${invNo || "—"}</td></tr>
       </table>
-    </div>
-  </div>
+    </td>
+  </tr></table>
   ${pi === 0 ? `<div class="grand-banner">GRAND TOTAL :&nbsp;&nbsp;¥ ${fmt(total)}</div>` : ""}
   <div class="inv-title">INVOICE</div>
   <!-- ── Items ── -->
@@ -685,15 +685,17 @@ function PrintModal({ issuingStore, billToType, billToStore, billToCustomer, inv
       ${Array(emptyRows).fill(`<tr class="erow"><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`).join("")}
     </tbody>
   </table>
-  ${isLast ? `<div class="inv-foot">
-    <div class="bank">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</div>
-    <table class="tot-tbl">
-      <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(subtotal)}</td></tr>
-      ${discount > 0 ? `<tr><td class="tl">DISCOUNT</td><td class="tv" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
-      ${taxRate > 0 ? `<tr><td class="tl">TAX (${taxRate}%)</td><td class="tv">¥${fmt(tax)}</td></tr>` : ""}
-      <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(total)}</td></tr>
-    </table>
-  </div>` : ""}
+  ${isLast ? `<table class="inv-foot"><tr>
+    <td class="bank">シティスター株式会社<br>ゆうちょ銀行　11370-03843431<br>マツモト</td>
+    <td class="tot-wrap">
+      <table class="tot-tbl">
+        <tr><td class="tl">TOTAL</td><td class="tv">¥${fmt(subtotal)}</td></tr>
+        ${discount > 0 ? `<tr><td class="tl">DISCOUNT</td><td class="tv" style="color:#e53e3e">−¥${fmt(discount)}</td></tr>` : ""}
+        ${taxRate > 0 ? `<tr><td class="tl">TAX (${taxRate}%)</td><td class="tv">¥${fmt(tax)}</td></tr>` : ""}
+        <tr><td class="tg">TOTAL</td><td class="tgv">¥${fmt(total)}</td></tr>
+      </table>
+    </td>
+  </tr></table>` : ""}
 </div>`;
     }).join("");
 
@@ -704,18 +706,18 @@ body{font-family:Arial,'Yu Gothic','游ゴシック',sans-serif;font-size:11px;c
 @page{size:A4;margin:10mm 12mm}
 .inv-page{width:100%;page-break-after:always}
 .inv-page:last-child{page-break-after:avoid}
-/* header: company text + stamp side by side */
-.inv-top{display:table;width:100%;margin-bottom:5px}
-.co-text{display:table-cell;text-align:right;vertical-align:top;padding-right:10px}
-.stamp-box{display:table-cell;width:82px;height:74px;vertical-align:top}
+/* header: real table so stamp never clips address lines */
+.inv-top{width:100%;border-collapse:collapse;margin-bottom:5px}
+.co-text{text-align:right;vertical-align:top;padding-right:10px}
+.stamp-cell{width:84px;vertical-align:top;text-align:center}
 .co-name{font-size:19px;font-weight:700;line-height:1.2}
 .co-addr{font-size:9.5px;line-height:1.7;margin-top:2px;color:#333}
 /* divider */
 hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 /* customer block */
-.inv-cust{display:table;width:100%;margin-bottom:5px}
-.inv-cust>div:first-child{display:table-cell;vertical-align:top}
-.meta-right{display:table-cell;vertical-align:top;text-align:right;white-space:nowrap}
+.inv-cust{width:100%;border-collapse:collapse;margin-bottom:5px}
+.cust-left{vertical-align:top}
+.meta-right{vertical-align:top;text-align:right;white-space:nowrap}
 .cust-name{font-size:13px;font-weight:700;margin-bottom:2px}
 .cust-detail{font-size:10px;color:#333;line-height:1.6}
 .meta-tbl{border-collapse:collapse;margin-left:auto;font-size:11px}
@@ -737,11 +739,9 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 .inv-table td.tname{text-align:left;word-break:break-word;overflow-wrap:break-word;white-space:normal}
 .inv-table tr.erow td{height:19px}
 /* footer */
-.inv-foot{margin-top:8px;display:table;width:100%}
-.bank{display:table-cell;font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
-.tot-tbl{display:table-cell;text-align:right;vertical-align:bottom}
-.tot-tbl table,.tot-tbl{border-collapse:collapse;font-size:11px}
-table.tot-tbl{margin-left:auto}
+.inv-foot{width:100%;border-collapse:collapse;margin-top:8px}
+.bank{font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
+.tot-wrap{text-align:right;vertical-align:bottom}
 .tot-tbl td{padding:4px 10px;border:1px solid #bbb}
 .tl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
 .tv{text-align:right;min-width:92px;font-weight:600}
