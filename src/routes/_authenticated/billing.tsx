@@ -725,7 +725,7 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 .mk{font-weight:600;text-align:right;padding-right:6px}
 .mv{font-weight:700;text-align:left}
 /* grand total banner */
-.grand-banner{background:#1F4E79;color:#fff;text-align:center;padding:5px 10px;font-size:13px;font-weight:700;letter-spacing:1px;margin:4px 0}
+.grand-banner{background:#cc0000;color:#fff;text-align:center;padding:7px 10px;font-size:16px;font-weight:900;letter-spacing:2px;margin:4px 0}
 /* INVOICE title */
 .inv-title{text-align:center;font-size:22px;font-weight:900;letter-spacing:6px;border-top:2px solid #111;border-bottom:2px solid #111;padding:5px 0;margin:5px 0 6px}
 /* items table — fixed layout so columns never overflow */
@@ -740,11 +740,12 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
 .inv-table tr.erow td{height:19px}
 /* footer */
 .inv-foot{width:100%;border-collapse:collapse;margin-top:8px}
-.bank{font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
-.tot-wrap{text-align:right;vertical-align:bottom}
+.bank{width:50%;font-size:10px;color:#333;line-height:1.8;vertical-align:bottom}
+.tot-wrap{width:50%;text-align:right;vertical-align:bottom}
+.tot-tbl{border-collapse:collapse;font-size:11px;margin-left:auto}
 .tot-tbl td{padding:4px 10px;border:1px solid #bbb}
 .tl{background:#f0f0f0;font-weight:600;text-align:right;white-space:nowrap}
-.tv{text-align:right;min-width:92px;font-weight:600}
+.tv{text-align:right;min-width:100px;font-weight:600}
 .tg{background:#1F4E79;color:#fff;font-weight:700;text-align:right;white-space:nowrap}
 .tgv{font-weight:700;font-size:13px;text-align:right;color:#1F4E79}
 </style></head><body>${pagesHtml}</body></html>`);
@@ -804,7 +805,7 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
           </div>
 
           {/* ── Grand total banner ── */}
-          <div style={{ background: "#1F4E79", color: "#fff", textAlign: "center", padding: "5px 10px", fontSize: 13, fontWeight: 700, letterSpacing: 1, margin: "4px 0" }}>
+          <div style={{ background: "#cc0000", color: "#fff", textAlign: "center", padding: "7px 10px", fontSize: 16, fontWeight: 900, letterSpacing: 2, margin: "4px 0" }}>
             GRAND TOTAL :&nbsp;&nbsp;¥ {fmt(total)}
           </div>
 
@@ -854,7 +855,7 @@ hr.divider{border:none;border-top:2px solid #111;margin:5px 0}
               ゆうちょ銀行　11370-03843431<br />
               マツモト
             </div>
-            <table style={{ borderCollapse: "collapse", fontSize: 11 }}>
+            <table style={{ borderCollapse: "collapse", fontSize: 11, marginLeft: "auto" }}>
               <tbody>
                 <tr>
                   <td style={{ background: "#f0f0f0", fontWeight: 600, textAlign: "right", padding: "4px 10px", border: "1px solid #bbb", whiteSpace: "nowrap" }}>TOTAL</td>
