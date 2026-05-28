@@ -3,6 +3,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import {
+  fbGetStores, fbSaveStore, fbDeleteStore,
+  fbGetCustomers, fbSaveCustomer, fbDeleteCustomer,
+  fbSaveInvoice, fbGetInvoices,
+  type BillingStore as FBStore, type BillingCustomer as FBCustomer,
+} from "@/integrations/firebase/billing";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,13 +25,12 @@ import { toast } from "sonner";
 export const Route = createFileRoute("/_authenticated/billing")({ component: BillingPage });
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-interface BillingStore { id: string; name: string; sub: string | null; address: string | null; tel: string | null; email: string | null; zip: string | null; }
-interface BillingCustomer { id: string; name: string; company: string | null; address: string | null; tel: string | null; email: string | null; notes: string | null; }
+type BillingStore    = FBStore;
+type BillingCustomer = FBCustomer;
 interface InvoiceItem { key: string; product_id: string | null; name: string; qty: number; price: number; pcs_per_case?: number | null; sku?: string | null; barcode?: string | null; }
 interface SavedInvoice { id: string; store_id: string | null; bill_to_type: string; bill_to_store_id: string | null; customer_id: string | null; invoice_no: string | null; date: string; items: any[]; tax_rate: number; discount: number; subtotal: number; tax: number; total: number; created_at: string; }
 type BillToType = "store" | "customer";
 
-const db = () => supabase as any;
 const uid = () => crypto.randomUUID();
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -53,15 +58,15 @@ function BillingPage() {
 
   const { data: stores = [] } = useQuery<BillingStore[]>({
     queryKey: ["billing-stores"],
-    queryFn: async () => (await db().from("billing_stores").select("*").order("sub")).data ?? [],
+    queryFn: fbGetStores,
   });
   const { data: customers = [] } = useQuery<BillingCustomer[]>({
     queryKey: ["billing-customers"],
-    queryFn: async () => (await db().from("billing_customers").select("*").order("name")).data ?? [],
+    queryFn: fbGetCustomers,
   });
   const { data: history = [] } = useQuery<SavedInvoice[]>({
     queryKey: ["billing-invoices"],
-    queryFn: async () => (await db().from("billing_invoices").select("*").order("created_at", { ascending: false }).limit(60)).data ?? [],
+    queryFn: fbGetInvoices as any,
   });
   const { data: searchResults = [] } = useQuery({
     queryKey: ["billing-product-search", searchQ],
@@ -92,6 +97,7 @@ function BillingPage() {
   const saveMut = useMutation({
     mutationFn: async () => {
       const payload = {
+        id: savedId ?? undefined,
         store_id: issuingStoreId || null,
         bill_to_type: billToType,
         bill_to_store_id: billToType === "store" ? billToStoreId || null : null,
@@ -101,14 +107,7 @@ function BillingPage() {
         tax_rate: Number(taxRate), discount: discountPct,
         subtotal, tax, total, created_by: user?.id ?? null,
       };
-      if (savedId) {
-        const { data, error } = await db().from("billing_invoices").update(payload).eq("id", savedId).select().single();
-        if (error) throw new Error(error.message);
-        return data as SavedInvoice;
-      }
-      const { data, error } = await db().from("billing_invoices").insert(payload).select().single();
-      if (error) throw new Error(error.message);
-      return data as SavedInvoice;
+      return fbSaveInvoice(payload) as Promise<SavedInvoice>;
     },
     onSuccess: (d) => { setSavedId(d.id); qc.invalidateQueries({ queryKey: ["billing-invoices"] }); toast.success("Invoice saved"); },
     onError: (e: any) => toast.error(e?.message ?? "Failed to save invoice"),
@@ -140,6 +139,14 @@ function BillingPage() {
     setItems((Array.isArray(inv.items) ? inv.items : []).map((i: any) => ({ ...i, key: uid() })));
     setSavedId(inv.id);
   }
+
+  useEffect(() => {
+    const stored = localStorage.getItem("billing-reload-inv");
+    if (stored) {
+      try { loadInvoice(JSON.parse(stored)); } catch {}
+      localStorage.removeItem("billing-reload-inv");
+    }
+  }, []);
 
   async function handlePrint() {
     try {
@@ -412,7 +419,7 @@ function ManageStoresModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: stores = [] } = useQuery<BillingStore[]>({
     queryKey: ["billing-stores"],
-    queryFn: async () => (await db().from("billing_stores").select("*").order("sub")).data ?? [],
+    queryFn: fbGetStores,
   });
   const blank = (): Omit<BillingStore, "id"> => ({ name: "MM-MART", sub: "", address: "", tel: "", email: "", zip: "" });
   const [form, setForm] = useState<Omit<BillingStore, "id"> | null>(null);
@@ -421,18 +428,14 @@ function ManageStoresModal({ onClose }: { onClose: () => void }) {
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!form) return;
-      if (editId) {
-        await db().from("billing_stores").update(form).eq("id", editId);
-      } else {
-        const id = form.sub ? form.sub.toLowerCase().replace(/\s+/g, "_") : uid();
-        await db().from("billing_stores").insert({ id, ...form });
-      }
+      const id = editId || (form.sub ? "mm_" + form.sub.toLowerCase().replace(/\s+/g, "_") : uid());
+      await fbSaveStore({ id, ...form } as BillingStore);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-stores"] }); setForm(null); setEditId(null); toast.success("Store saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const deleteMut = useMutation({
-    mutationFn: async (id: string) => { await db().from("billing_stores").delete().eq("id", id); },
+    mutationFn: async (id: string) => fbDeleteStore(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-stores"] }); toast.success("Deleted"); },
   });
 
@@ -447,7 +450,7 @@ function ManageStoresModal({ onClose }: { onClose: () => void }) {
                 <div className="font-semibold text-sm">{s.name}{s.sub ? ` — ${s.sub}` : ""}</div>
                 <div className="text-xs text-muted-foreground truncate">{s.address || "—"} {s.tel ? `· Tel: ${s.tel}` : ""}</div>
               </div>
-              <Button size="icon" variant="ghost" onClick={() => { setEditId(s.id); setForm({ name: s.name, sub: s.sub ?? "", address: s.address ?? "", tel: s.tel ?? "", email: s.email ?? "", zip: s.zip ?? "" }); }}><Pencil className="size-4" /></Button>
+              <Button size="icon" variant="ghost" onClick={() => { setEditId(s.id); setForm({ name: s.name, sub: s.sub ?? "", address: s.address ?? "", tel: s.tel ?? "", email: (s as any).email ?? "", zip: s.zip ?? "" }); }}><Pencil className="size-4" /></Button>
               <Button size="icon" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => { if (confirm("Delete this store?")) deleteMut.mutate(s.id); }}><Trash2 className="size-4" /></Button>
             </div>
           ))}
@@ -482,7 +485,7 @@ function ManageCustomersModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: customers = [] } = useQuery<BillingCustomer[]>({
     queryKey: ["billing-customers"],
-    queryFn: async () => (await db().from("billing_customers").select("*").order("name")).data ?? [],
+    queryFn: fbGetCustomers,
   });
   const blank = () => ({ name: "", company: "", address: "", tel: "", email: "", notes: "" });
   const [form, setForm] = useState<Record<string, string> | null>(null);
@@ -491,15 +494,19 @@ function ManageCustomersModal({ onClose }: { onClose: () => void }) {
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!form) return;
-      const payload = { name: form.name, company: form.company || null, address: form.address || null, tel: form.tel || null, email: form.email || null, notes: form.notes || null };
-      if (editId) { await db().from("billing_customers").update(payload).eq("id", editId); }
-      else { await db().from("billing_customers").insert(payload); }
+      const c: BillingCustomer = {
+        id: editId ?? "",
+        name: form.name, company: form.company || null,
+        address: form.address || null, tel: form.tel || null,
+        email: form.email || null, notes: form.notes || null,
+      };
+      await fbSaveCustomer(c);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-customers"] }); setForm(null); setEditId(null); toast.success("Customer saved"); },
     onError: (e: any) => toast.error(e.message),
   });
   const deleteMut = useMutation({
-    mutationFn: async (id: string) => { await db().from("billing_customers").delete().eq("id", id); },
+    mutationFn: async (id: string) => fbDeleteCustomer(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["billing-customers"] }); toast.success("Deleted"); },
   });
 
