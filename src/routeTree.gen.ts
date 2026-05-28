@@ -27,6 +27,7 @@ import { Route as AuthenticatedHealthRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedChangePinRouteImport } from './routes/_authenticated/change-pin'
 import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
+import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as ApiPublicScanProductRouteImport } from './routes/api/public/scan-product'
@@ -128,6 +129,11 @@ const AuthenticatedBackupsRoute = AuthenticatedBackupsRouteImport.update({
   path: '/backups',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedBillingRoute = AuthenticatedBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   id: '/audit',
   path: '/audit',
@@ -183,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -211,6 +218,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/audit': typeof AuthenticatedAuditRoute
+  '/billing': typeof AuthenticatedBillingRoute
   '/backups': typeof AuthenticatedBackupsRoute
   '/change-pin': typeof AuthenticatedChangePinRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/_authenticated/audit': typeof AuthenticatedAuditRoute
+  '/_authenticated/billing': typeof AuthenticatedBillingRoute
   '/_authenticated/backups': typeof AuthenticatedBackupsRoute
   '/_authenticated/change-pin': typeof AuthenticatedChangePinRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -271,6 +280,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/billing'
     | '/backups'
     | '/change-pin'
     | '/dashboard'
@@ -299,6 +309,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/audit'
+    | '/billing'
     | '/backups'
     | '/change-pin'
     | '/dashboard'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/_authenticated/audit'
+    | '/_authenticated/billing'
     | '/_authenticated/backups'
     | '/_authenticated/change-pin'
     | '/_authenticated/dashboard'
@@ -498,6 +510,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/billing': {
+      id: '/_authenticated/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedBillingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/api/public/server-health': {
       id: '/api/public/server-health'
       path: '/api/public/server-health'
@@ -572,6 +591,7 @@ const AuthenticatedRacksRouteWithChildren =
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAuditRoute: typeof AuthenticatedAuditRoute
+  AuthenticatedBillingRoute: typeof AuthenticatedBillingRoute
   AuthenticatedBackupsRoute: typeof AuthenticatedBackupsRoute
   AuthenticatedChangePinRoute: typeof AuthenticatedChangePinRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -593,6 +613,7 @@ interface AuthenticatedRouteChildren {
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAuditRoute: AuthenticatedAuditRoute,
+  AuthenticatedBillingRoute: AuthenticatedBillingRoute,
   AuthenticatedBackupsRoute: AuthenticatedBackupsRoute,
   AuthenticatedChangePinRoute: AuthenticatedChangePinRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,

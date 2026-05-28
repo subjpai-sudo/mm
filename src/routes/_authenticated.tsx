@@ -8,7 +8,7 @@ import {
   ShoppingCart, ClipboardList, BarChart3, Settings as SettingsIcon,
   LogOut, Shield, UserCog, Eye, Menu, Activity, Users as UsersIcon,
   ScrollText, PackageCheck, Database, Warehouse, Store,
-  Search, Bell, ScanLine, Sun, Moon, ChevronDown, AlertTriangle,
+  Search, Bell, ScanLine, Sun, Moon, ChevronDown, AlertTriangle, Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const NAV = [
   { id: "products", to: "/products", label: "Products", icon: Boxes },
   { id: "racks", to: "/racks", label: "Racks", icon: Warehouse },
   { id: "shops", to: "/shops", label: "Shops", icon: Store },
+  { id: "billing", to: "/billing", label: "Billing", icon: Receipt },
   { id: "order-request", to: "/order-request", label: "Order Request", icon: ShoppingCart },
   { id: "shipments", to: "/shipments", label: "Shipments", icon: PackageCheck },
   { id: "order-history", to: "/order-history", label: "Order History", icon: ClipboardList },
