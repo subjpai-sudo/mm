@@ -1,9 +1,9 @@
-import { initializeApp, getApps } from "firebase/app";
+import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import {
   getDatabase, ref, set, push, remove,
-  onValue, get, off, type Unsubscribe,
+  onValue, get, off, type Database, type Unsubscribe,
 } from "firebase/database";
-import { getAuth, signInAnonymously, onAuthStateChanged } from "firebase/auth";
+import { getAuth, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBF02Uctly222wJh42zOzx4CFq0BfE3LTE",
@@ -15,26 +15,36 @@ const firebaseConfig = {
   appId: "1:185038751234:web:51eaf7763c02a9aa97091b",
 };
 
-const app  = getApps().find(a => a.name === "billing") ?? initializeApp(firebaseConfig, "billing");
-const db   = getDatabase(app);
-const auth = getAuth(app);
-
-// Ensure anonymous auth so RTDB rules that require auth don't block reads/writes
-onAuthStateChanged(auth, user => {
-  if (!user) signInAnonymously(auth).catch(() => {});
-});
-
 const ROOT = "billing";
+
+// ── Lazy client-side init ──────────────────────────────────────────────────────
+// All Firebase code is deferred until first use so SSR (Cloudflare Worker)
+// never touches browser-only APIs (localStorage, indexedDB, etc.)
+let _app: FirebaseApp | null = null;
+let _db: Database | null = null;
+let _authReady = false;
+
+function getDB(): Database {
+  if (_db) return _db;
+  if (typeof window === "undefined") throw new Error("Firebase not available during SSR");
+  _app = getApps().find(a => a.name === "billing") ?? initializeApp(firebaseConfig, "billing");
+  _db  = getDatabase(_app);
+  if (!_authReady) {
+    _authReady = true;
+    signInAnonymously(getAuth(_app)).catch(() => {});
+  }
+  return _db;
+}
 
 // ── Default stores (seed on first use) ────────────────────────────────────────
 const DEFAULT_STORES: BillingStore[] = [
-  { id: "mm_kita_otsuka",  name: "MM-MART", sub: "Kita Otsuka",     address: "東京都豊島区北大塚3-32-3(201)",             tel: "03-6903-6174", zip: "170-0004" },
-  { id: "mm_takadano",     name: "MM-MART", sub: "Takadano Baba",   address: "東京都新宿区高田馬場4丁目9-14 岩ビル1階",   tel: "03-6768-0683", zip: "169-0075" },
-  { id: "mm_minami",       name: "MM-MART", sub: "Minami Otsuka",   address: "東京都豊島区南大塚",                         tel: "",             zip: "170-0005" },
-  { id: "mm_higashi_jujo", name: "MM-MART", sub: "Higashi Jujo",    address: "東京都北区東十条",                           tel: "",             zip: "114-0003" },
-  { id: "mm_sugamo",       name: "MM-MART", sub: "Sugamo",          address: "東京都豊島区巣鴨",                           tel: "",             zip: "170-0002" },
-  { id: "mm_kawaguchi",    name: "MM-MART", sub: "Kawaguchi",       address: "埼玉県川口市",                               tel: "",             zip: "332-0000" },
-  { id: "mm_komagome",     name: "MM-MART", sub: "Komagome",        address: "東京都豊島区駒込",                           tel: "",             zip: "170-0003" },
+  { id: "mm_kita_otsuka",  name: "MM-MART", sub: "Kita Otsuka",   address: "東京都豊島区北大塚3-32-3(201)",           tel: "03-6903-6174", zip: "170-0004" },
+  { id: "mm_takadano",     name: "MM-MART", sub: "Takadano Baba", address: "東京都新宿区高田馬場4丁目9-14 岩ビル1階", tel: "03-6768-0683", zip: "169-0075" },
+  { id: "mm_minami",       name: "MM-MART", sub: "Minami Otsuka", address: "東京都豊島区南大塚",                       tel: "",             zip: "170-0005" },
+  { id: "mm_higashi_jujo", name: "MM-MART", sub: "Higashi Jujo",  address: "東京都北区東十条",                         tel: "",             zip: "114-0003" },
+  { id: "mm_sugamo",       name: "MM-MART", sub: "Sugamo",        address: "東京都豊島区巣鴨",                         tel: "",             zip: "170-0002" },
+  { id: "mm_kawaguchi",    name: "MM-MART", sub: "Kawaguchi",     address: "埼玉県川口市",                             tel: "",             zip: "332-0000" },
+  { id: "mm_komagome",     name: "MM-MART", sub: "Komagome",      address: "東京都豊島区駒込",                         tel: "",             zip: "170-0003" },
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -56,7 +66,7 @@ export interface BillingInvoice {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function rpath(...parts: string[]) { return ref(db, [ROOT, ...parts].join("/")); }
+function rpath(...parts: string[]) { return ref(getDB(), [ROOT, ...parts].join("/")); }
 
 function snapToArray<T extends { id: string }>(snap: any): T[] {
   const val = snap.val();
@@ -64,18 +74,15 @@ function snapToArray<T extends { id: string }>(snap: any): T[] {
   return Object.entries(val).map(([id, v]: any) => ({ id, ...v })) as T[];
 }
 
-/** Strip undefined/null values so Firebase never rejects the write */
+/** Strip undefined values — Firebase RTDB rejects them */
 function clean(obj: Record<string, any>): Record<string, any> {
-  return Object.fromEntries(
-    Object.entries(obj).filter(([, v]) => v !== undefined && v !== null)
-  );
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
 }
 
 // ── Stores ────────────────────────────────────────────────────────────────────
 export async function fbGetStores(): Promise<BillingStore[]> {
   const snap = await get(rpath("stores"));
   if (!snap.exists()) {
-    // Seed defaults
     const obj: Record<string, any> = {};
     DEFAULT_STORES.forEach(s => { const { id, ...rest } = s; obj[id] = rest; });
     await set(rpath("stores"), obj);
@@ -86,7 +93,7 @@ export async function fbGetStores(): Promise<BillingStore[]> {
 
 export async function fbSaveStore(store: BillingStore): Promise<void> {
   const { id, ...rest } = store;
-  await set(rpath("stores", id), rest);
+  await set(rpath("stores", id), clean(rest));
 }
 
 export async function fbDeleteStore(id: string): Promise<void> {
@@ -108,14 +115,13 @@ export function fbSubscribeCustomers(cb: (list: BillingCustomer[]) => void): Uns
 export async function fbSaveCustomer(customer: BillingCustomer): Promise<BillingCustomer> {
   if (customer.id) {
     const { id, ...rest } = customer;
-    await set(rpath("customers", id), rest);
+    await set(rpath("customers", id), clean(rest));
     return customer;
   }
-  // New customer — push generates a key
   const newRef = push(rpath("customers"));
-  const id = newRef.key!;
+  const id     = newRef.key!;
   const { id: _discarded, ...rest } = customer;
-  await set(newRef, rest);
+  await set(newRef, clean(rest));
   return { ...customer, id };
 }
 
@@ -124,8 +130,9 @@ export async function fbDeleteCustomer(id: string): Promise<void> {
 }
 
 // ── Invoices ──────────────────────────────────────────────────────────────────
-export async function fbSaveInvoice(inv: Omit<BillingInvoice, "id" | "created_at"> & { id?: string; created_at?: string }): Promise<BillingInvoice> {
-  // Always strip id + undefined values before writing — Firebase rejects undefined
+export async function fbSaveInvoice(
+  inv: Omit<BillingInvoice, "id" | "created_at"> & { id?: string; created_at?: string }
+): Promise<BillingInvoice> {
   const { id: existingId, ...fields } = inv as any;
   const data = clean(fields);
 
@@ -148,9 +155,7 @@ export async function fbGetInvoices(): Promise<BillingInvoice[]> {
 
 export function fbSubscribeInvoices(cb: (list: BillingInvoice[]) => void): Unsubscribe {
   const r = rpath("invoices");
-  onValue(r, snap => {
-    cb(snapToArray<BillingInvoice>(snap).sort((a, b) => b.date.localeCompare(a.date)));
-  });
+  onValue(r, snap => cb(snapToArray<BillingInvoice>(snap).sort((a, b) => b.date.localeCompare(a.date))));
   return () => off(r);
 }
 
