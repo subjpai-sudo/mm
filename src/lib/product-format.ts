@@ -20,6 +20,20 @@ export function displaySize(p: { size?: string | null; unit?: string | null }): 
   return `${num}${unit ? ` ${unit}` : ""}`;
 }
 
+/** Format current stock as "X boxes + Y pcs" when pcs_per_case is set.
+ *  Returns plain number string when no pcs_per_case. */
+export function displayStock(p: { stock?: number | null; pcs_per_case?: number | null }): string {
+  const stock = p.stock ?? 0;
+  const ppc = p.pcs_per_case;
+  if (!ppc || ppc < 2) return String(stock);
+  if (stock <= 0) return "0";
+  const boxes = Math.floor(stock / ppc);
+  const rem = stock % ppc;
+  if (boxes === 0) return `${rem} pcs`;
+  if (rem === 0) return `${boxes} box${boxes !== 1 ? "es" : ""}`;
+  return `${boxes} box${boxes !== 1 ? "es" : ""} + ${rem} pcs`;
+}
+
 /** Try to extract a size + unit token from a free-form product name.
  *  Examples: "Fish Sauce 700ml" → { size: "700", unit: "ml" }
  *            "Coconut Milk 1L"  → { size: "1",   unit: "L"  }

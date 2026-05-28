@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
-import { displaySize, extractSizeFromName } from "@/lib/product-format";
+import { displaySize, displayStock, extractSizeFromName } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-in")({
@@ -348,7 +348,7 @@ function StockIn() {
                       <div className="text-[10px] font-semibold text-accent mt-0.5">{displaySize(p)}</div>
                     )}
                   </div>
-                  <span className="px-2 py-0.5 rounded-full bg-secondary text-[11px] font-bold border border-border tabular-nums shrink-0">{p.stock}</span>
+                  <span className="px-2 py-0.5 rounded-full bg-secondary text-[11px] font-bold border border-border tabular-nums shrink-0">{displayStock(p)}</span>
                 </button>
               ))}
               {visibleProducts.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products match.</p>}
@@ -368,7 +368,7 @@ function StockIn() {
                   <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
                 )}
                 <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
-                  Stock: <span className="font-bold">{confirm.stock}</span>
+                  Stock: <span className="font-bold">{displayStock(confirm)}</span>
                 </div>
               </div>
               <div className="p-4 sm:p-5 space-y-4">
@@ -512,7 +512,7 @@ function StockIn() {
                         <div className="text-xs text-muted-foreground truncate">
                           {cat?.name ?? "Uncategorized"}
                           {displaySize(p) && <> · <span className="text-accent font-semibold">{displaySize(p)}</span></>}
-                          {" · Stock "}{p.stock}
+                          {" · Stock "}{displayStock(p)}
                         </div>
                       </div>
                       <span className="text-[10px] uppercase tracking-wider text-primary">Register</span>

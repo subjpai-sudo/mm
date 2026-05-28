@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { SHOPS } from "@/lib/shops";
-import { displaySize } from "@/lib/product-format";
+import { displaySize, displayStock } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-out")({
@@ -305,7 +305,7 @@ function StockOut() {
                         )}
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-semibold truncate">{p.name}</div>
-                          <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"} · stock {p.stock}</div>
+                          <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"} · stock {displayStock(p)}</div>
                         </div>
                         <span className="text-[10px] uppercase tracking-wider text-warning font-bold shrink-0">Add</span>
                       </button>
@@ -346,7 +346,7 @@ function StockOut() {
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold truncate">{r.name}</div>
-                    <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {r.stock}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {displayStock({ stock: r.stock, pcs_per_case: r.pcsPerCase })}</div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {r.pcsPerCase && r.pcsPerCase > 0 ? (
@@ -485,7 +485,7 @@ function StockOut() {
                   </div>
                   <span className={cn("px-2 py-0.5 rounded-full text-[11px] font-bold border tabular-nums shrink-0",
                     p.stock <= 0 ? "bg-destructive text-destructive-foreground border-destructive" : "bg-secondary border-border")}>
-                    {p.stock}
+                    {displayStock(p)}
                   </span>
                 </button>
               ))}
@@ -506,7 +506,7 @@ function StockOut() {
                   <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
                 )}
                 <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
-                  Stock: <span className="font-bold">{selected.stock}</span>
+                  Stock: <span className="font-bold">{displayStock(selected)}</span>
                 </div>
                 <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-semibold border border-border">
                   → {destKind === "Shops" ? shop : "Delivery"}
