@@ -469,7 +469,7 @@ def _sb_adjust_qty_by_sku(sku, cs, pcs):
         delta = cs * ppc + pcs
         new_qty = max(0, int(row.get('qty') or 0) + delta)
         patch_url = f'{SUPABASE_URL}/rest/v1/products?id=eq.{row["id"]}'
-        payload = json.dumps({'qty': new_qty, 'last_updated': datetime.now().date().isoformat()}).encode()
+        payload = json.dumps({'qty': new_qty}).encode()
         patch_req = urllib.request.Request(patch_url, data=payload, method='PATCH', headers={
             'apikey':        SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
