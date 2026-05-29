@@ -454,7 +454,7 @@ def _sb_adjust_qty_by_sku(sku, cs, pcs):
         return
     try:
         encoded_sku = urllib.parse.quote(str(sku), safe='')
-        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,qty,pcs_per_case&sku=eq.{encoded_sku}'
+        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,stock,pcs_per_case&sku=eq.{encoded_sku}'
         req = urllib.request.Request(fetch_url, headers={
             'apikey':        SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
@@ -467,9 +467,9 @@ def _sb_adjust_qty_by_sku(sku, cs, pcs):
         row = rows[0]
         ppc = int(row.get('pcs_per_case') or 0) or 1  # default 1 if not set
         delta = cs * ppc + pcs
-        new_qty = max(0, int(row.get('qty') or 0) + delta)
+        new_stock = max(0, int(row.get('stock') or 0) + delta)
         patch_url = f'{SUPABASE_URL}/rest/v1/products?id=eq.{row["id"]}'
-        payload = json.dumps({'qty': new_qty}).encode()
+        payload = json.dumps({'stock': new_stock}).encode()
         patch_req = urllib.request.Request(patch_url, data=payload, method='PATCH', headers={
             'apikey':        SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
@@ -477,7 +477,7 @@ def _sb_adjust_qty_by_sku(sku, cs, pcs):
             'Prefer':        'return=minimal',
         })
         urllib.request.urlopen(patch_req, timeout=8)
-        print(f'[sb-adj] sku={sku} cs={cs} pcs={pcs} ppc={ppc} delta={delta} new_qty={new_qty}')
+        print(f'[sb-adj] sku={sku} cs={cs} pcs={pcs} ppc={ppc} delta={delta} new_stock={new_stock}')
     except Exception as e:
         print(f'[sb-adj] sku={sku} cs={cs} pcs={pcs} err={e}')
 
@@ -1678,6 +1678,9 @@ def save_invoice():
         conn.execute('UPDATE invoices SET fb_key=? WHERE id=?', (fb_key, inv_id))
         conn.commit()
     conn.close()
+    # Debug: log raw items to see what fields are present
+    raw_items = data.get('items', [])
+    print(f'[invoice-debug] {len(raw_items)} items: {json.dumps([{k:v for k,v in i.items() if k in ("sku","qty","pcs","name")} for i in raw_items[:5]])}')
     # Deduct warehouse stock: cs (boxes) and pcs (loose pieces) tracked separately
     invoice_items = [
         {'sku': (i.get('sku') or '').strip(), 'cs': int(i.get('qty') or 0), 'pcs': int(i.get('pcs') or 0)}
