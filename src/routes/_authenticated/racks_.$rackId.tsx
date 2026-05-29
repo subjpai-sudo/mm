@@ -124,10 +124,18 @@ function RackDetail() {
 
   const assign = useMutation({
     mutationFn: async ({ productId, shelf }: { productId: string; shelf: Shelf | null }) => {
-      const { error } = await supabase.from("products")
-        .update({ rack: shelf ? rackId : null, shelf })
-        .eq("id", productId);
-      if (error) throw error;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+      const res = await fetch("/api/public/rack-assign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ productId, rack: shelf ? rackId : null, shelf }),
+      });
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error ?? "Failed to update rack");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
