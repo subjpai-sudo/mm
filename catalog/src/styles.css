@@ -1,0 +1,124 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--bg);
+  --color-foreground: var(--tx);
+  --color-card: var(--card);
+  --color-card-foreground: var(--tx);
+  --color-popover: var(--card);
+  --color-popover-foreground: var(--tx);
+  --color-primary: var(--red);
+  --color-primary-foreground: oklch(1 0 0);
+  --color-secondary: var(--bg-2);
+  --color-secondary-foreground: var(--tx);
+  --color-muted: var(--bg-2);
+  --color-muted-foreground: var(--mu);
+  --color-accent: var(--rl);
+  --color-accent-foreground: var(--red);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: oklch(1 0 0);
+  --color-border: var(--bo);
+  --color-input: var(--bo);
+  --color-ring: var(--red);
+  --color-gold: var(--gold);
+  --color-green: var(--gn);
+  --font-display: "Instrument Serif", Georgia, serif;
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+:root {
+  --radius: 0.875rem;
+  /* Warm cream theme — light */
+  --bg: oklch(0.97 0.018 80);
+  --bg-2: oklch(0.93 0.028 80);
+  --card: oklch(0.995 0.005 80);
+  --surface-2: oklch(0.95 0.025 80);
+  --tx: oklch(0.25 0.025 50);
+  --mu: oklch(0.48 0.03 55);
+  --ink-3: oklch(0.65 0.025 60);
+  --bo: oklch(0.88 0.025 75);
+  --bo-2: oklch(0.82 0.035 70);
+  --red: oklch(0.58 0.16 30);
+  --rd: oklch(0.5 0.16 28);
+  --rl: oklch(0.93 0.05 50);
+  --gold: oklch(0.72 0.14 60);
+  --gn: oklch(0.58 0.12 145);
+  --gn-soft: oklch(0.93 0.05 145);
+  --amber: oklch(0.68 0.14 75);
+  --danger: oklch(0.55 0.18 28);
+
+  --background: var(--bg);
+  --foreground: var(--tx);
+  --primary: var(--red);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: var(--bg-2);
+  --secondary-foreground: var(--tx);
+  --muted: var(--bg-2);
+  --muted-foreground: var(--mu);
+  --accent: var(--rl);
+  --accent-foreground: var(--red);
+  --destructive: var(--danger);
+  --destructive-foreground: oklch(1 0 0);
+  --border: var(--bo);
+  --input: var(--bo);
+  --ring: var(--red);
+}
+
+.dark {
+  --bg: oklch(0.18 0.018 50);
+  --bg-2: oklch(0.22 0.022 50);
+  --card: oklch(0.23 0.022 50);
+  --surface-2: oklch(0.26 0.025 50);
+  --tx: oklch(0.95 0.018 80);
+  --mu: oklch(0.72 0.025 70);
+  --ink-3: oklch(0.55 0.025 65);
+  --bo: oklch(0.32 0.022 55);
+  --bo-2: oklch(0.4 0.028 55);
+  --red: oklch(0.72 0.16 50);
+  --rd: oklch(0.62 0.16 48);
+  --rl: oklch(0.3 0.06 40);
+  --gold: oklch(0.78 0.14 70);
+  --gn: oklch(0.78 0.13 145);
+  --gn-soft: oklch(0.3 0.06 145);
+  --amber: oklch(0.78 0.14 80);
+  --danger: oklch(0.68 0.18 28);
+}
+
+@layer base {
+  * { border-color: var(--border); }
+  html, body { font-family: var(--font-sans); background: var(--bg); color: var(--tx); }
+  body { -webkit-font-smoothing: antialiased; }
+}
+
+/* Reusable utility classes mirroring source design */
+.font-display { font-family: var(--font-display); font-style: italic; }
+.font-mono { font-family: var(--font-mono); }
+
+.shadow-soft { box-shadow: 0 4px 14px rgba(60,40,20,.06), 0 1px 3px rgba(60,40,20,.04); }
+.shadow-lifted { box-shadow: 0 14px 40px rgba(60,40,20,.10), 0 4px 14px rgba(60,40,20,.06); }
+.dark .shadow-soft { box-shadow: 0 4px 14px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.3); }
+.dark .shadow-lifted { box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.35); }
+
+@keyframes scan-move { 0%,100% { top: 18%; } 50% { top: 78%; } }
+.scan-line { animation: scan-move 1.8s ease-in-out infinite; }
+
+@keyframes flash-card {
+  0%, 30% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--gn) 35%, transparent); border-color: var(--gn); }
+  100% { box-shadow: 0 4px 14px rgba(60,40,20,.06); }
+}
+.flash-success { animation: flash-card 2.4s ease forwards; }
+
+/* html5-qrcode tweaks */
+#reader video, .inline-reader video { border-radius: 12px !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+.inline-reader, .inline-reader > div { width: 100% !important; height: 100% !important; border: 0 !important; }
+.inline-reader div[style*="border"] { border: 0 !important; }
+#reader img[alt="Info icon"], .inline-reader img[alt="Info icon"] { display: none !important; }

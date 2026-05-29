@@ -1,0 +1,9 @@
+__pycache__
+*.pyc
+*.pyo
+.DS_Store
+*.command
+fix_*.py
+migrate_*.py
+generate_*.py
+*.xlsx

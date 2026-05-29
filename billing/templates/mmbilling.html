@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#52301c">
+<title>MM-MART Billing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --brown:#8c4a28; --brown-d:#6d3820; --brown-l:#a65f38;
+  --accent:#b08060; --accent-l:#e0b48a;
+  --paper:#f6efe5; --paper-2:#efe5d6; --card:#ffffff;
+  --ink:#3a2e20; --muted:#8a7a66; --faint:#a8987f;
+  --line:#e8ddc9; --line-2:#f0e8da;
+  --green:#16a34a; --green-d:#15803d; --green-bg:#e9f7ee;
+  --amber:#b45309; --amber-bg:#fdf2d6; --red:#dc2626; --red-bg:#fdeaea;
+  --blue:#0369a1;
+  --sb-1:#52301c; --sb-2:#3c2010;
+  --r:14px; --r-sm:9px;
+  --sh:0 1px 2px rgba(60,35,10,.04),0 4px 16px rgba(60,35,10,.05);
+  --sh-lg:0 8px 40px rgba(60,35,10,.14);
+  --side-w:248px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Bricolage Grotesque',ui-sans-serif,system-ui,sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;-webkit-font-smoothing:antialiased;font-feature-settings:"ss01";letter-spacing:-.01em}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;font-feature-settings:normal;letter-spacing:0}
+
+/* ── App shell ── */
+.app{display:grid;grid-template-columns:var(--side-w) 1fr;min-height:100vh}
+.sidebar{background:linear-gradient(180deg,var(--sb-1),var(--sb-2));color:#fff;display:flex;flex-direction:column;position:fixed;inset:0 auto 0 0;width:var(--side-w);z-index:80;box-shadow:2px 0 24px rgba(40,20,5,.12)}
+.brand{display:flex;align-items:center;gap:11px;padding:20px 20px 18px}
+.brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(150deg,var(--accent-l),var(--accent));color:#3c2010;display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:-.5px;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.3)}
+.brand-tx b{display:block;font-size:16px;font-weight:700;letter-spacing:.2px;line-height:1.1}
+.brand-tx span{display:block;font-size:11px;color:var(--accent-l);font-weight:600;letter-spacing:.4px;margin-top:1px}
+.nav-group{padding:6px 12px;flex:1;overflow-y:auto}
+.nav-cap{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(224,180,138,.6);padding:14px 10px 6px}
+.nav-link{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;color:rgba(255,255,255,.74);font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:none;width:100%;text-align:left;transition:.13s;position:relative;margin-bottom:2px}
+.nav-link svg{width:18px;height:18px;flex-shrink:0;opacity:.85}
+.nav-link:hover{background:rgba(255,255,255,.07);color:#fff}
+.nav-link.active{background:rgba(255,255,255,.13);color:#fff}
+.nav-link.active::before{content:"";position:absolute;left:-12px;top:50%;transform:translateY(-50%);width:4px;height:20px;border-radius:0 4px 4px 0;background:var(--accent-l)}
+.nav-link.active svg{opacity:1}
+.nav-tag{margin-left:auto;font-size:10px;font-weight:700;background:rgba(255,255,255,.14);padding:2px 7px;border-radius:20px}
+.side-foot{padding:14px 16px;border-top:1px solid rgba(255,255,255,.09);display:flex;flex-direction:column;gap:10px}
+.conn{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(255,255,255,.7);font-weight:600}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:#facc15;box-shadow:0 0 0 3px rgba(250,204,21,.18)}
+.conn.online .dot{background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.2)}
+.side-user{display:flex;align-items:center;gap:9px}
+.side-user .av{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#3c2010;display:grid;place-items:center;font-weight:700;font-size:12px;flex-shrink:0}
+.side-user .nm{font-size:12.5px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-user button{background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.8);border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;font-weight:600}
+.side-user button:hover{background:rgba(255,255,255,.2)}
+
+/* ── Main ── */
+.main{margin-left:var(--side-w);min-width:0;display:flex;flex-direction:column;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:60;background:rgba(246,239,229,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding:16px 30px;display:flex;align-items:center;gap:14px}
+.menu-btn{display:none;background:var(--card);border:1px solid var(--line);border-radius:9px;width:40px;height:40px;align-items:center;justify-content:center;cursor:pointer;color:var(--brown)}
+.menu-btn svg{width:20px;height:20px}
+.topbar-tx{flex:1;min-width:0}
+.topbar-tx h1{font-size:21px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.topbar-tx p{font-size:13px;color:var(--muted);margin-top:2px;font-weight:500}
+.topbar-acts{display:flex;gap:9px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.scroll{padding:26px 30px 60px;max-width:1240px;width:100%;margin:0 auto}
+.page{display:none}
+.page.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border:none;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:.14s;white-space:nowrap;letter-spacing:-.01em}
+.btn svg{width:15px;height:15px}
+.btn-pr{background:var(--brown);color:#fff;box-shadow:0 1px 2px rgba(140,74,40,.3)}
+.btn-pr:hover{background:var(--brown-d)}
+.btn-gr{background:var(--green);color:#fff}
+.btn-gr:hover{background:var(--green-d)}
+.btn-rd{background:var(--red-bg);color:var(--red)}
+.btn-rd:hover{background:#fbd5d5}
+.btn-ou{background:var(--card);color:var(--brown);border:1.5px solid var(--line)}
+.btn-ou:hover{border-color:var(--brown);background:#fdf9f4}
+.btn-gh{background:transparent;color:var(--muted);border:1.5px solid transparent}
+.btn-gh:hover{background:var(--paper-2);color:var(--ink)}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:7px}
+.btn:disabled{opacity:.55;cursor:default}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:20px;margin-bottom:18px}
+.card-pad0{padding:0;overflow:hidden}
+.ctitle{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:16px;display:flex;align-items:center;gap:9px;letter-spacing:-.01em}
+.ctitle .sub{font-size:11px;font-weight:500;color:var(--faint)}
+
+/* ── Forms ── */
+.toolbar{display:flex;gap:9px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.field{position:relative;display:flex;align-items:center}
+.field svg{position:absolute;left:11px;width:16px;height:16px;color:var(--faint);pointer-events:none}
+input,select,textarea{font-family:inherit;color:var(--ink)}
+.toolbar input[type=text],.toolbar input[type=search],.search-in{padding:9px 12px 9px 34px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;outline:none;background:var(--card);min-width:180px;flex:1}
+.toolbar select,.sel{padding:9px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:13px;outline:none;background:var(--card);cursor:pointer;font-weight:500}
+.toolbar input:focus,.toolbar select:focus,.sel:focus{border-color:var(--brown)}
+.cnt-pill{font-size:12px;color:var(--muted);white-space:nowrap;font-weight:600;background:var(--paper-2);padding:6px 11px;border-radius:8px}
+.fg{display:flex;flex-direction:column;gap:5px}
+.fg label{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.fg input,.fg select{padding:9px 11px;border:1.5px solid var(--line);border-radius:9px;font-size:13.5px;outline:none;background:var(--card)}
+.fg input:focus,.fg select:focus{border-color:var(--brown)}
+.imeta{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+
+/* ── Generic table ── */
+.twrap{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card);box-shadow:var(--sh)}
+.tscroll{overflow:auto;max-height:calc(100vh - 250px)}
+.ptbl{width:100%;border-collapse:collapse;font-size:13px}
+.ptbl thead th{background:var(--paper-2);color:var(--muted);padding:11px 14px;text-align:left;position:sticky;top:0;z-index:2;white-space:nowrap;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line)}
+.ptbl tbody td{padding:9px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+.ptbl tbody tr:last-child td{border-bottom:none}
+.ptbl tbody tr:hover{background:#fdf9f4}
+.skub{background:var(--paper-2);color:var(--brown);padding:3px 8px;border-radius:6px;font-weight:700;font-size:12px;font-family:'JetBrains Mono',monospace}
+.supt{background:var(--paper-2);color:var(--brown-d);padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.cat-pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:5px;white-space:nowrap}
+input.pi{width:118px;padding:7px 10px;border:1.5px solid var(--line);border-radius:8px;text-align:right;font-size:13px;font-family:'JetBrains Mono',monospace;background:var(--card)}
+input.pi:focus{border-color:var(--green);outline:none;background:var(--green-bg)}
+.ck{color:var(--green);font-weight:700;font-size:11px}
+
+/* ── Stock badges ── */
+.stk-ok,.stk-lo,.stk-no{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.stk-ok{background:var(--green-bg);color:var(--green-d)}
+.stk-lo{background:var(--amber-bg);color:var(--amber)}
+.stk-no{background:var(--red-bg);color:var(--red)}
+
+/* ── Invoice builder ── */
+.ihead,.irow{display:grid;grid-template-columns:34px 116px 1fr 74px 86px 110px 96px 32px;gap:8px;align-items:center}
+.ihead{padding:9px 12px;background:var(--paper-2);border-radius:9px;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.irow{padding:5px 12px;border-bottom:1px solid var(--line-2)}
+.irow:hover{background:#fdfaf6}
+.irow input{padding:7px 9px;border:1.5px solid var(--line);border-radius:7px;font-size:13px;outline:none;width:100%;background:var(--card)}
+.irow input:focus{border-color:var(--brown)}
+.auto{background:var(--paper)!important;border-color:var(--line)!important;color:var(--muted)}
+.ino{font-size:12px;color:var(--faint);text-align:center;font-weight:700;font-family:'JetBrains Mono',monospace}
+.amc{font-weight:700;color:var(--brown);text-align:right;font-size:13px;font-family:'JetBrains Mono',monospace}
+.xbtn{background:none;border:none;color:#d4c5b0;cursor:pointer;font-size:20px;line-height:1;width:100%;transition:.12s}
+.xbtn:hover{color:var(--red)}
+.twrap2{display:flex;justify-content:flex-end;margin-top:16px}
+.tots{background:var(--paper);border:1.5px solid var(--line);border-radius:var(--r);padding:16px 22px;min-width:290px}
+.tr{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13.5px;color:var(--ink)}
+.tr span:last-child{font-family:'JetBrains Mono',monospace;font-weight:600}
+.tr.gd{font-size:18px;font-weight:700;color:var(--brown);border-top:2px solid var(--line);margin-top:8px;padding-top:11px}
+
+/* ── KPI cards ── */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:18px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:18px 20px;position:relative;overflow:hidden}
+.kpi .ico{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;margin-bottom:14px}
+.kpi .ico svg{width:19px;height:19px}
+.kpi .lbl{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.kpi .val{font-size:27px;font-weight:700;letter-spacing:-.03em;margin-top:5px;font-family:'JetBrains Mono',monospace;color:var(--ink);line-height:1}
+.kpi .meta{font-size:12px;color:var(--faint);margin-top:7px;font-weight:500}
+.kpi .meta b{color:var(--green-d);font-weight:700}
+.i-brown{background:var(--paper-2);color:var(--brown)}
+.i-green{background:var(--green-bg);color:var(--green-d)}
+.i-blue{background:#e4f0f8;color:var(--blue)}
+.i-amber{background:var(--amber-bg);color:var(--amber)}
+
+/* ── Charts ── */
+.dash-row{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:18px}
+.bars{display:flex;align-items:flex-end;gap:7px;height:200px;padding-top:10px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;height:100%;cursor:default}
+.bar{width:100%;max-width:34px;background:linear-gradient(180deg,var(--brown-l),var(--brown));border-radius:6px 6px 3px 3px;min-height:3px;transition:.4s cubic-bezier(.2,.7,.3,1);position:relative}
+.bar-col:hover .bar{background:linear-gradient(180deg,var(--accent),var(--brown-l))}
+.bar-val{position:absolute;top:-19px;left:50%;transform:translateX(-50%);font-size:10px;font-weight:700;color:var(--brown);white-space:nowrap;opacity:0;transition:.12s;font-family:'JetBrains Mono',monospace}
+.bar-col:hover .bar-val{opacity:1}
+.bar-x{font-size:10px;color:var(--faint);font-weight:600;font-family:'JetBrains Mono',monospace}
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:16px}
+.donut{position:relative;width:172px;height:172px;border-radius:50%;flex-shrink:0}
+.donut::after{content:"";position:absolute;inset:30px;background:var(--card);border-radius:50%;box-shadow:inset 0 1px 4px rgba(60,35,10,.06)}
+.donut-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2}
+.donut-c .dt{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.donut-c .dv{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--ink);margin-top:1px}
+.legend{display:flex;flex-direction:column;gap:8px;width:100%}
+.lg-row{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.lg-row .sw{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.lg-row .nm{flex:1;color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg-row .vl{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--muted);font-size:12px}
+
+/* ── Recent / generic list rows ── */
+.rl{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line-2)}
+.rl:last-child{border-bottom:none}
+.rl:hover{background:#fdf9f4}
+.rl .store{font-weight:600;font-size:13.5px}
+.rl .meta{font-size:11.5px;color:var(--faint);margin-top:2px;display:flex;gap:8px;align-items:center}
+.rl .meta .no{font-family:'JetBrains Mono',monospace}
+.rl .amt{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green-d);font-size:14px}
+
+/* ── History (Invoices page) ── */
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:4px;align-items:end}
+.inv-row{border-bottom:1px solid var(--line-2)}
+.inv-head{display:grid;grid-template-columns:30px 130px 1fr 90px 70px 130px auto;gap:12px;align-items:center;padding:12px 16px;cursor:pointer;transition:.12s}
+.inv-head:hover{background:#fdf9f4}
+.inv-row.open .inv-head{background:var(--paper)}
+.chev{transition:.2s;color:var(--faint);display:flex}
+.inv-row.open .chev{transform:rotate(90deg);color:var(--brown)}
+.inv-detail{display:none;padding:0 16px 16px 58px;background:var(--paper)}
+.inv-row.open .inv-detail{display:block}
+.det-tbl{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.det-tbl th{background:var(--paper-2);padding:7px 11px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.04em}
+.det-tbl td{padding:7px 11px;border-top:1px solid var(--line-2)}
+
+/* ── Customers ── */
+.cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+.cust{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);padding:18px;display:flex;flex-direction:column;gap:12px;transition:.15s}
+.cust:hover{box-shadow:var(--sh-lg);transform:translateY(-2px)}
+.cust-top{display:flex;align-items:center;gap:12px}
+.cust-av{width:44px;height:44px;border-radius:12px;background:linear-gradient(150deg,var(--accent-l),var(--accent));color:#3c2010;display:grid;place-items:center;font-weight:800;font-size:17px;flex-shrink:0}
+.cust-nm{font-weight:700;font-size:15px;line-height:1.15}
+.cust-co{font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
+.cust-info{display:flex;flex-direction:column;gap:6px;font-size:12.5px;color:var(--muted)}
+.cust-info .ln{display:flex;gap:8px;align-items:flex-start}
+.cust-info svg{width:14px;height:14px;flex-shrink:0;margin-top:1px;color:var(--faint)}
+.cust-stat{display:grid;grid-template-columns:1fr 1fr;gap:10px;border-top:1px solid var(--line-2);padding-top:12px}
+.cust-stat .st{text-align:center}
+.cust-stat .st .n{font-size:18px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--brown)}
+.cust-stat .st .l{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--faint);letter-spacing:.04em;margin-top:2px}
+
+/* ── Low stock ── */
+.ls-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px}
+.ls-card{border:1.5px solid var(--amber-bg);background:#fffdf7;border-radius:11px;padding:13px 15px;display:flex;flex-direction:column;gap:6px}
+.ls-card.zero{border-color:var(--red-bg);background:#fffafa}
+.ls-card .nm{font-size:13px;font-weight:600;line-height:1.2}
+.ls-card .row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* ── Search popup ── */
+.ov{position:fixed;inset:0;background:rgba(40,22,8,.4);backdrop-filter:blur(2px);z-index:199;display:none}
+.ov.on{display:block}
+.pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--card);border-radius:var(--r);box-shadow:var(--sh-lg);width:600px;max-width:95vw;max-height:80vh;display:none;flex-direction:column;z-index:200;overflow:hidden}
+.pop.on{display:flex}
+.ptop{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:9px;align-items:center}
+.ptop input{flex:1;padding:10px 12px;border:1.5px solid var(--line);border-radius:9px;font-size:14px;outline:none}
+.ptop input:focus{border-color:var(--brown)}
+.pbody{overflow-y:auto;flex:1}
+.pi2{padding:10px 16px;cursor:pointer;border-bottom:1px solid var(--line-2);display:flex;gap:11px;align-items:center}
+.pi2:hover{background:var(--paper)}
+.ps{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--brown);font-size:13px;min-width:64px}
+.pn{flex:1;font-size:13px}
+.pp{color:var(--green-d);font-weight:700;font-size:13px;white-space:nowrap;font-family:'JetBrains Mono',monospace}
+.psup{color:var(--brown-d);font-size:11px;background:var(--paper-2);padding:2px 7px;border-radius:10px}
+
+/* ── Empty state ── */
+.empty{padding:48px 20px;text-align:center;color:var(--faint);font-size:13px}
+.empty svg{width:38px;height:38px;opacity:.4;margin-bottom:10px}
+
+/* ── Responsive ── */
+@media(max-width:1000px){
+  .app{grid-template-columns:1fr}
+  .sidebar{transform:translateX(-100%);transition:.25s;height:100vh;height:100dvh;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}
+  .sidebar.open{transform:none}
+  .main{margin-left:0}
+  .menu-btn{display:flex}
+  .kpi-grid{grid-template-columns:1fr 1fr}
+  .dash-row{grid-template-columns:1fr}
+  .topbar{padding:14px 18px;padding-top:calc(14px + env(safe-area-inset-top));padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right))}
+  .scroll{padding:20px 18px 50px;padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right));padding-bottom:calc(50px + env(safe-area-inset-bottom))}
+  .sb-back{position:fixed;inset:0;background:rgba(40,22,8,.4);z-index:75;display:none}
+  .sb-back.on{display:block}
+  .cat-layout{grid-template-columns:1fr}
+  .cat-tree-wrap{position:static;max-height:none}
+}
+@media(max-width:640px){
+  .kpi-grid{grid-template-columns:1fr}
+  .imeta{grid-template-columns:1fr 1fr}
+  .ihead{display:none}
+  .irow{grid-template-columns:repeat(3,1fr);gap:9px 10px;padding:13px;border:1px solid var(--line);border-radius:12px;margin-bottom:9px;background:var(--card);box-shadow:var(--sh)}
+  .irow>div:nth-child(1){display:none}
+  .irow>div:nth-child(3){order:1;grid-column:1/-1}
+  .irow>div:nth-child(2){order:2}
+  .irow>div:nth-child(4){order:3}
+  .irow>div:nth-child(6){order:4}
+  .irow>div:nth-child(5){order:5;text-align:center}
+  .irow>div:nth-child(7){order:6;text-align:right;font-size:15px}
+  .irow>div:nth-child(8){order:7;text-align:right}
+  .inv-head{grid-template-columns:24px 1fr auto;gap:8px}
+  .inv-head .h-date,.inv-head .h-items{display:none}
+  .tots{min-width:0;width:100%}
+  .twrap2{margin-top:12px}
+  /* iOS: inputs must be >=16px or Safari auto-zooms on focus */
+  input,select,textarea,.toolbar input,.toolbar select,.sel,.fg input,.fg select,.irow input,.ptop input,.search-in,input.pi{font-size:16px}
+  .topbar-tx h1{font-size:18px}
+  .filters{grid-template-columns:1fr 1fr}
+}
+/* ── iOS Safari polish ── */
+html{height:-webkit-fill-available}
+body{min-height:100vh;min-height:-webkit-fill-available;-webkit-tap-highlight-color:rgba(140,74,40,.12)}
+.main{min-height:100vh;min-height:100dvh}
+.topbar{-webkit-backdrop-filter:blur(10px)}
+.ov,.pm-ov,.pm-ov2{-webkit-backdrop-filter:blur(2px)}
+.tscroll,.pbody,.nav-group,.cat-tree-wrap,.cat-prod-panel,.scroll{-webkit-overflow-scrolling:touch}
+input,select,textarea,button{-webkit-appearance:none;appearance:none}
+.toolbar select,.fg select,.filters select,.sel,select{background-color:var(--card);background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238a7a66' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:32px}
+#iv-disc-type{background-image:none;padding-right:6px;text-align:center}
+input[type=date]{-webkit-appearance:none;min-height:1.2em}
+button,.nav-link,a{-webkit-touch-callout:none}
+.pop,.pm-pop{max-height:85dvh}
+.print-only{display:none}
+
+@media print{
+  body>*:not(.print-only){display:none!important}
+  .print-only{display:block!important}
+  @page{size:A4 portrait;margin:10mm 12mm}
+}
+.invp{background:#fff;font-family:Arial,'Yu Gothic',sans-serif;font-size:11px;page-break-after:always}
+.invp:last-child{page-break-after:avoid}
+.invh{display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:2px solid #444;padding-bottom:7px;margin-bottom:5px}
+.ihl .invno{font-size:11px;font-weight:700;color:#8c4a28;margin-bottom:3px;letter-spacing:.3px}
+.ihl .mmn{font-size:22px;font-weight:700;color:#00B050;line-height:1}
+.ihl .stn{font-size:13px;font-weight:700;color:#111;margin-top:2px}
+.ihl .sta{font-size:9.5px;line-height:1.7;color:#333;margin-top:3px}
+.ihm{padding-left:12px;border-left:1px solid #ddd;display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.ihm-text{flex:1}
+.ihm .dt{font-size:12px;font-weight:700;color:#111;margin-bottom:4px}
+.ihm .csn{font-size:13px;font-weight:700;color:#111;display:flex;align-items:center;gap:6px}
+.ihm .csa{font-size:9.5px;line-height:1.7;color:#333;margin-top:2px}
+.ihm .cst{font-size:9px;color:#666;margin-top:3px}
+.ihm .pg{font-size:9px;color:#666;margin-top:4px}
+.stamp-wrap{display:flex;flex-direction:column;align-items:center;gap:2px;flex-shrink:0}
+.stamp-wrap img{width:72px;height:63px;object-fit:contain}
+.totbanner{background:#8c4a28;color:#fff;padding:3px 14px;font-size:12px;font-weight:700;border-radius:3px;display:inline-block;margin:4px 0 5px}
+.invt{width:100%;border-collapse:collapse;font-size:10.5px}
+.invt th{background:#8c4a28;color:#fff;padding:4px 5px;border:1px solid #8c4a28;text-align:center;font-size:10px}
+.invt th.tl{text-align:left}
+.invt td{padding:3px 5px;border:1px solid #ccc;height:18px;vertical-align:middle}
+.invt td.tc{text-align:center}
+.invt td.tr2{text-align:right}
+.invt td.tb{font-weight:700}
+.invfoot{margin-top:5px;display:grid;grid-template-columns:1fr auto;gap:10px}
+.bank{font-size:9.5px;color:#333;line-height:1.8}
+.ttbl{border-collapse:collapse;font-size:11px}
+.ttbl td{padding:3px 10px;border:1px solid #ccc}
+.tl2{background:#ebe5d8;font-weight:600;text-align:right;white-space:nowrap}
+.tv{text-align:right;min-width:85px;font-weight:600}
+.tgl{background:#8c4a28;color:#fff;font-weight:700;text-align:right}
+.tgv{font-weight:700;font-size:13px;text-align:right;color:#8c4a28}
+.shop-wrap{display:flex;flex-direction:column;gap:14px}
+.shop-blk{background:#fff;border:1.5px solid #ede7d9;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(60,35,10,.06)}
+.shop-hdr{background:#8c4a28;color:#fff;padding:10px 16px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px}
+.shop-hdr .inv-badge{font-size:11px;font-weight:600;background:rgba(255,255,255,.2);padding:2px 10px;border-radius:20px;margin-left:auto}
+.shop-periods{display:grid;grid-template-columns:repeat(4,1fr)}
+.sp-col{padding:14px 12px;border-right:1px solid #ebe5d8;text-align:center}
+.sp-col:last-child{border-right:none}
+.sp-lbl{font-size:10px;font-weight:700;color:#7a6a58;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.sp-amt{font-size:17px;font-weight:700;color:#8c4a28;line-height:1.2}
+.sp-cnt{font-size:11px;color:#9e907e;margin-top:3px}
+.shop-blk.gtot{border-color:#16a34a;border-width:2px}
+.shop-blk.gtot .shop-hdr{background:#16a34a}
+.shop-blk.gtot .sp-amt{color:#16a34a}
+.shop-blk.gtot .sp-col{background:#f0fdf4}
+@media(max-width:600px){.shop-periods{grid-template-columns:repeat(2,1fr)}.sp-col{border-bottom:1px solid #ebe5d8}}
+/* ── Catalog ── */
+.cat-layout{display:grid;grid-template-columns:270px 1fr;gap:16px;align-items:start}
+.cat-tree-wrap{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(60,35,10,.06);padding:14px;position:sticky;top:70px;max-height:calc(100vh - 90px);overflow-y:auto}
+.cat-tree-title{font-size:13px;font-weight:700;color:#8c4a28;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.cat-main-blk{margin-bottom:6px;border:1.5px solid #ddd5c5;border-radius:8px;overflow:hidden}
+.cat-main-hdr{display:flex;align-items:center;gap:7px;padding:9px 12px;background:#8c4a28;color:#fff;cursor:pointer;font-size:13px;font-weight:700;user-select:none}
+.cat-main-hdr .arrow{font-size:10px;transition:.2s;margin-right:2px}
+.cat-main-blk.open .cat-main-hdr .arrow{transform:rotate(90deg)}
+.cat-main-hdr .cnt-badge{font-size:10px;background:rgba(255,255,255,.2);padding:1px 7px;border-radius:20px;margin-left:auto;font-weight:600}
+.cat-hdr-acts{display:flex;gap:2px;margin-left:4px}
+.cat-btn{background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:4px;cursor:pointer;font-size:11px;padding:2px 7px;white-space:nowrap}
+.cat-btn:hover{background:rgba(255,255,255,.3)}
+.cat-btn.del{background:rgba(239,68,68,.3)}
+.cat-btn.del:hover{background:rgba(239,68,68,.6)}
+.cat-subs{display:none;padding:6px 8px;background:#f5efe6}
+.cat-main-blk.open .cat-subs{display:block}
+.cat-sub-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:12px;color:#4a3728;margin-bottom:2px}
+.cat-sub-row:hover,.cat-sub-row.active{background:#f0e9df;color:#8c4a28}
+.cat-sub-name{flex:1;font-weight:600}
+.cat-sub-cnt{font-size:10px;color:#9e907e;background:#ddd5c5;padding:1px 6px;border-radius:20px}
+.sub-acts{display:flex;gap:2px;opacity:0;transition:.1s}
+.cat-sub-row:hover .sub-acts{opacity:1}
+.sub-btn{background:none;border:1px solid #cfc7b5;color:#7a6a58;border-radius:4px;cursor:pointer;font-size:10px;padding:1px 6px}
+.sub-btn:hover{background:#8c4a28;color:#fff;border-color:#8c4a28}
+.sub-btn.del:hover{background:#ef4444;border-color:#ef4444}
+.cat-add-sub{width:100%;margin-top:6px;padding:5px;background:#f0e9df;border:1.5px dashed #ede7d9;border-radius:6px;color:#7a6a58;font-size:11px;cursor:pointer;text-align:center}
+.cat-add-sub:hover{border-color:#8c4a28;color:#8c4a28;background:#f0e9df}
+.cat-prod-panel{background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(60,35,10,.06);padding:16px;min-height:400px}
+.cat-prod-hdr{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #ddd5c5}
+.cat-prod-hdr h3{font-size:15px;font-weight:700;color:#8c4a28;flex:1}
+.cat-prod-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.cat-prod-tbl th{background:#f0e9df;padding:8px 12px;text-align:left;font-size:11px;font-weight:700;color:#7a6a58;text-transform:uppercase;letter-spacing:.3px;white-space:nowrap}
+.cat-prod-tbl td{padding:7px 12px;border-bottom:1px solid #ebe5d8;vertical-align:middle}
+.cat-prod-tbl tr:hover td{background:#fdf9f5}
+.cat-prod-tbl tr:last-child td{border-bottom:none}
+.pm-ov{position:fixed;inset:0;background:rgba(0,0,0,.32);z-index:299;display:none}
+.pm-ov.on{display:block}
+.pm-pop{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(60,35,10,.16);width:480px;max-width:95vw;z-index:300;display:none;flex-direction:column}
+.pm-pop.on{display:flex}
+.pm-head{padding:14px 18px;border-bottom:1px solid #ebe5d8;display:flex;justify-content:space-between;align-items:center}
+.pm-head h3{font-size:15px;font-weight:700;color:#8c4a28}
+.pm-body{padding:18px;display:flex;flex-direction:column;gap:12px}
+@media print{
+  .shop-blk{page-break-inside:avoid;margin-bottom:10px}
+  .shop-hdr,.shop-blk.gtot .sp-col{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .shop-periods{display:grid!important;grid-template-columns:repeat(4,1fr)!important}
+  .sum-print-hdr{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #8c4a28;padding-bottom:8px;margin-bottom:14px}
+}
+</style>
+</head>
+<body>
+
+<div id="main-content">
+<div class="sb-back" id="sbBack" onclick="toggleSide(false)"></div>
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-mark">MM</div>
+    <div class="brand-tx"><b>MM-MART</b><span>Billing System</span></div>
+  </div>
+  <nav class="nav-group">
+    <div class="nav-cap">Overview</div>
+    <button class="nav-link" data-page="dash" onclick="showPage('dash')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>Dashboard</button>
+    <div class="nav-cap">Billing</div>
+    <button class="nav-link" data-page="inv" onclick="showPage('inv')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15h6"/></svg>New Invoice</button>
+    <button class="nav-link" data-page="hist" onclick="showPage('hist')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l3 3v15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Invoices</button>
+    <button class="nav-link" data-page="cust" onclick="showPage('cust')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Customers</button>
+    <div class="nav-cap">Catalog</div>
+    <button class="nav-link" data-page="pl" onclick="showPage('pl')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.5"/></svg>Price List</button>
+    <button class="nav-link" data-page="cat" onclick="showPage('cat')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/></svg>Catalog</button>
+    <button class="nav-link" data-page="summ" onclick="showPage('summ')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>Summary</button>
+  </nav>
+  <div class="side-foot">
+    <div class="conn" id="conn"><span class="dot"></span><span id="connTx">Offline mode</span></div>
+    <div class="side-user" id="sideUser" style="display:none"></div>
+  </div>
+</aside>
+<main class="main">
+  <header class="topbar">
+    <button class="menu-btn" onclick="toggleSide(true)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
+    <div class="topbar-tx"><h1 id="pgTitle">Dashboard</h1><p id="pgSub">Overview of billing activity</p></div>
+    <div class="topbar-acts" id="pgActs"></div>
+  </header>
+  <div class="scroll">
+
+  <!-- DASHBOARD -->
+  <div id="dash" class="page active">
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="dash-row">
+      <div class="card">
+        <div class="ctitle">Daily Revenue <span class="sub">Last 14 days</span></div>
+        <div class="bars" id="barChart"></div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Sales by Store <span class="sub">all time</span></div>
+        <div class="donut-wrap" id="donutWrap"></div>
+      </div>
+    </div>
+    <div class="card card-pad0">
+      <div class="ctitle" style="padding:20px 20px 4px">Recent Invoices</div>
+      <div id="recentList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- INVOICE -->
+  <div id="inv" class="page">
+    <div class="card">
+      <div class="ctitle">Invoice Details</div>
+      <div class="imeta">
+        <div class="fg"><label>Store / Customer</label>
+          <div style="display:flex;gap:7px;align-items:center">
+            <select id="iv-store" style="flex:1"><option value="">— Select Store —</option></select>
+            <button class="btn btn-ou btn-sm" onclick="openAddShop()" title="Add new shop">+</button>
+          </div></div>
+        <div class="fg"><label>Date</label><input type="date" id="iv-date"></div>
+        <div class="fg"><label>Invoice No.</label><input type="text" id="iv-no" placeholder="INV-0001"></div>
+        <div class="fg"><label>Tax Rate (%)</label><input type="number" id="iv-tax" value="8" min="0" oninput="recalc()"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ctitle" style="justify-content:space-between">
+        <span>Line Items</span>
+        <button class="btn btn-ou btn-sm" onclick="syncStock(this)">&#8635; Sync Stock</button>
+      </div>
+      <div class="ihead">
+        <div>No.</div><div>SKU</div><div>Product</div>
+        <div style="text-align:center">Qty</div>
+        <div style="text-align:center">Stock</div>
+        <div style="text-align:right">Unit &#165;</div>
+        <div style="text-align:right">Amount &#165;</div>
+        <div></div>
+      </div>
+      <div id="iWrap"></div>
+      <div style="display:flex;gap:9px;margin-top:14px">
+        <button class="btn btn-pr" onclick="addRow()">+ Add Row</button>
+        <button class="btn btn-ou" onclick="openPop(null)">Search Product</button>
+      </div>
+      <div class="twrap2">
+        <div class="tots">
+          <div class="tr"><span>Subtotal</span><span id="ts">&yen;0</span></div>
+          <div class="tr">
+            <span style="display:flex;align-items:center;gap:6px">Discount
+              <input type="number" min="0" id="iv-disc" value="0" oninput="recalc()" style="width:60px;padding:4px 7px;border:1.5px solid var(--line);border-radius:6px;font-size:12px;text-align:right;font-family:'JetBrains Mono',monospace">
+              <select id="iv-disc-type" onchange="recalc()" style="padding:4px 6px;border:1.5px solid var(--line);border-radius:6px;font-size:12px">
+                <option value="pct">%</option><option value="yen">&yen;</option>
+              </select>
+            </span>
+            <span id="td">&yen;0</span>
+          </div>
+          <div class="tr"><span id="txl">Tax (8%)</span><span id="tt">&yen;0</span></div>
+          <div class="tr gd"><span>TOTAL</span><span id="tg">&yen;0</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-pr" onclick="doPrint()" style="padding:11px 26px">Print / Save PDF</button>
+      <button class="btn btn-gr" onclick="saveInvoice()">Save Invoice</button>
+      <button class="btn btn-gh" onclick="clearInv()">Clear</button>
+    </div>
+  </div>
+
+  <!-- INVOICES / HISTORY -->
+  <div id="hist" class="page">
+    <div class="card">
+      <div class="ctitle">Filter Invoices</div>
+      <div class="filters">
+        <div class="fg"><label>Store</label>
+          <select id="histStore" class="sel" onchange="loadHistory()"><option value="">All Stores</option></select></div>
+        <div class="fg"><label>From</label><input type="date" id="histFrom" oninput="renderHistory()"></div>
+        <div class="fg"><label>To</label><input type="date" id="histTo" oninput="renderHistory()"></div>
+        <div class="fg"><label>Min &yen;</label><input type="number" id="histMin" placeholder="0" oninput="renderHistory()"></div>
+        <div class="fg"><label>Max &yen;</label><input type="number" id="histMax" placeholder="—" oninput="renderHistory()"></div>
+        <button class="btn btn-ou" onclick="clearHistFilters()">Reset</button>
+      </div>
+    </div>
+    <div class="card card-pad0">
+      <div id="histList"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- CUSTOMERS -->
+  <div id="cust" class="page">
+    <div class="toolbar">
+      <div class="field" style="flex:1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="search" class="search-in" id="custSearch" placeholder="Search customers…" oninput="renderCustomers()">
+      </div>
+      <span class="cnt-pill" id="custCnt"></span>
+      <button class="btn btn-pr" onclick="openAddShop()">+ Customer</button>
+    </div>
+    <div class="cust-grid" id="custGrid"><div class="empty">Loading…</div></div>
+  </div>
+
+  <!-- PRICE LIST -->
+  <div id="pl" class="page">
+    <div class="toolbar">
+      <div class="field" style="flex:1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" class="search-in" id="srch" placeholder="Search SKU or name…" oninput="renderPL()">
+      </div>
+      <select id="supF" class="sel" onchange="renderPL()"><option value="">All Suppliers</option></select>
+      <button class="btn btn-gr" onclick="saveAllPrices()">Save All</button>
+      <button class="btn btn-ou" onclick="exportCSV()">Export CSV</button>
+      <span class="cnt-pill" id="cnt"></span>
+      <span style="font-size:11px;color:var(--faint)" id="syncst"></span>
+    </div>
+    <div class="twrap"><div class="tscroll">
+      <table class="ptbl">
+        <thead><tr>
+          <th style="width:96px">SKU</th>
+          <th>Product Name</th>
+          <th style="width:240px">Country / Vendor</th>
+          <th style="width:130px;text-align:right">Unit Price (&yen;)</th>
+          <th style="width:40px"></th>
+        </tr></thead>
+        <tbody id="plBody"></tbody>
+      </table>
+    </div></div>
+  </div>
+
+  <!-- SUMMARY -->
+  <div id="summ" class="page">
+    <div class="card">
+      <div class="ctitle" style="justify-content:space-between">
+        <span>Sales Summary — All Shops</span>
+        <button class="btn btn-pr btn-sm" onclick="printSummary()">Print / Save PDF</button>
+      </div>
+      <div id="summContent"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+
+  <!-- CATALOG -->
+  <div id="cat" class="page">
+    <div class="cat-layout">
+      <div class="cat-tree-wrap">
+        <div class="cat-tree-title">Categories
+          <button class="btn btn-pr btn-sm" onclick="addMainCat()" style="margin-left:auto">+ Category</button>
+        </div>
+        <div id="catTree"></div>
+        <div style="margin:10px 8px 0;display:flex;flex-direction:column;gap:6px">
+          <button class="btn btn-sm" id="syncFbBtn" onclick="syncFirebase()" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-size:12px">&#8635; Two-way Sync (Firebase &harr; Billing)</button>
+          <button class="btn btn-sm" id="pushFbBtn" onclick="pushFirebase()" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a;font-size:12px">&uarr; Push All Products &rarr; Lovable</button>
+          <a id="exportCsvBtn" href="/api/export/csv" download style="display:block;text-align:center;padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f5efe6;color:#374151;font-size:12px;text-decoration:none">&darr; Export CSV</a>
+          <a id="exportFbBtn" href="/api/export/firebase" download style="display:block;text-align:center;padding:5px 10px;border-radius:6px;border:1px solid #d1d5db;background:#f5efe6;color:#374151;font-size:12px;text-decoration:none">&darr; Export Firebase JSON</a>
+        </div>
+        <div id="syncFbSt" style="font-size:11px;color:#7a6a58;text-align:center;padding:6px 8px 8px"></div>
+      </div>
+      <div class="cat-prod-panel" id="catProdPanel">
+        <div style="color:#9e907e;padding:40px;text-align:center;font-size:13px">
+          Select a category or subcategory to view products
+        </div>
+      </div>
+    </div>
+  </div>
+
+  </div><!-- /scroll -->
+</main>
+
+<!-- PRODUCT MODAL -->
+<div class="pm-ov" id="pmOv" onclick="closePM()"></div>
+<div class="pm-pop" id="pmPop">
+  <div class="pm-head">
+    <h3 id="pmTitle">Add Product</h3>
+    <button class="btn btn-ou btn-sm" onclick="closePM()">✕ Close</button>
+  </div>
+  <div class="pm-body">
+    <div class="fg"><label>Product Name *</label>
+      <input type="text" id="pm-name" placeholder="e.g. Thai Jasmine Rice 5kg"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <!-- ADD mode: editable prefix field -->
+      <div class="fg" id="pm-add-row">
+        <label>SKU Prefix <span style="font-weight:400;color:#9e907e">— type 2 letters, number auto</span></label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input type="text" id="pm-prefix" maxlength="4" placeholder="TM"
+                 style="font-family:'JetBrains Mono',monospace;text-transform:uppercase;width:70px;letter-spacing:2px"
+                 oninput="updateSkuPreview()">
+          <span id="pm-sku-preview" style="font-size:12px;color:#0369a1;font-family:'JetBrains Mono',monospace;background:#e0f2fe;padding:3px 8px;border-radius:4px"></span>
+        </div>
+      </div>
+      <!-- EDIT mode: readonly SKU display -->
+      <div class="fg" id="pm-edit-row" style="display:none">
+        <label>SKU Code <span style="font-weight:400;color:#9e907e">(cannot change)</span></label>
+        <input type="text" id="pm-sku" readonly
+               style="font-family:'JetBrains Mono',monospace;background:#f1f5f9;color:#7a6a58;cursor:not-allowed;border-color:#e2e8f0">
+      </div>
+      <!-- Barcode always visible -->
+      <div class="fg">
+        <label>Barcode / Scan Code</label>
+        <input type="text" id="pm-barcode" placeholder="e.g. 8834000192098" style="font-family:'JetBrains Mono',monospace">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Unit Price (¥)</label>
+        <input type="number" id="pm-price" min="0" placeholder="0"></div>
+      <div class="fg"><label>Category</label>
+        <input type="text" id="pm-catname" readonly style="background:#f0f9ff;color:#0369a1;cursor:default"></div>
+    </div>
+    <input type="hidden" id="pm-catid">
+    <input type="hidden" id="pm-editsku">
+    <button class="btn btn-gr" onclick="submitProduct()" style="padding:10px">Save Product</button>
+  </div>
+</div>
+
+<!-- SEARCH POPUP -->
+<div class="ov" id="ov" onclick="closePop()"></div>
+<div class="pop" id="pop">
+  <div class="ptop">
+    <input type="text" id="pq" placeholder="SKU or product name..." oninput="renderPop()">
+    <button class="btn btn-ou btn-sm" onclick="closePop()">X Close</button>
+  </div>
+  <div class="pbody" id="pb"></div>
+</div>
+
+<!-- printOut moved outside main-content so print CSS can show it -->
+<script>
+const STAMP='data:image/jpeg;base64,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';
+const DEFAULT_STORES=[
+  {id:"mm_mart",      name:"MM-MART",    sub:"Kita Otsuka",   address:"東京都豊島区北大塚3-32-3(201)",          tel:"03-6903-6174", email:"", zip:"170-0004"},
+  {id:"takadano",     name:"MM-MART",    sub:"Takadano Baba", address:"東京都新宿区高田馬場4丁目9-14岩ビル1階",    tel:"03-6768-0683", email:"", zip:"169-0075"},
+  {id:"kita_otsuka",  name:"MM-MART",    sub:"Kita Otsuka",   address:"東京都豊島区北大塚3丁目32-3",             tel:"03-6903-6174", email:"", zip:"170-0004"},
+  {id:"minami",       name:"MM-MART",    sub:"Minami Otsuka", address:"東京都豊島区南大塚",                     tel:"", email:"", zip:"170-0005"},
+  {id:"komagome",     name:"MM-MART",    sub:"Komagome",      address:"東京都豊島区駒込",                      tel:"", email:"", zip:""},
+  {id:"sugamo",       name:"MM-MART",    sub:"Sugamo",        address:"東京都豊島区巣鴨",                      tel:"", email:"", zip:""},
+  {id:"kawaguchi",    name:"MM-MART",    sub:"Kawaguchi",     address:"埼玉県川口市",                         tel:"", email:"", zip:""},
+  {id:"higashi_jujo", name:"MM-MART",    sub:"Higashi Jujo",  address:"東京都北区東十条",                      tel:"", email:"", zip:""},
+  {id:"briyani_ot",   name:"MM Briyani", sub:"Otsuka",        address:"東京都豊島区北大塚",                    tel:"", email:"", zip:""},
+  {id:"briyani_tb",   name:"MM Briyani", sub:"Takadano Baba", address:"東京都新宿区高田馬場",                   tel:"", email:"", zip:""},
+];
+let STORES=[...DEFAULT_STORES];
+const SEED=[{"sku": "AT002", "name": "FISH CAKE", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT003", "name": "LEMON GRASS", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT004", "name": "TURKEY BERRY", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT005", "name": "FISH BALL SMALL", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT006", "name": "THAI GALANGAL", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT007", "name": "GAINT RIVER PRAWN", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT008", "name": "FROZEN LIME LEAF", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT009", "name": "TAMARIND GREEN", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT010", "name": "AJINO MOTO 250g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT011", "name": "AJINO MOTO 500g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT012", "name": "TAPIOCA WHITE", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT013", "name": "TAPIOCA GREEN", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT014", "name": "TAPIOCA MIX", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT015", "name": "RICE POWDER", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT016", "name": "GLUTINOUS RICE POWDER", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT017", "name": "TAPIOCA POWDER", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT018", "name": "THAI TEA MIX", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT019", "name": "WAI WAI RICE NOODLE", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT020", "name": "RICE BEAN STICK 200g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT021", "name": "RICE BEAN STICK 80g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT022", "name": "TAMARIND PASTE 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT023", "name": "TAMARIND PASTE 227g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT024", "name": "TOM YUM SOUP MIX 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT025", "name": "TOM YUM SOUP MIX 227g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT026", "name": "CHILLI PASTE IN OIL 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT027", "name": "CHILLI PASTE IN OIL 250g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT028", "name": "PAD THAI PASTE 227g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT029", "name": "CHILLI PASTE W BASIL 200g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT030", "name": "CHILLI PASTE 200g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT031", "name": "PICKLED GUORAMY FISH 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT032", "name": "Green", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT033", "name": "PICKLED GUORAMY FISH 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT034", "name": "Black", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT035", "name": "PICKLED MUD FISH 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT036", "name": "PICKLED GARLIC", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT037", "name": "BAMBOO SHOT STRIP 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT038", "name": "BAMBOO SHOOT SLICE 454g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT039", "name": "BABY BAMBOO SHOOT 565g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT040", "name": "YOUNG BAMBOO SHOOT 565g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT041", "name": "YOUNG GREEN JACKFRUIT 565g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT042", "name": "BANANA BLOSSOM", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT043", "name": "RAMBUTAN in SYRUP", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT044", "name": "RAMBUTAN with PiNEAPPLE", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT045", "name": "TODDY PALM & JACKFRUIT", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT046", "name": "PALM SEED", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT047", "name": "TODDY PALM SEED", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT048", "name": "YOUNG COCONUT MEAT", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT049", "name": "BOILED BAMBOO SHOOT", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT050", "name": "OYSTER SAUCE 360g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT051", "name": "OYSTER SAUCE BIG", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT052", "name": "SOYBEAN PASTE 365g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT053", "name": "SOYBEAN PASTE 850g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT054", "name": "PANTAI CANTONESE SUKI 300g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT055", "name": "PANTAI CANTONESE SUKI 820g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT056", "name": "SEASONG SAUCE 200ml", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT057", "name": "SEASONG SAUCE 1L", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT058", "name": "SRIRAJA CHILLI SAUCE 250ml", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT059", "name": "SRIRAJA CHILLI SAUCE 570ml", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT060", "name": "VINEGAR SMALL", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT061", "name": "VINEGAR BIG", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT062", "name": "PICKLED GOURAMY FISH SAUCE 380g", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT063", "name": "SHRIMP PASTE 250G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT064", "name": "SHRIMP PASTE 500G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT065", "name": "PIGEON BRAND 140G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT066", "name": "MEA PLOY RED CURRY PASTE 50G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT067", "name": "MEA PLOY GREEN CURRY PASTE 50G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT068", "name": "TOM YUM PASTE 30G", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT069", "name": "CHINESE FIVE SPICE BLAND", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT070", "name": "COCONUT SUGAR", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT071", "name": "FRIED SHRIMP CHIPS", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT072", "name": "UNCOOKED SHRIMP CHIPS", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT073", "name": "SPONSOR DRINK", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT074", "name": "VITAMILK THAI TEA DRINK", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT075", "name": "VITAMILK SOYOMILK DRINK", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT076", "name": "GRASS JELLY DRINK", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT077", "name": "THAI TEA DRINK", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "AT078", "name": "MORTER", "supplier": "A1 Thai", "unit": "p", "price": 0}, {"sku": "LT002", "name": "RICE STICK N-1", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT003", "name": "RICE STICK N-2", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT004", "name": "RICE STICK N-3", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT005", "name": "RICE STICK N-4", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT006", "name": "BON GAO", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT007", "name": "BON TOUI", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT008", "name": "BON BO HUE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT009", "name": "PHO RICE NOODLE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT010", "name": "22cm RICE PAPER", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT011", "name": "16cm RICE PAPER", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT012", "name": "28cm RICE PAPER", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT013", "name": "CHAO THAI COCONUT POWDER", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT014", "name": "AROY-D YOUNG BAMBOO LEAVES", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT015", "name": "AROY-D BAMBOO SHOOT TIPS", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT016", "name": "AROY-D BAMBOO SHOOT STRIP", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT017", "name": "AROY-D YOUNAG GREEN JACKFROUT", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT018", "name": "AROY-D JACKFRUIT IN SYRUP", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT019", "name": "AROY-D LYCHEE IN SYRUP", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT020", "name": "AROY-D LONGAN IN SYRUP", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT021", "name": "AROY-D TADDY PLAM SEED", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT022", "name": "GOLDEN KING GRESS JELLY", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT023", "name": "RUMBUTAN IN SYRUP", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT024", "name": "TAMARIND WITHOUT SEED", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT025", "name": "SHRIMP PASTE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT026", "name": "PICKKLED GOURAMY FISH", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT027", "name": "THIN SOY SAUCE 300G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT028", "name": "THIN SOY SAUCE 1000G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT029", "name": "BLACK SOY SAUCE ORANGE 410G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT030", "name": "BLACK SOY SAUCE ORANGE 940G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT031", "name": "OYSTAR SAUCE 370G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT032", "name": "OYSTAR SAUCE 850G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT033", "name": "SWEET SOY SAUCE 420G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT034", "name": "SWEET SOY SAUCE 950G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT035", "name": "CHOILMAX HOT CHILLI SAUCE 295G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT036", "name": "CHOILMAX HOT CHILLI SAUCE 890G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT037", "name": "SRIRACHA HOT CHILLI SAUCE 540G", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT038", "name": "TRA FISH SAUCE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT039", "name": "SQUID FISH SAUCE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT040", "name": "TIPAROS FISH SAUCE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT041", "name": "FOCO COCONUT JUICE CAN", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT042", "name": "FOCO ROSTED COCONUT JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT043", "name": "FOCO MANGO JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT044", "name": "FOCO SUGAR CAN JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT045", "name": "FOCO TAMARIND JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT046", "name": "FOCO LYCHEE JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT047", "name": "FOCO GUAVA JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT048", "name": "FOCO POMIGRANTE JUICE", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "LT049", "name": "FOCO THAI TEA DRINK", "supplier": "Lifu Tou", "unit": "p", "price": 0}, {"sku": "IC001", "name": "GRASS CARP STEAK 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC002", "name": "BABY OCTOPUS 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC003", "name": "GOBY FISH 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC004", "name": "PANGASIA STEAK 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC005", "name": "SILKWORM PUPAE 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC006", "name": "BABY SHRIMP 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC007", "name": "GREASBACK SHRIMP 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC008", "name": "APPLE SNAIL MEAT 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC009", "name": "CAT FISH CUT 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC010", "name": "FEATHERBACK FISH PASTE 300G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC011", "name": "FEATHERBACK FISH PASTE 200G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC012", "name": "BASA FISH BALL 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC013", "name": "DURIAN 500G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC014", "name": "DURIAN 300G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC015", "name": "MANGOSTEEN", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC016", "name": "FROZEN LYCHEE", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC017", "name": "FROZEN JACKFRUIT 250G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "IC018", "name": "FROZEN COCONUT 250G", "supplier": "ICHIBA", "unit": "p", "price": 0}, {"sku": "AM002", "name": "TEJ PATA", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM003", "name": "CURRY PATA 20G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM004", "name": "CUMIN WHOLE 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM005", "name": "CUMIN PAWDER 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM006", "name": "CORIANDER WHOLE 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM007", "name": "CORIANDER POWDER 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM008", "name": "CINNAMON POWDER 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM009", "name": "CINNAMON WHOLE 25G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM010", "name": "CHIILI POWDER 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM011", "name": "TURMERIC POWDER 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM012", "name": "GREEN CARDAMOM WHOLE 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM013", "name": "BROWN CARDAMOM WHOLE 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM014", "name": "FENNEL SEED 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM015", "name": "AJWAIN SEED 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM016", "name": "NIGELLA SEED 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM017", "name": "MUSTARD SEED 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM018", "name": "TEA MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM019", "name": "STAR ANISE WHOLE 20G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM020", "name": "STAR ANISE POWDER 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM021", "name": "MACE LEAF 20G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM022", "name": "FENUGREEK SEED 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM023", "name": "GREEN CARDAMOM POWDER 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM024", "name": "CLOVE WHOLE 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM025", "name": "CLOVE POWDER 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM026", "name": "YELLOW MUSTARD SEED 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM027", "name": "MUSTARD PAWDER YELLOW 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM028", "name": "BLACK PAPER PAWDER 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM029", "name": "BLACK PAPER WHOLE 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM030", "name": "NUTMEG POWDER 25G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM031", "name": "NUTMEG WHOLE 25G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM032", "name": "SWEET BASIL SEED 50G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM033", "name": "MEET MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM034", "name": "BRIYANI MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM035", "name": "CHICKEN CURRY MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM036", "name": "KITCHEN KING 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM037", "name": "GRAM MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM038", "name": "CHAT MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM039", "name": "FISH CURRY MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM040", "name": "MDH MEAT CURRY MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM041", "name": "MDH KITCHEN KING 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM042", "name": "MDH GRAM MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM043", "name": "MDH TANDORI BBQ MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM044", "name": "CHICKEN CURRY MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM045", "name": "MDH CHUNKY CHAT MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM046", "name": "MDH HYDARABADI BRIAYNI MASALA 100G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM047", "name": "DRY CHILLI WHOLE 250G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM048", "name": "CUMIN WHOLE 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM049", "name": "CUMIN POWDER 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM050", "name": "CORIANDER POWDER 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM051", "name": "CHILLI POWDER 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM052", "name": "PAPRIKA SPAIN 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM053", "name": "ATTA 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM054", "name": "ATTA 5KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM055", "name": "MAIDA 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM056", "name": "AMBIKA RASGULLA", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM057", "name": "BHUMI DAIRY GHEE", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM058", "name": "FOOD COLOUR", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM059", "name": "HING", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM060", "name": "AMBIKA FRIED ONION 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM061", "name": "AMBIKA COCONUT THREAD 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM062", "name": "AMBIKA SUJI RABA 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM063", "name": "AMBIKA PEANUT 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM064", "name": "AMBIKA CASHENUT 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM065", "name": "AMBIKA CASHENUT 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM066", "name": "AMBIKA RAISIN BROWN 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM067", "name": "AMBIKA PANIPURI 250G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM068", "name": "AMBIKA JAGGERY CUBES 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM069", "name": "AMBIKA MANGO PICKLE", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM070", "name": "AMBIKA MIXED PICKLE", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM071", "name": "AMBIKA PICKLED LIME", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM072", "name": "AMBIKA PICKLED GREEN CHILLI", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM073", "name": "AMBIKA BASAN 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM074", "name": "AMBIKA BASAN 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM075", "name": "HALDIRAM MIXTURE", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM076", "name": "HALDIRAM MINI SAMOSA", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM077", "name": "HALDIRAM MINI BAKARWADI", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM078", "name": "HALDIRAM MURUKKU", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM079", "name": "HALDIRAM COCONUT SHON PAPDI", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM080", "name": "HALDIRAM MASALA CHIPS", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM081", "name": "AMBIKA TEA CTC ASSAM 500G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM082", "name": "AMBIKA PREMIUM ASAM TEA", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM083", "name": "PARACHUTE COCONUT OIL", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM084", "name": "AMBIKA BASHMATI RICE 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM085", "name": "AMBIKA BASHMATI RICE 5KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM086", "name": "AMUL PANEER 200G", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "AM087", "name": "AMAL PANEER 1KG", "supplier": "AMBIKA", "unit": "p", "price": 0}, {"sku": "ST002", "name": "SARTAJ CURRY LEAF 100G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST003", "name": "SARTAJ TEJ PATA 100G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST004", "name": "SARTAJ RICE FLAKE 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST005", "name": "SARTAJ FRY ONION 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST006", "name": "SARTAJ BASAN 1KG", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST007", "name": "SARTAJ COCONUT THREAD 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST008", "name": "SARTAJ RICE POWDER 1KG", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST009", "name": "SARTAJ CTC ASSAM TEA", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST010", "name": "SARTAJ PANIPURI 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST011", "name": "SARTAJ RAISIN GREEN 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST012", "name": "SARTAJ CLOVE 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST013", "name": "SARTAJ CORIANDER WHOLE 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST014", "name": "SARTAJ TURMARIC POWDER 1KG", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST015", "name": "S MOTHER GINGER & GERLIC PASTE 300G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST016", "name": "S MOTHER GINGER PASTE 300G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST017", "name": "S MOTHER GERLIC PASTE 300G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST018", "name": "S MOTHER GINGER & GARLIC PASTE 1KG", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST019", "name": "S MONG DAL 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST020", "name": "S MIXTURE 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST021", "name": "S ALL IN ONE 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST022", "name": "S BHEL BPURI 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST023", "name": "S HALDIRAM KHATA MITTA 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST024", "name": "SARTAJ ROSTED CHANA 250G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST025", "name": "SARTAJ GULAB JAMUN 500G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST026", "name": "S DABUR RED 200G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST027", "name": "S DABUR RED 100G", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST028", "name": "S DABUR HERBAL FRESH GEL", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST029", "name": "S DABUR HERBAL GUM CARE", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST030", "name": "S DABUR HERBAL CLOVE", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST031", "name": "S DABUR HERBAL ORAL", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST032", "name": "S HIMALAYA DENTAL CREAM", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST033", "name": "S DABUR MISWAK", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST034", "name": "S FOGG ABSULATE", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST035", "name": "S FOOG DYNAMIC", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST036", "name": "S FOGG MARCO", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST037", "name": "S FOGG VICTOR", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST038", "name": "S D AMLA JASMINE 300ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST039", "name": "S D AMLA GOLD 300ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST040", "name": "S D AMLA GOLD 100ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST041", "name": "S D AMLA HAIR OIL 100ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST042", "name": "S D AMLA HAIR OIL 300ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST043", "name": "S D AMLA ANTI-DANDRUFF", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST044", "name": "S D AMLA COOLING 200ML", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST045", "name": "S B ALMOND DROPS", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST046", "name": "S B COOL ALMOND DROPS", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST047", "name": "S B AMLA 3X", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST048", "name": "S B AMLA AURBADIC", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST049", "name": "S B AMLA", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST050", "name": "S D GULBARI", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "ST051", "name": "S DRUMSTICK", "supplier": "SARTAJ", "unit": "p", "price": 0}, {"sku": "IJ001", "name": "VICO COCONUT MILK 330ml", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ002", "name": "VICO COCONUT MILK 1L", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ003", "name": "CONDENSED MILK 380G", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ004", "name": "VINAMILK CONDENSED CREAM", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ005", "name": "JACKFROUT CHIPS", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ006", "name": "HOT & SPICY GREEN PEAS", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ007", "name": "CRUNCHY GREEN PEAS", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ008", "name": "HOT & SPICY PEANUTS", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ009", "name": "SALTED PEANUTS", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ010", "name": "CG SOURSOP JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ011", "name": "CG WATERMELON JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ012", "name": "CG TAMARIND JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ013", "name": "CG GUAVA JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ014", "name": "CG MANGO JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ015", "name": "CG LUCHEE JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ016", "name": "CG MANGOUSTON JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ017", "name": "CG GREEN BEAN JUICE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ018", "name": "CG COCONUT WATER", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ019", "name": "CG SUPER SOY GOLD", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ020", "name": "SALTY LEMON DRINK", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ021", "name": "NUMBER 1 ENERGY DRINK", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ022", "name": "CHIN SU", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ023", "name": "NAM NGY 750ML", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ024", "name": "INSTANT CIFFEE MIX", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ025", "name": "PIA DURIAN TASTE 300G", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ026", "name": "PIA DURIAN TASTE 80G", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ027", "name": "PIA DURIAN CAKE 80G", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ028", "name": "COCO FRESH 100% PURE", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "IJ029", "name": "COCO FRESH COCONUT WATER", "supplier": "IMAI JAPAN", "unit": "p", "price": 0}, {"sku": "BP001", "name": "MUOI OT NINH 110G", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP002", "name": "MOUI TOM  NINH 110G", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP003", "name": "CRAB CHIPS 200G", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP004", "name": "SHRIMP CHIPS 200G", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP005", "name": "COCO EXTRA VIRGIN OIL", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP006", "name": "COCO XIM COCONUT MILK", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP007", "name": "PICKELD SALT EGG PLANT", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP008", "name": "P HOT & SOUR EGG PLANT", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP009", "name": "PICKLED BAMBOO SHOOT", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP010", "name": "BIG BANG CANDY", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP011", "name": "DAICY CREAM WAFER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP012", "name": "DAISY CREAM WAFER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP013", "name": "COCONUT CRAKER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP014", "name": "TIPO DURIAN EGG COOKIES", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP015", "name": "TIPO CREAM EGG COOKIES", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP016", "name": "NAWON COCONUT JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP017", "name": "NAWON MANGO JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP018", "name": "NAWON TAMARIND JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP019", "name": "NAWON PASSION FRUIT JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP020", "name": "NAWON GUAVA JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP021", "name": "NAWON POMEGRAND JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP022", "name": "MATA SUGER CAN", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP023", "name": "VIRDS NEST & FUNGUS JUICE", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP024", "name": "IF COCONUT WATER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP025", "name": "IF COCONUT WATER w PULM", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP026", "name": "IF LUCHEE DRINK", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP027", "name": "IF COCONUT WATER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP028", "name": "C2 LEMON TEA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP029", "name": "C2 PEACH TEA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP030", "name": "C2 LYCHEE TEA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP031", "name": "C2 STRAWBERY SHERRY TEA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP032", "name": "C2 LYCHEE & JESMINE TEA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP033", "name": "COCO XIM 100% WATER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP034", "name": "COCO XIM COCONUT WATER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP035", "name": "RICE PAPER", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP036", "name": "CRISPY CHICKEN SKIN MAX", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP037", "name": "CRISPY CHICKEN SKIN", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "BP038", "name": "TAPIOKA", "supplier": "BOMPEX JAPAN", "unit": "p", "price": 0}, {"sku": "AC001", "name": "ABC SWEET SAUCE", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC002", "name": "CHILLI SAUCE SAMBLE ASLI", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC003", "name": "EXTRA HOT CHILLI SAUCE", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC004", "name": "CHAOKOH COCONUT MILK", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC005", "name": "ABC SALTY SOY SAUCE KECAP", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC006", "name": "TIGER RICE STICK", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "AC007", "name": "7 COLOUR CHIPS", "supplier": "ABC COMPANY", "unit": "p", "price": 0}, {"sku": "DI002", "name": "KARA COCONUT MILK DRINK 330ml", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI003", "name": "KARA COCONUT WATER 1L", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI004", "name": "KARA COCONUT CREAM 195ml", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI005", "name": "KARA COCONUT MILK 400ml", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI006", "name": "KARA COCONUT CREAM POWDER 50g", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI007", "name": "KARA UTH COCONUT MILK 200ml", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI008", "name": "KARA UTH COCONUT CREAM 200ml", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI009", "name": "KOKA TOM YUM FLAVOUR 85G", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI010", "name": "KOKA LAKSA SINGAPURA FLAVOUR 85G", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI011", "name": "PAD THAI MEAL KIT 220g", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI012", "name": "THAI TOM YUM SOUP 270g", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI013", "name": "TRICKES ORIGINAL", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI014", "name": "TRICKES ASIAN BBQ", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI015", "name": "TRICKS SOUR CREAM ONION", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI016", "name": "THAI KIMCHI BAKED CHIPS", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI017", "name": "FROZEN LIME LEAF", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "DI018", "name": "FROZEN LIME LEAF", "supplier": "Dobarfield Indonasian", "unit": "p", "price": 0}, {"sku": "MY001", "name": "BAMBOE BAMBU RAWAN", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY002", "name": "BAMBOE BAMBU GULE", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY003", "name": "BAMBOE BAMBU BALI", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY004", "name": "BAMBOE BAMBU SOTO AYAM", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY005", "name": "BAMBOE AYAM BAKAR BAMBU RUJAK", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY006", "name": "BAMBOE AYAM GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY007", "name": "BAMBOE SAMBAL GORENG ATI", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY008", "name": "BAMBOE OPOR", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY009", "name": "BAMBOE KARE", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY010", "name": "BAMBOE NASI GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY011", "name": "BAMBOE SOTO DAGING", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY012", "name": "BAMBOE AYAM KECAP", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY013", "name": "BAMBOE BALADO", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY014", "name": "BAMBOE KUAH BAKSO", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY015", "name": "BAMBOE SEMUR", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY016", "name": "BAMBOE SOTO BETAWI", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY017", "name": "BAMBOE RENDANG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY018", "name": "BAMBOE NASI GORENG PEDAS", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY019", "name": "BAMBEO AYASM GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY020", "name": "BAMBOE TONGSENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY021", "name": "BAMBEO SOP", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY022", "name": "INDOFOOD GULAI", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY023", "name": "INDOFOOD OPOR AYAM", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY024", "name": "INDOFOOD NASI GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY025", "name": "INDOFOOD RENDANG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY026", "name": "INDOFOOD KARE", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY027", "name": "INDOFOOD SOTOO AYAM", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY028", "name": "RACIK TEMPE & TAHU GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY029", "name": "RACIK SAYUR AAEM", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY030", "name": "RACIK IKAN GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY031", "name": "RACIK AYAM GORENG", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY032", "name": "NASI GORENG BAMBU SPECIAL", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY033", "name": "SATE BELIBIS", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY034", "name": "MI GORENG HOT&SPICY FLOVOUR", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY035", "name": "NOODLES", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY036", "name": "INDO MIE GORENG NOODLES", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY037", "name": "INDO MIE CHICKEN NOODLES", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY038", "name": "INDO MIE  SOTO NOODLES", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY039", "name": "STING EANERGY DRINK", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY040", "name": "REDBULL CAN 250ml", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY041", "name": "NUMBER 1 EANERGY DRINK", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY042", "name": "NAM NAM NGU 750ml", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}, {"sku": "MY043", "name": "CHIN SU 520ml", "supplier": "MY ANH Indonasian", "unit": "p", "price": 0}];
+
+let prods=[],items=[],activeIdx=null,isServer=false,savedId=null,sumPeriod='week';
+
+function populateStoreDropdowns(){
+  ['iv-store','histStore'].forEach(id=>{
+    const sel=document.getElementById(id);
+    const cur=sel.value;
+    while(sel.options.length>1)sel.remove(1);
+    STORES.forEach(s=>{
+      const o=document.createElement('option');
+      o.value=s.id; o.textContent=s.name+(s.sub?' - '+s.sub:'');
+      o.dataset.store=JSON.stringify(s);
+      sel.appendChild(o);
+    });
+    if(cur)sel.value=cur;
+  });
+}
+
+async function loadStores(){
+  try{
+    const r=await fetch('/api/stores');
+    if(r.ok){
+      const remote=await r.json();
+      if(remote&&remote.length){
+        const remoteIds=new Set(remote.map(s=>s.id));
+        const extras=DEFAULT_STORES.filter(s=>!remoteIds.has(s.id));
+        STORES=[...remote,...extras];
+      }
+      populateStoreDropdowns();
+    }
+  }catch(e){}
+}
+
+async function init(){
+  document.getElementById('iv-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('iv-no').value='INV-'+String(Date.now()).slice(-4);
+  // Populate dropdowns immediately with defaults so they're never empty
+  populateStoreDropdowns();
+  // Load each resource independently so one failure doesn't block others
+  try{const r=await fetch('/api/products');if(r.ok){prods=await r.json();isServer=true;setConn(true);document.getElementById('syncst').textContent='· synced with server';}}catch(e){}
+  try{const r=await fetch('/api/categories');if(r.ok)catData=await r.json();}catch(e){}
+  try{
+    const r=await fetch('/api/stores');
+    if(r.ok){
+      const remote=await r.json();
+      if(remote&&remote.length){
+        // Merge: remote stores take priority; keep any that are only in defaults
+        const remoteIds=new Set(remote.map(s=>s.id));
+        const extras=DEFAULT_STORES.filter(s=>!remoteIds.has(s.id));
+        STORES=[...remote,...extras];
+      }
+      populateStoreDropdowns();
+    }
+  }catch(e){}
+  if(!isServer){
+    const sv=JSON.parse(localStorage.getItem('mm_p')||'{}');
+    prods=SEED.map(p=>({...p,price:sv[p.sku]??p.price}));
+    document.getElementById('syncst').textContent='· offline mode';
+    setConn(false);
+    seedDemoInvoices();
+  }
+  buildSupplierFilter();
+  renderPL();
+  [1,2,3,4,5].forEach(()=>addRow());
+  showPage('dash');
+}
+
+function setConn(online){
+  const c=document.getElementById('conn');
+  document.getElementById('connTx').textContent=online?'Connected to server':'Offline mode';
+  c.classList.toggle('online',online);
+}
+
+function toggleSide(open){
+  document.getElementById('sidebar').classList.toggle('open',open);
+  document.getElementById('sbBack').classList.toggle('on',open);
+}
+
+// Demo invoices so the dashboard/history have content in offline/preview mode
+function seedDemoInvoices(){
+  if(localStorage.getItem('mm_inv'))return;
+  const skus=prods.slice(0,40).map(p=>p.sku);
+  const today=new Date();
+  const list=[];
+  for(let i=0;i<26;i++){
+    const d=new Date(today);d.setDate(today.getDate()-Math.floor(Math.random()*14));
+    const store=DEFAULT_STORES[Math.floor(Math.random()*6)];
+    const n=2+Math.floor(Math.random()*5);
+    const its=[];
+    for(let j=0;j<n;j++){
+      const p=prods[Math.floor(Math.random()*Math.min(prods.length,80))];
+      its.push({sku:p.sku,name:p.name,qty:1+Math.floor(Math.random()*8),price:200+Math.floor(Math.random()*40)*50});
+    }
+    const sub=its.reduce((a,b)=>a+b.qty*b.price,0);
+    list.push({id:today.getTime()-i*8640000-Math.floor(Math.random()*1e6),
+      store:store.name+' '+store.sub,date:d.toISOString().slice(0,10),
+      invoice_no:'INV-'+(2400+i),items:its,subtotal:sub,tax_rate:8,total:Math.round(sub*1.08)});
+  }
+  localStorage.setItem('mm_inv',JSON.stringify(list));
+}
+
+function openAddShop(){
+  ['as-name','as-sub','as-address','as-tel','as-email','as-zip'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('addShopOv').classList.add('on');
+  document.getElementById('addShopPop').classList.add('on');
+  document.getElementById('as-name').focus();
+}
+function closeAddShop(){
+  document.getElementById('addShopOv').classList.remove('on');
+  document.getElementById('addShopPop').classList.remove('on');
+}
+async function saveNewShop(){
+  const data={
+    name:document.getElementById('as-name').value.trim(),
+    sub:document.getElementById('as-sub').value.trim(),
+    address:document.getElementById('as-address').value.trim(),
+    tel:document.getElementById('as-tel').value.trim(),
+    email:document.getElementById('as-email').value.trim(),
+    zip:document.getElementById('as-zip').value.trim(),
+  };
+  if(!data.name&&!data.sub){alert('Please enter at least a shop name or branch name.');return;}
+  const r=await fetch('/api/stores',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const d=await r.json();
+  if(d.ok){
+    await loadStores();
+    document.getElementById('iv-store').value=d.id;
+    closeAddShop();
+    flash('Shop saved');
+  }else{alert(d.error||'Failed to save shop');}
+}
+
+function buildSupplierFilter(){
+  const sel=document.getElementById('supF');
+  // Clear all but the "All Suppliers" option
+  while(sel.options.length>1) sel.remove(1);
+  if(!isServer){return;}
+  // Group suppliers by main category using catData if loaded, else fallback to prefix
+  const supMap={};
+  prods.forEach(p=>{
+    if(!p.supplier) return;
+    // Determine main category from catData
+    let main='Other';
+    if(catData && catData.length){
+      catData.forEach(m=>(m.subs||[]).forEach(s=>{if(s.name===p.supplier||s.id===p.category_id)main=m.name;}));
+    } else {
+      const px=(p.sku||'').slice(0,2);
+      if(px==='TM') main='Thailand';
+      else if(px==='IM') main='Indonesia';
+      else if(px==='HM') main='Asian Halal';
+      else if(px==='MM') main='Myanmar';
+    }
+    if(!supMap[main]) supMap[main]=new Set();
+    supMap[main].add(p.supplier);
+  });
+  const catOrder=['Thailand','Indonesia','Asian Halal','Myanmar','Other'];
+  catOrder.forEach(main=>{
+    if(!supMap[main]) return;
+    const grp=document.createElement('optgroup');
+    grp.label=main;
+    [...supMap[main]].sort().forEach(sup=>{
+      const o=document.createElement('option');
+      o.value=sup; o.textContent=sup;
+      grp.appendChild(o);
+    });
+    sel.appendChild(grp);
+  });
+}
+
+const PAGE_META={
+  dash:{t:'Dashboard',s:'Overview of billing activity',a:'<button class="btn btn-pr" onclick="showPage(\'inv\')">+ New Invoice</button>'},
+  inv:{t:'New Invoice',s:'Build and print a customer invoice',a:''},
+  hist:{t:'Invoices',s:'Search and reprint saved invoices',a:'<button class="btn btn-pr" onclick="showPage(\'inv\')">+ New Invoice</button>'},
+  cust:{t:'Customers',s:'Stores and branches you bill',a:''},
+  pl:{t:'Price List',s:'Manage product catalog prices',a:''},
+  cat:{t:'Catalog',s:'Categories, products & Firebase sync',a:''},
+  summ:{t:'Summary',s:'Sales totals across all shops',a:''}
+};
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-link').forEach(b=>b.classList.toggle('active',b.dataset.page===id));
+  const pg=document.getElementById(id);
+  if(pg)pg.classList.add('active');
+  const m=PAGE_META[id]||{t:'',s:'',a:''};
+  document.getElementById('pgTitle').textContent=m.t;
+  document.getElementById('pgSub').textContent=m.s;
+  document.getElementById('pgActs').innerHTML=m.a;
+  document.querySelector('.main').scrollTop=0;window.scrollTo(0,0);
+  toggleSide(false);
+  if(id==='dash')loadDashboard();
+  if(id==='hist')loadHistory();
+  if(id==='cust')loadCustomers();
+  if(id==='summ')loadSummary();
+  if(id==='cat')loadCatalog();
+}
+
+// Build SKU→main-category lookup from catData
+function getMainCat(p){
+  const px=(p.sku||'').slice(0,2);
+  if(catData&&catData.length){
+    for(const m of catData){
+      if(m.id===p.category_id) return m.name;
+      for(const s of (m.subs||[])){
+        if(s.name===p.supplier||s.id===p.category_id) return m.name;
+      }
+    }
+  }
+  if(px==='TM') return 'Thailand';
+  if(px==='IM') return 'Indonesia';
+  if(px==='HM') return 'Asian Halal';
+  if(px==='MM') return 'Myanmar';
+  return '';
+}
+const CAT_COLOR={'Thailand':'#0369a1','Indonesia':'#7c3aed','Asian Halal':'#b45309','Myanmar':'#15803d'};
+
+function renderPL(){
+  const q=document.getElementById('srch').value.toLowerCase();
+  const sup=document.getElementById('supF').value;
+  const fl=prods.filter(p=>(!sup||p.supplier===sup)&&(!q||p.name.toLowerCase().includes(q)||p.sku.toLowerCase().includes(q)));
+  document.getElementById('cnt').textContent=fl.length+' / '+prods.length;
+  document.getElementById('plBody').innerHTML=fl.map(p=>{
+    const main=getMainCat(p);
+    const col=CAT_COLOR[main]||'#7a6a58';
+    const stk=p.stock!=null?fmtStock(p.stock):'';
+    return '<tr>'+
+    '<td><span class="skub">'+p.sku+'</span></td>'+
+    '<td>'+p.name+'</td>'+
+    '<td><span style="font-size:10px;font-weight:600;color:'+col+';background:'+col+'18;padding:2px 6px;border-radius:4px;white-space:nowrap">'+main+'</span> <span class="supt" style="font-size:11px">'+p.supplier+'</span> '+stk+'</td>'+
+    '<td style="text-align:right"><input class="pi" type="number" min="0" data-sku="'+p.sku+'" value="'+(p.price||'')+'" placeholder="0" onchange="priceChg(this)"></td>'+
+    '<td style="text-align:center"><span class="ck" id="ck-'+p.sku+'" style="display:none">ok</span></td>'+
+    '</tr>';
+  }).join('');
+}
+
+function priceChg(el){
+  const p=prods.find(x=>x.sku===el.dataset.sku);
+  if(!p)return;
+  p.price=parseFloat(el.value)||0;
+  if(isServer){fetch('/api/prices/'+p.sku,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({price:p.price})});}
+  else{const sv=JSON.parse(localStorage.getItem('mm_p')||'{}');sv[p.sku]={price:p.price};localStorage.setItem('mm_p',JSON.stringify(sv));}
+  const d=document.getElementById('ck-'+p.sku);
+  if(d){d.style.display='inline';setTimeout(()=>d.style.display='none',1500);}
+}
+
+async function saveAllPrices(){
+  const batch=prods.map(p=>({sku:p.sku,price:p.price}));
+  if(isServer){await fetch('/api/prices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(batch)});}
+  else{const sv={};prods.forEach(p=>sv[p.sku]={price:p.price});localStorage.setItem('mm_p',JSON.stringify(sv));}
+  flash('All prices saved');
+}
+
+function flash(msg){
+  let t=document.getElementById('toast');
+  if(!t){t=document.createElement('div');t.id='toast';
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#2e2418;color:#fff;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:400;box-shadow:0 8px 30px rgba(0,0,0,.25);opacity:0;transition:.25s;pointer-events:none';
+    document.body.appendChild(t);}
+  t.textContent=msg;
+  requestAnimationFrame(()=>{t.style.opacity='1';t.style.transform='translateX(-50%) translateY(0)';});
+  clearTimeout(t._h);
+  t._h=setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(-50%) translateY(20px)';},2200);
+}
+
+function exportCSV(){
+  const rows=[['SKU','Product Name','Supplier','Unit Price']];
+  prods.forEach(p=>rows.push([p.sku,p.name,p.supplier,p.price]));
+  const csv=rows.map(r=>r.map(v=>'"'+v+'"').join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download='MM-MART Prices.csv';a.click();
+}
+
+function addRow(sku,name,qty,price){
+  sku=sku||'';name=name||'';qty=qty||'';price=price||0;
+  const idx=items.length;
+  items.push({sku,name,qty:+qty||0,price:+price||0});
+  const d=document.createElement('div');
+  d.className='irow';d.id='ir'+idx;
+  d.innerHTML=
+    '<div class="ino">'+(idx+1)+'</div>'+
+    '<div><input value="'+sku+'" onchange="skuCh(this,'+idx+')" onfocus="this.select()" onclick="openPop('+idx+')" placeholder="AT002" style="font-family:JetBrains Mono,monospace;font-weight:700;text-transform:uppercase;letter-spacing:.5px"></div>'+
+    '<div><input class="auto" id="n'+idx+'" value="'+name+'" placeholder="auto-filled" readonly></div>'+
+    '<div><input type="number" min="0" value="'+(qty||'')+'" onchange="qtyCh(this,'+idx+')" placeholder="0" style="text-align:center;font-size:14px;font-weight:700"></div>'+
+    '<div style="text-align:center" id="stk'+idx+'"></div>'+
+    '<div><input type="number" min="0" class="auto" id="pr'+idx+'" value="'+(price||'')+'" onchange="prCh(this,'+idx+')" placeholder="0" style="text-align:right"></div>'+
+    '<div class="amc" id="am'+idx+'">'+(price&&qty?'¥'+fmt(price*qty):'')+'</div>'+
+    '<div><button class="xbtn" onclick="rmRow('+idx+')">x</button></div>';
+  document.getElementById('iWrap').appendChild(d);
+  recalc();
+}
+
+function fmtStock(s){
+  if(s==null||s===undefined)return '';
+  const n=+s;
+  const cls=n>=10?'stk-ok':n>0?'stk-lo':'stk-no';
+  return '<span class="'+cls+'">'+n+' pcs</span>';
+}
+function skuCh(el,idx){
+  const sku=el.value.trim().toUpperCase();el.value=sku;items[idx].sku=sku;
+  const p=prods.find(x=>x.sku===sku);
+  if(p){items[idx].name=p.name;items[idx].price=p.price;
+    document.getElementById('n'+idx).value=p.name;
+    document.getElementById('pr'+idx).value=p.price||'';}
+  const stkEl=document.getElementById('stk'+idx);
+  if(stkEl)stkEl.innerHTML=p?fmtStock(p.stock):'';
+  calcRow(idx);recalc();
+}
+async function syncStock(btn){
+  const orig=btn.textContent;btn.textContent='Syncing…';btn.disabled=true;
+  try{
+    const r=await fetch('/api/sync/stock',{method:'POST'});
+    const d=await r.json();
+    btn.textContent='✓ Synced ('+d.updated+')';
+    const pr=await fetch('/api/products');if(pr.ok)prods=await pr.json();
+    items.forEach((_,i)=>{
+      const p=prods.find(x=>x.sku===items[i].sku);
+      const el=document.getElementById('stk'+i);
+      if(el)el.innerHTML=p?fmtStock(p.stock):'';
+    });
+  }catch(e){btn.textContent='Error';}
+  setTimeout(()=>{btn.textContent=orig;btn.disabled=false;},2500);
+}
+function qtyCh(el,idx){items[idx].qty=+el.value||0;calcRow(idx);recalc();}
+function prCh(el,idx){items[idx].price=+el.value||0;calcRow(idx);recalc();}
+function calcRow(idx){
+  const it=items[idx];const a=(it.qty||0)*(it.price||0);
+  const el=document.getElementById('am'+idx);
+  if(el)el.textContent=a?'¥'+fmt(a):'';
+}
+function rmRow(idx){items.splice(idx,1);reRender();}
+function reRender(){const bk=[...items];items=[];document.getElementById('iWrap').innerHTML='';bk.forEach(it=>addRow(it.sku,it.name,it.qty,it.price));}
+function recalc(){
+  const sub=items.reduce((s,i)=>s+(i.qty||0)*(i.price||0),0);
+  const discVal=parseFloat(document.getElementById('iv-disc').value)||0;
+  const discType=document.getElementById('iv-disc-type').value;
+  const discAmt=discType==='pct'?sub*discVal/100:Math.min(discVal,sub);
+  const afterDisc=sub-discAmt;
+  const tx=parseFloat(document.getElementById('iv-tax').value)||0;
+  const txa=afterDisc*tx/100;
+  document.getElementById('ts').textContent='¥'+fmt(sub);
+  document.getElementById('td').textContent=discAmt>0?'-¥'+fmt(discAmt):'¥0';
+  document.getElementById('tt').textContent='¥'+fmt(txa);
+  document.getElementById('tg').textContent='¥'+fmt(afterDisc+txa);
+  document.getElementById('txl').textContent='Tax ('+tx+'%)';
+}
+function resetInv(){
+  document.getElementById('iv-store').value='';
+  document.getElementById('iv-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('iv-no').value='INV-'+String(Date.now()).slice(-4);
+  items=[];document.getElementById('iWrap').innerHTML='';
+  [1,2,3,4,5].forEach(()=>addRow());
+  savedId=null;
+}
+function clearInv(){if(!confirm('Clear all items?'))return;resetInv();}
+async function newInvoice(btn){
+  const storeId=document.getElementById('iv-store').value;
+  const filled=items.filter(i=>i.name&&i.qty>0);
+  if(storeId&&filled.length&&savedId===null)await saveInvoice(true);
+  resetInv();
+  showPage('inv');
+}
+function fmt(n){return Math.round(n).toLocaleString('ja-JP');}
+
+async function saveInvoice(silent){
+  const storeId=document.getElementById('iv-store').value;
+  const store=STORES.find(s=>s.id===storeId);
+  const filled=items.filter(i=>i.name&&i.qty>0);
+  if(!storeId){if(!silent)alert('Please select a store.');return;}
+  if(!filled.length){if(!silent)alert('No items to save.');return;}
+  const sub=filled.reduce((s,i)=>s+i.qty*i.price,0);
+  const tx=parseFloat(document.getElementById('iv-tax').value)||0;
+  const payload={
+    store:(store?store.name+' '+store.sub:storeId),
+    date:document.getElementById('iv-date').value,
+    invoice_no:document.getElementById('iv-no').value,
+    items:filled,subtotal:sub,tax_rate:tx,total:sub*(1+tx/100)
+  };
+  if(isServer){
+    const r=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const data=await r.json();
+    savedId=data.id;
+    if(!silent)flash('Invoice saved #'+data.id);
+  }else{
+    const list=JSON.parse(localStorage.getItem('mm_inv')||'[]');
+    payload.id=Date.now();list.unshift(payload);
+    localStorage.setItem('mm_inv',JSON.stringify(list.slice(0,50)));
+    savedId=payload.id;
+    if(!silent)flash('Invoice saved (offline)');
+  }
+}
+
+let HIST=[];
+async function loadHistory(){
+  let list=[];
+  if(isServer){
+    const r=await fetch('/api/invoices');
+    list=await r.json();
+  }else{
+    list=JSON.parse(localStorage.getItem('mm_inv')||'[]');
+  }
+  HIST=(list||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')|| (b.id-a.id));
+  renderHistory();
+}
+function clearHistFilters(){
+  ['histFrom','histTo','histMin','histMax'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('histStore').value='';
+  renderHistory();
+}
+function histStoreName(id){const s=STORES.find(x=>x.id===id);return s?(s.name+(s.sub?' '+s.sub:'')):id;}
+function renderHistory(){
+  const store=document.getElementById('histStore').value;
+  const from=document.getElementById('histFrom').value;
+  const to=document.getElementById('histTo').value;
+  const min=parseFloat(document.getElementById('histMin').value);
+  const max=parseFloat(document.getElementById('histMax').value);
+  const nm=store?histStoreName(store):'';
+  const list=HIST.filter(inv=>{
+    if(store&&inv.store!==nm&&inv.store!==store)return false;
+    if(from&&inv.date<from)return false;
+    if(to&&inv.date>to)return false;
+    const t=inv.total||0;
+    if(!isNaN(min)&&t<min)return false;
+    if(!isNaN(max)&&t>max)return false;
+    return true;
+  });
+  const el=document.getElementById('histList');
+  if(!list.length){el.innerHTML='<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 3h11l3 3v15H5z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg><div>No invoices match these filters.</div></div>';return;}
+  const chev='<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>';
+  el.innerHTML=list.map(inv=>{
+    const n=(inv.items||[]).length;
+    return '<div class="inv-row" id="ir-'+inv.id+'">'+
+      '<div class="inv-head" onclick="toggleInvRow('+inv.id+')">'+
+        '<span class="chev">'+chev+'</span>'+
+        '<span class="mono" style="font-size:12px;color:var(--brown);font-weight:700">'+(inv.invoice_no||'—')+'</span>'+
+        '<span class="store">'+inv.store+'</span>'+
+        '<span class="h-date" style="font-size:12px;color:var(--muted);font-family:\'JetBrains Mono\',monospace">'+inv.date+'</span>'+
+        '<span class="h-items" style="font-size:12px;color:var(--faint)">'+(n?n+' items':'')+'</span>'+
+        '<span class="amt">&yen;'+fmt(inv.total)+'</span>'+
+        '<span style="display:flex;gap:6px" onclick="event.stopPropagation()">'+
+          '<button class="btn btn-ou btn-sm" onclick="reprintInvoice('+inv.id+')">Reprint</button>'+
+          '<button class="btn btn-rd btn-sm" onclick="delInvoice('+inv.id+')">Void</button>'+
+        '</span>'+
+      '</div>'+
+      '<div class="inv-detail" id="det-'+inv.id+'"></div>'+
+    '</div>';
+  }).join('');
+}
+async function toggleInvRow(id){
+  const row=document.getElementById('ir-'+id);
+  const det=document.getElementById('det-'+id);
+  const open=!row.classList.contains('open');
+  document.querySelectorAll('.inv-row.open').forEach(r=>{if(r!==row)r.classList.remove('open');});
+  row.classList.toggle('open',open);
+  if(open&&!det.dataset.loaded){
+    let inv=HIST.find(x=>x.id===id);
+    if((!inv||!inv.items)&&isServer){try{const r=await fetch('/api/invoices/'+id);const full=await r.json();if(inv)inv.items=full.items;else inv=full;}catch(e){}}
+    const its=(inv&&inv.items)||[];
+    det.innerHTML=its.length?
+      '<table class="det-tbl"><thead><tr><th>SKU</th><th>Product</th><th style="text-align:center">Qty</th><th style="text-align:right">Unit &yen;</th><th style="text-align:right">Amount &yen;</th></tr></thead><tbody>'+
+      its.map(it=>'<tr><td class="mono" style="color:var(--brown);font-weight:600">'+it.sku+'</td><td>'+it.name+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right" class="mono">'+fmt(it.price)+'</td><td style="text-align:right" class="mono" style="font-weight:600">'+fmt(it.qty*it.price)+'</td></tr>').join('')+
+      '</tbody></table>'+
+      '<div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-ou btn-sm" onclick="loadInvoice('+id+')">Open in Builder</button><button class="btn btn-pr btn-sm" onclick="reprintInvoice('+id+')">Reprint PDF</button></div>'
+      :'<div style="padding:12px;color:var(--faint);font-size:12px">No line-item detail stored for this invoice.</div>';
+    det.dataset.loaded='1';
+  }
+}
+async function reprintInvoice(id){
+  let inv=HIST.find(x=>x.id===id);
+  if((!inv||!inv.items)&&isServer){try{const r=await fetch('/api/invoices/'+id);const full=await r.json();if(inv){inv.items=full.items;inv.tax_rate=full.tax_rate;}else inv=full;}catch(e){}}
+  if(!inv||!(inv.items&&inv.items.length)){alert('No line items stored for this invoice.');return;}
+  doPrint(inv);
+}
+
+async function loadInvoice(id){
+  let inv;
+  if(isServer){const r=await fetch('/api/invoices/'+id);inv=await r.json();}
+  else{const list=JSON.parse(localStorage.getItem('mm_inv')||'[]');inv=list.find(x=>x.id===id);}
+  if(!inv)return;
+  const sm=STORES.find(s=>(s.name+' '+s.sub)===inv.store||s.id===inv.store);
+  if(sm)document.getElementById('iv-store').value=sm.id;
+  document.getElementById('iv-date').value=inv.date;
+  document.getElementById('iv-no').value=inv.invoice_no||'';
+  items=[];document.getElementById('iWrap').innerHTML='';
+  (inv.items||[]).forEach(it=>addRow(it.sku,it.name,it.qty,it.price));
+  savedId=id;
+  showPage('inv');
+}
+
+async function delInvoice(id){
+  if(!confirm('Delete this invoice?'))return;
+  if(isServer){await fetch('/api/invoices/'+id,{method:'DELETE'});}
+  else{const list=JSON.parse(localStorage.getItem('mm_inv')||'[]');localStorage.setItem('mm_inv',JSON.stringify(list.filter(x=>x.id!==id)));}
+  loadHistory();
+}
+
+// ── DASHBOARD & CUSTOMERS ───────────────────────────────────────────────────
+let CUST=[];
+const D_ICO={
+  yen:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l6 8 6-8M12 12v8M8 14h8M8 18h8"/></svg>',
+  cal:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
+  star:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 15 9l7 .5-5.3 4.6L18.5 21 12 17l-6.5 4 1.8-6.9L2 9.5 9 9z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  ph:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3-8.6A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.4-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>'
+};
+async function getInvoices(){
+  if(isServer){try{const r=await fetch('/api/invoices');if(r.ok)return await r.json();}catch(e){}return [];}
+  return JSON.parse(localStorage.getItem('mm_inv')||'[]');
+}
+async function loadDashboard(){
+  const invs=await getInvoices();
+  const today=new Date().toISOString().slice(0,10);
+  const mo=today.slice(0,7);
+  let todayTot=0,monthTot=0,monthCnt=0;
+  invs.forEach(i=>{const t=i.total||0;if(i.date===today)todayTot+=t;if((i.date||'').slice(0,7)===mo){monthTot+=t;monthCnt++;}});
+  const skuMap={};
+  invs.forEach(i=>(i.items||[]).forEach(it=>{skuMap[it.sku]=(skuMap[it.sku]||0)+(it.qty||0);}));
+  const top=Object.entries(skuMap).sort((a,b)=>b[1]-a[1])[0];
+  let topSku='—',topName='';
+  if(top){topSku=top[0];const p=prods.find(x=>x.sku===topSku);topName=p?p.name:'';}
+  const avg=monthCnt?monthTot/monthCnt:0;
+  const cards=[
+    {ico:'i-green',svg:D_ICO.yen,lbl:"Today's Sales",val:'\u00a5'+fmt(todayTot),meta:new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long'})},
+    {ico:'i-brown',svg:D_ICO.cal,lbl:'This Month',val:'\u00a5'+fmt(monthTot),meta:'avg <b>\u00a5'+fmt(avg)+'</b> / invoice'},
+    {ico:'i-blue',svg:D_ICO.doc,lbl:'Invoices',val:String(monthCnt),valPlain:true,meta:'this month'},
+    {ico:'i-amber',svg:D_ICO.star,lbl:'Top Seller',val:topSku,meta:topName?(topName.length>24?topName.slice(0,24)+'\u2026':topName)+(top?' \u00b7 '+top[1]+' sold':''):'no sales yet'}
+  ];
+  document.getElementById('kpiGrid').innerHTML=cards.map(c=>
+    '<div class="kpi"><div class="ico '+c.ico+'">'+c.svg+'</div>'+
+    '<div class="lbl">'+c.lbl+'</div>'+
+    '<div class="val"'+(c.valPlain?' style="font-family:inherit"':'')+'>'+c.val+'</div>'+
+    '<div class="meta">'+c.meta+'</div></div>'
+  ).join('');
+  renderBars(invs);
+  renderDonut(invs);
+  renderRecent(invs);
+}
+function renderBars(invs){
+  const days=[];const today=new Date();
+  for(let i=13;i>=0;i--){const d=new Date(today);d.setDate(today.getDate()-i);days.push(d.toISOString().slice(0,10));}
+  const tot={};days.forEach(d=>tot[d]=0);
+  invs.forEach(i=>{if(tot[i.date]!=null)tot[i.date]+=(i.total||0);});
+  const max=Math.max(1,...days.map(d=>tot[d]));
+  document.getElementById('barChart').innerHTML=days.map(d=>{
+    const v=tot[d];const h=Math.max(2,(v/max)*100);
+    return '<div class="bar-col" title="'+d+': \u00a5'+fmt(v)+'">'+
+      '<div style="position:relative;width:100%;flex:1;display:flex;align-items:flex-end;justify-content:center">'+
+        '<div class="bar" style="height:'+h+'%"><span class="bar-val">\u00a5'+fmt(v)+'</span></div>'+
+      '</div>'+
+      '<div class="bar-x">'+d.slice(8)+'</div>'+
+    '</div>';
+  }).join('');
+}
+function renderDonut(invs){
+  const map={};let total=0;
+  invs.forEach(i=>{const k=i.store||'Unknown';map[k]=(map[k]||0)+(i.total||0);total+=(i.total||0);});
+  const rows=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const COLORS=['#8c4a28','#b08060','#16a34a','#0369a1','#b45309','#c98a5b'];
+  let acc=0;const segs=[];
+  rows.forEach((r,i)=>{const pct=total?r[1]/total*100:0;segs.push(COLORS[i]+' '+acc.toFixed(2)+'% '+(acc+pct).toFixed(2)+'%');acc+=pct;});
+  const wrap=document.getElementById('donutWrap');
+  if(!total){wrap.innerHTML='<div class="empty">No sales recorded yet.</div>';return;}
+  wrap.innerHTML='<div class="donut" style="background:conic-gradient('+segs.join(',')+')"><div class="donut-c"><div class="dt">Total</div><div class="dv">\u00a5'+fmt(total)+'</div></div></div>'+
+    '<div class="legend">'+rows.map((r,i)=>'<div class="lg-row"><span class="sw" style="background:'+COLORS[i]+'"></span><span class="nm">'+r[0]+'</span><span class="vl">\u00a5'+fmt(r[1])+'</span></div>').join('')+'</div>';
+}
+function renderRecent(invs){
+  const list=invs.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||(b.id-a.id)).slice(0,8);
+  const el=document.getElementById('recentList');
+  if(!list.length){el.innerHTML='<div class="empty">No invoices yet.</div>';return;}
+  el.innerHTML=list.map(i=>'<div class="rl" style="cursor:pointer" onclick="showPage(\'hist\')"><div><div class="store">'+i.store+'</div><div class="meta"><span class="no">'+(i.invoice_no||'')+'</span><span>'+i.date+'</span>'+((i.items||[]).length?'<span>'+i.items.length+' items</span>':'')+'</div></div><div class="amt">\u00a5'+fmt(i.total)+'</div></div>').join('');
+}
+async function loadCustomers(){
+  let summary=[];
+  if(isServer){try{const r=await fetch('/api/summary/full');if(r.ok)summary=await r.json();}catch(e){}}
+  if(!summary.length){
+    const invs=await getInvoices();const m={};
+    invs.forEach(i=>{if(!m[i.store])m[i.store]={store:i.store,all_total:0,all_cnt:0};m[i.store].all_total+=(i.total||0);m[i.store].all_cnt++;});
+    summary=Object.values(m);
+  }
+  CUST=STORES.map(s=>{
+    const full=s.name+(s.sub?' '+s.sub:'');
+    const m=summary.find(x=>x.store===full||x.store===s.name||x.store===s.id)||{};
+    return {name:s.sub||s.name,company:s.name,address:s.address||'',tel:s.tel||'',email:s.email||'',cnt:m.all_cnt||0,total:m.all_total||0};
+  });
+  summary.forEach(m=>{if(!CUST.some(c=>(c.company+(c.name?' '+c.name:''))===m.store||c.company===m.store)){CUST.push({name:m.store,company:'',address:'',tel:'',email:'',cnt:m.all_cnt||0,total:m.all_total||0});}});
+  CUST.sort((a,b)=>b.total-a.total);
+  renderCustomers();
+}
+function custInitials(c){
+  const base=(c.name||c.company||'?');
+  const words=base.replace(/[^A-Za-z\u3000-\u9fff ]/g,'').split(/\s+/).filter(Boolean);
+  if(words.length>=2)return (words[0][0]+words[1][0]).toUpperCase();
+  return base.replace(/[^A-Za-z\u3000-\u9fff]/g,'').slice(0,2).toUpperCase()||'MM';
+}
+function renderCustomers(){
+  const q=(document.getElementById('custSearch').value||'').toLowerCase();
+  const list=CUST.filter(c=>!q||((c.name||'')+(c.company||'')+(c.address||'')).toLowerCase().includes(q));
+  document.getElementById('custCnt').textContent=list.length+' customer'+(list.length===1?'':'s');
+  const el=document.getElementById('custGrid');
+  if(!list.length){el.innerHTML='<div class="empty">No customers found.</div>';return;}
+  el.innerHTML=list.map(c=>
+    '<div class="cust"><div class="cust-top"><div class="cust-av">'+custInitials(c)+'</div>'+
+    '<div><div class="cust-nm">'+(c.name||c.company)+'</div>'+(c.company&&c.name&&c.company!==c.name?'<div class="cust-co">'+c.company+'</div>':'')+'</div></div>'+
+    ((c.address||c.tel)?'<div class="cust-info">'+
+      (c.address?'<div class="ln">'+D_ICO.pin+'<span>'+c.address+'</span></div>':'')+
+      (c.tel?'<div class="ln">'+D_ICO.ph+'<span class="mono">'+c.tel+'</span></div>':'')+
+    '</div>':'')+
+    '<div class="cust-stat"><div class="st"><div class="n">'+c.cnt+'</div><div class="l">Invoices</div></div>'+
+    '<div class="st"><div class="n">\u00a5'+fmt(c.total)+'</div><div class="l">Total Spend</div></div></div>'+
+    '</div>'
+  ).join('');
+}
+
+async function loadSummary(){
+  const te=document.getElementById('summContent');
+  te.innerHTML='<p style="color:#9e907e;padding:12px">Loading...</p>';
+  let rows=[];
+  if(isServer){
+    const r=await fetch('/api/summary/full');
+    rows=await r.json();
+  }else{
+    const all=JSON.parse(localStorage.getItem('mm_inv')||'[]');
+    const now=new Date();
+    const wkStart=new Date(now);wkStart.setDate(now.getDate()-(now.getDay()||7)+1);wkStart.setHours(0,0,0,0);
+    const moStart=new Date(now.getFullYear(),now.getMonth(),1);
+    const lmStart=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const lmEnd=moStart;
+    const map={};
+    all.forEach(inv=>{
+      const d=new Date(inv.date);const t=inv.total||0;
+      if(!map[inv.store])map[inv.store]={store:inv.store,wk_total:0,wk_cnt:0,mo_total:0,mo_cnt:0,lm_total:0,lm_cnt:0,all_total:0,all_cnt:0};
+      const s=map[inv.store];
+      if(d>=wkStart){s.wk_total+=t;s.wk_cnt++;}
+      if(d>=moStart){s.mo_total+=t;s.mo_cnt++;}
+      if(d>=lmStart&&d<lmEnd){s.lm_total+=t;s.lm_cnt++;}
+      s.all_total+=t;s.all_cnt++;
+    });
+    rows=Object.values(map).sort((a,b)=>b.all_total-a.all_total);
+  }
+  if(!rows.length){te.innerHTML='<p style="color:#9e907e;padding:12px">No invoices found.</p>';return;}
+  const gt={store:'GRAND TOTAL — All Shops',
+    wk_total:rows.reduce((s,r)=>s+(r.wk_total||0),0),wk_cnt:rows.reduce((s,r)=>s+(r.wk_cnt||0),0),
+    mo_total:rows.reduce((s,r)=>s+(r.mo_total||0),0),mo_cnt:rows.reduce((s,r)=>s+(r.mo_cnt||0),0),
+    lm_total:rows.reduce((s,r)=>s+(r.lm_total||0),0),lm_cnt:rows.reduce((s,r)=>s+(r.lm_cnt||0),0),
+    all_total:rows.reduce((s,r)=>s+(r.all_total||0),0),all_cnt:rows.reduce((s,r)=>s+(r.all_cnt||0),0)};
+  function spCol(lbl,tot,cnt){
+    return '<div class="sp-col">'+
+      '<div class="sp-lbl">'+lbl+'</div>'+
+      '<div class="sp-amt">'+(tot?'¥'+fmt(tot):'—')+'</div>'+
+      '<div class="sp-cnt">'+cnt+' inv</div>'+
+    '</div>';
+  }
+  function shopBlock(r,isGt){
+    return '<div class="shop-blk'+(isGt?' gtot':'')+'">'+
+      '<div class="shop-hdr">'+r.store+'<span class="inv-badge">'+r.all_cnt+' invoices total</span></div>'+
+      '<div class="shop-periods">'+
+        spCol('This Week',r.wk_total,r.wk_cnt)+
+        spCol('This Month',r.mo_total,r.mo_cnt)+
+        spCol('Last Month',r.lm_total,r.lm_cnt)+
+        spCol('All Time',r.all_total,r.all_cnt)+
+      '</div>'+
+    '</div>';
+  }
+  te.innerHTML='<div class="shop-wrap">'+rows.map(r=>shopBlock(r,false)).join('')+shopBlock(gt,true)+'</div>';
+}
+
+function printSummary(){
+  const content=document.getElementById('summContent').innerHTML;
+  if(!content||content.includes('Loading'))return;
+  const today=new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('printOut').innerHTML=
+    '<div style="font-family:Arial,\'Yu Gothic\',sans-serif;padding:8px">'+
+    '<div class="sum-print-hdr">'+
+      '<div>'+
+        '<div style="font-size:18px;font-weight:700;color:#8c4a28">MM-MART Sales Summary</div>'+
+        '<div style="font-size:11px;color:#7a6a58;margin-top:2px">City Star 株式会社 &nbsp;|&nbsp; Printed: '+today+'</div>'+
+      '</div>'+
+      '<div style="font-size:11px;color:#7a6a58;text-align:right">T5120901035433</div>'+
+    '</div>'+
+    content+
+    '</div>';
+  window.print();
+  setTimeout(()=>document.getElementById('printOut').innerHTML='',800);
+}
+
+// ── CATALOG ──────────────────────────────────────────────────────────────────
+let catData=[], activeCatId=null;
+
+async function syncFirebase(){
+  const btn=document.getElementById('syncFbBtn');
+  const st=document.getElementById('syncFbSt');
+  btn.disabled=true; btn.textContent='Syncing…';
+  st.textContent='Syncing with Firebase…'; st.style.color='#0369a1';
+  try{
+    const r=await fetch('/api/sync/firebase',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      const pulled=d.pulled||{};
+      const bcPull=pulled.barcodes||0;
+      const ovPull=pulled.overrides||0;
+      const parts=[];
+      if(bcPull) parts.push(bcPull+' barcode'+(bcPull>1?'s':'')+' pulled');
+      if(ovPull) parts.push(ovPull+' name'+(ovPull>1?'s':'')+' updated');
+      if(d.pushed) parts.push(d.pushed+' entries pushed');
+      st.textContent='✓ '+(parts.length?parts.join(' · '):'Up to date');
+      st.style.color='#16a34a';
+      await loadCatalog();
+      if(activeCatId) selectCat(activeCatId, document.querySelector('.cat-sub-row.active .cat-sub-name')?.textContent||'','');
+    } else {
+      st.textContent='✗ '+(d.errors||[d.error]).join(', ');
+      st.style.color='#dc2626';
+    }
+  }catch(e){
+    st.textContent='✗ '+e.message;
+    st.style.color='#dc2626';
+  }
+  btn.disabled=false; btn.textContent='⟳ Two-way Sync (Firebase ↔ Billing)';
+}
+
+async function pushFirebase(){
+  const btn=document.getElementById('pushFbBtn');
+  const st=document.getElementById('syncFbSt');
+  btn.disabled=true; btn.textContent='Pushing…';
+  st.textContent='Uploading to Firebase…'; st.style.color='#92400e';
+  try{
+    const r=await fetch('/api/push/firebase',{method:'POST'});
+    const d=await r.json();
+    if(d.ok){
+      const det=d.detail||{};
+      st.textContent='✓ Pushed: '+d.pushed+' entries ('+
+        (det.overrides||0)+' Myanmar overrides, '+(det.custom||0)+' custom products, '+
+        (det.barcodes||0)+' barcodes)';
+      st.style.color='#16a34a';
+    } else {
+      st.textContent='✗ '+(d.error||'Push failed');
+      st.style.color='#dc2626';
+    }
+  }catch(e){
+    st.textContent='✗ '+e.message; st.style.color='#dc2626';
+  }
+  btn.disabled=false; btn.textContent='↑ Push All Products → Lovable';
+}
+
+async function loadCatalog(){
+  if(!isServer){document.getElementById('catTree').innerHTML='<p style="color:#9e907e;padding:12px">Catalog requires server connection.</p>';return;}
+  const r=await fetch('/api/categories');
+  catData=await r.json();
+  renderCatTree();
+  buildSupplierFilter();
+}
+
+function renderCatTree(){
+  document.getElementById('catTree').innerHTML=catData.map(m=>
+    '<div class="cat-main-blk'+(m.open?' open':'')+'" id="cm'+m.id+'">'+
+      '<div class="cat-main-hdr" onclick="toggleMain('+m.id+')">'+
+        '<span class="arrow">▶</span>'+
+        '<span style="flex:1">'+m.name+'</span>'+
+        '<span class="cnt-badge">'+(m.subs?m.subs.length:0)+' sub</span>'+
+        '<div class="cat-hdr-acts" onclick="event.stopPropagation()">'+
+          '<button class="cat-btn" onclick="addSubCat('+m.id+',\''+esc(m.name)+'\')">+ Sub</button>'+
+          '<button class="cat-btn" onclick="renameCat('+m.id+',\''+esc(m.name)+'\',false)">✎</button>'+
+          '<button class="cat-btn del" onclick="deleteCat('+m.id+')">×</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="cat-subs">'+
+        (m.subs||[]).map(s=>
+          '<div class="cat-sub-row'+(activeCatId===s.id?' active':'')+'" id="cs'+s.id+'" onclick="selectCat('+s.id+',\''+esc(s.name)+'\',\''+esc(m.name)+'\')">'+
+            '<span class="cat-sub-name">'+s.name+'</span>'+
+            '<span class="cat-sub-cnt">'+s.product_count+'</span>'+
+            '<div class="sub-acts" onclick="event.stopPropagation()">'+
+              '<button class="sub-btn" onclick="renameCat('+s.id+',\''+esc(s.name)+'\',true)">✎</button>'+
+              '<button class="sub-btn del" onclick="deleteCat('+s.id+')">×</button>'+
+            '</div>'+
+          '</div>'
+        ).join('')+
+        '<button class="cat-add-sub" onclick="addSubCat('+m.id+',\''+esc(m.name)+'\')">+ Add Subcategory</button>'+
+      '</div>'+
+    '</div>'
+  ).join('');
+}
+
+function esc(s){return (s||'').replace(/'/g,"\\'");}
+
+function toggleMain(id){
+  const blk=document.getElementById('cm'+id);
+  blk.classList.toggle('open');
+}
+
+async function selectCat(id,name,mainName){
+  activeCatId=id;
+  document.querySelectorAll('.cat-sub-row').forEach(r=>r.classList.remove('active'));
+  const el=document.getElementById('cs'+id);
+  if(el){el.classList.add('active');el.closest('.cat-main-blk').classList.add('open');}
+  const panel=document.getElementById('catProdPanel');
+  panel.innerHTML='<div style="color:#9e907e;padding:20px;text-align:center">Loading...</div>';
+  const r=await fetch('/api/products');
+  const all=await r.json();
+  const prlist=all.filter(p=>p.category_id===id);
+  panel.innerHTML=
+    '<div class="cat-prod-hdr">'+
+      '<h3>'+name+' <span style="font-size:11px;font-weight:400;color:#7a6a58">('+mainName+')</span></h3>'+
+      '<span style="font-size:12px;color:#9e907e">'+prlist.length+' products</span>'+
+      '<button class="btn btn-gr btn-sm" onclick="openPM('+id+',\''+esc(name)+'\',\''+esc(mainName)+'\')">+ Add Product</button>'+
+    '</div>'+
+    (prlist.length?
+      '<table class="cat-prod-tbl"><thead><tr>'+
+      '<th></th><th>SKU</th><th>Name</th><th>Barcode</th><th style="text-align:right">Price</th><th></th>'+
+      '</tr></thead><tbody>'+
+      prlist.map(p=>
+        '<tr>'+
+        '<td style="width:40px">'+(p.image_url?'<img src="'+p.image_url+'" style="width:36px;height:36px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0" onerror="this.style.display=\'none\'">':'')+'</td>'+
+        '<td><span class="skub">'+p.sku+'</span></td>'+
+        '<td>'+p.name+'</td>'+
+        '<td style="font-family:JetBrains Mono,monospace;font-size:11px;color:#7a6a58">'+(p.barcode&&!p.barcode.startsWith('MM')?'<span style="background:#f0fdf4;color:#166534;padding:2px 6px;border-radius:4px;border:1px solid #bbf7d0">'+p.barcode+'</span>':'<span style="color:#cbd5e1">—</span>')+'</td>'+
+        '<td style="text-align:right;font-weight:600;color:#16a34a">'+(p.price?'¥'+fmt(p.price):'—')+'</td>'+
+        '<td style="white-space:nowrap"><button class="btn btn-ou btn-sm" onclick="openPMedit(\''+p.sku+'\',\''+esc(p.name)+'\',\''+p.barcode+'\','+p.price+','+id+',\''+esc(name)+'\')">Edit</button>'+
+        ' <button class="btn btn-rd btn-sm" onclick="delProd(\''+p.sku+'\',\''+esc(p.name)+'\')">Del</button></td>'+
+        '</tr>'
+      ).join('')+
+      '</tbody></table>':
+      '<p style="color:#9e907e;padding:20px;text-align:center">No products in this category yet.</p>'
+    );
+}
+
+async function addMainCat(){
+  const name=prompt('New main category name:');
+  if(!name||!name.trim())return;
+  const r=await fetch('/api/categories',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+  const d=await r.json();
+  if(d.ok){flash('Category added');await loadCatalog();}
+}
+
+async function addSubCat(parentId,parentName){
+  const name=prompt('New subcategory under "'+parentName+'"\nSubcategory name:');
+  if(!name||!name.trim())return;
+  const prefix=prompt('2-letter SKU prefix for this subcategory (e.g. AT, LT):','');
+  const r=await fetch('/api/categories',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name.trim(),parent_id:parentId,sku_prefix:(prefix||'').trim().toUpperCase()})});
+  const d=await r.json();
+  if(d.ok){flash('Subcategory added');await loadCatalog();}
+}
+
+async function renameCat(id,currentName,isSub){
+  const newName=prompt('Rename '+(isSub?'subcategory':'category')+':', currentName);
+  if(!newName||!newName.trim()||newName.trim()===currentName)return;
+  const body={name:newName.trim()};
+  if(isSub){
+    const newPfx=prompt('Update SKU prefix (leave blank to keep current):','');
+    if(newPfx&&newPfx.trim())body.sku_prefix=newPfx.trim().toUpperCase();
+  }
+  await fetch('/api/categories/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  flash('Renamed');await loadCatalog();
+}
+
+async function deleteCat(id){
+  if(!confirm('Delete this category? It cannot have products or subcategories.'))return;
+  const r=await fetch('/api/categories/'+id,{method:'DELETE'});
+  const d=await r.json();
+  if(d.ok){flash('Deleted');if(activeCatId===id){activeCatId=null;document.getElementById('catProdPanel').innerHTML='<div style="color:#9e907e;padding:40px;text-align:center">Select a category</div>';}await loadCatalog();}
+  else alert(d.error||'Cannot delete');
+}
+
+function updateSkuPreview(){
+  const pfx=(document.getElementById('pm-prefix').value||'').toUpperCase();
+  document.getElementById('pm-sku-preview').textContent=pfx?pfx+'1 / '+pfx+'2 …':'';
+}
+
+function openPM(catId,catName,mainName){
+  document.getElementById('pmTitle').textContent='Add Product — '+catName;
+  document.getElementById('pm-name').value='';
+  document.getElementById('pm-barcode').value='';
+  document.getElementById('pm-price').value='';
+  document.getElementById('pm-catname').value=mainName+' › '+catName;
+  document.getElementById('pm-catid').value=catId;
+  document.getElementById('pm-editsku').value='';
+  // Switch to Add layout
+  document.getElementById('pm-add-row').style.display='';
+  document.getElementById('pm-edit-row').style.display='none';
+  // Auto-fill prefix from category setting
+  let pfx='';
+  catData.forEach(m=>(m.subs||[]).forEach(s=>{if(s.id===catId)pfx=s.sku_prefix||'';}));
+  document.getElementById('pm-prefix').value=pfx.toUpperCase();
+  updateSkuPreview();
+  document.getElementById('pmOv').classList.add('on');
+  document.getElementById('pmPop').classList.add('on');
+  setTimeout(()=>document.getElementById('pm-name').focus(),60);
+}
+
+function openPMedit(sku,name,barcode,price,catId,catName){
+  document.getElementById('pmTitle').textContent='Edit Product';
+  document.getElementById('pm-name').value=name;
+  document.getElementById('pm-sku').value=sku;
+  // Clear barcode if it's an auto-generated one (same as SKU or starts with known prefix)
+  const realBarcode=(barcode&&barcode!==sku&&!/^(TM|IM|HM|MM)/i.test(barcode))?barcode:'';
+  document.getElementById('pm-barcode').value=realBarcode;
+  document.getElementById('pm-price').value=price||'';
+  document.getElementById('pm-catname').value=catName;
+  document.getElementById('pm-catid').value=catId;
+  document.getElementById('pm-editsku').value=sku;
+  // Switch to Edit layout
+  document.getElementById('pm-add-row').style.display='none';
+  document.getElementById('pm-edit-row').style.display='';
+  document.getElementById('pmOv').classList.add('on');
+  document.getElementById('pmPop').classList.add('on');
+  setTimeout(()=>document.getElementById('pm-name').focus(),60);
+}
+
+function closePM(){
+  document.getElementById('pmOv').classList.remove('on');
+  document.getElementById('pmPop').classList.remove('on');
+}
+
+async function submitProduct(){
+  const name=document.getElementById('pm-name').value.trim();
+  if(!name){alert('Product name is required');return;}
+  const editSku=document.getElementById('pm-editsku').value;
+  const catId=parseInt(document.getElementById('pm-catid').value)||null;
+  const barcode=document.getElementById('pm-barcode').value.trim();
+  const price=parseFloat(document.getElementById('pm-price').value)||0;
+  let supplier='';
+  catData.forEach(m=>(m.subs||[]).forEach(s=>{if(s.id===catId)supplier=s.name;}));
+
+  if(editSku){
+    // Edit mode — only update editable fields (SKU never changes)
+    const payload={name, barcode, price, category_id:catId, supplier};
+    await fetch('/api/products/'+editSku,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    flash('Product updated');
+  }else{
+    // Add mode — send prefix for auto-SKU generation
+    const prefix=(document.getElementById('pm-prefix').value||'').trim().toUpperCase();
+    if(!prefix){alert('Enter a 2-letter SKU prefix (e.g. TM, IM, HM, MM)');return;}
+    const payload={name, barcode, price, category_id:catId, supplier, sku_prefix:prefix};
+    const r=await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    const d=await r.json();
+    flash('Product added — SKU: '+d.sku);
+  }
+  closePM();
+  // Re-sync prods array
+  const pr=await fetch('/api/products');prods=await pr.json();renderPL();
+  // Refresh product panel
+  if(activeCatId){
+    const sub=catData.flatMap(m=>m.subs||[]).find(s=>s.id===activeCatId);
+    const main=catData.find(m=>(m.subs||[]).some(s=>s.id===activeCatId));
+    if(sub&&main)selectCat(activeCatId,sub.name,main.name);
+  }
+  await loadCatalog();
+}
+
+async function delProd(sku,name){
+  if(!confirm('Delete "'+name+'" ('+sku+')?'))return;
+  await fetch('/api/products/'+sku,{method:'DELETE'});
+  flash('Deleted '+sku);
+  const pr=await fetch('/api/products');prods=await pr.json();renderPL();
+  if(activeCatId){
+    const sub=catData.flatMap(m=>m.subs||[]).find(s=>s.id===activeCatId);
+    const main=catData.find(m=>(m.subs||[]).some(s=>s.id===activeCatId));
+    if(sub&&main)selectCat(activeCatId,sub.name,main.name);
+  }
+  await loadCatalog();
+}
+
+function openPop(idx){
+  activeIdx=idx;
+  document.getElementById('ov').classList.add('on');
+  document.getElementById('pop').classList.add('on');
+  document.getElementById('pq').value='';renderPop();
+  setTimeout(()=>document.getElementById('pq').focus(),60);
+}
+function closePop(){document.getElementById('ov').classList.remove('on');document.getElementById('pop').classList.remove('on');activeIdx=null;}
+function renderPop(){
+  const q=document.getElementById('pq').value.toLowerCase();
+  const fl=prods.filter(p=>!q||p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q)||p.supplier.toLowerCase().includes(q)).slice(0,100);
+  document.getElementById('pb').innerHTML=fl.map(p=>
+    '<div class="pi2" onclick="pickProd(\''+p.sku+'\')">'+
+    '<span class="ps">'+p.sku+'</span>'+
+    '<span class="pn">'+p.name+'</span>'+
+    '<span class="psup">'+p.supplier+'</span>'+
+    (p.stock!=null?fmtStock(p.stock):'')+
+    '<span class="pp">'+(p.price?'¥'+fmt(p.price):'no price')+'</span>'+
+    '</div>'
+  ).join('');
+}
+function pickProd(sku){
+  const p=prods.find(x=>x.sku===sku);if(!p)return;
+  if(activeIdx===null)addRow(p.sku,p.name,'',p.price);
+  else{items[activeIdx]={...items[activeIdx],sku:p.sku,name:p.name,price:p.price};reRender();}
+  closePop();
+}
+
+function doPrint(src){
+  let store,date,invNo,taxRate,discVal,discType,filled;
+  if(src&&src.items){
+    store=STORES.find(s=>(s.name+' '+s.sub)===src.store||s.id===src.store)||{name:src.store||'MM-MART',sub:'',address:'',tel:'',zip:''};
+    date=src.date;invNo=src.invoice_no||'';taxRate=+src.tax_rate||0;discVal=0;discType='pct';
+    filled=(src.items||[]).filter(i=>i.name&&i.qty>0);
+  }else{
+    const sel=document.getElementById('iv-store');
+    const opt=sel.options[sel.selectedIndex];
+    store=(opt&&opt.dataset.store)?JSON.parse(opt.dataset.store):
+                (STORES.find(s=>s.id===sel.value)||{name:'MM-MART',sub:'',address:'',tel:'',zip:''});
+    date=document.getElementById('iv-date').value;
+    invNo=document.getElementById('iv-no').value;
+    taxRate=parseFloat(document.getElementById('iv-tax').value)||0;
+    discVal=parseFloat(document.getElementById('iv-disc').value)||0;
+    discType=document.getElementById('iv-disc-type').value;
+    filled=items.filter(i=>i.name&&i.qty>0);
+  }
+  if(!filled.length){alert('Please add items with quantity.');return;}
+  const sub=filled.reduce((s,i)=>s+i.qty*i.price,0);
+  const discAmt=discType==='pct'?sub*discVal/100:Math.min(discVal,sub);
+  const afterDisc=sub-discAmt;
+  const taxAmt=afterDisc*taxRate/100;
+  const total=afterDisc+taxAmt;
+  const PER=17;
+  const pages=[];
+  for(let i=0;i<filled.length;i+=PER)pages.push(filled.slice(i,i+PER));
+
+  const html=pages.map((pg,pi)=>{
+    const isLast=pi===pages.length-1;
+    const emp=PER-pg.length;
+    return '<div class="invp">'+
+      '<div class="invh">'+
+        '<div class="ihl">'+
+          (invNo?'<div class="invno">'+invNo+'</div>':'')+
+          '<div class="mmn">'+store.name+'</div>'+
+          (store.sub?'<div class="stn">'+store.sub+'</div>':'')+
+          '<div class="sta">'+(store.zip?store.zip+'<br>':'')+store.address+(store.tel?'<br>TEL: '+store.tel:'')+'</div>'+
+        '</div>'+
+        '<div class="ihm">'+
+          '<div class="ihm-text">'+
+            '<div class="dt">DATE &nbsp; '+date+'</div>'+
+            '<div class="csn">City Star 株式会社</div>'+
+            '<div class="csa">〒170－0004<br>東京都豊島区北大塚3-32-3-201<br>☃03-6903-6174　📱03-6903-6175<br>Mobile:　080－4243－8646</div>'+
+            '<div class="cst">T5120901035433</div>'+
+            '<div class="pg">Page '+(pi+1)+' / '+pages.length+'</div>'+
+          '</div>'+
+          '<div class="stamp-wrap">'+
+            '<img src="'+STAMP+'" alt="stamp">'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
+      (pi===0?'<div><span class="totbanner">TOTAL AMOUNT &yen; '+fmt(total)+'</span></div>':'')+
+      '<table class="invt">'+
+        '<thead><tr>'+
+          '<th style="width:26px">NO</th>'+
+          '<th style="width:58px">ITEM No</th>'+
+          '<th class="tl">Name of item</th>'+
+          '<th style="width:36px">Qty</th>'+
+          '<th style="width:80px">Unit Price</th>'+
+          '<th style="width:80px">Amount</th>'+
+          '<th style="width:50px">Remark</th>'+
+        '</tr></thead>'+
+        '<tbody>'+
+          pg.map((it,i)=>{
+            const sp=prods.find(x=>x.sku===it.sku);
+            const stkTxt=sp&&sp.stock!=null?sp.stock+' pcs':'';
+            return '<tr>'+
+            '<td class="tc">'+(pi*PER+i+1)+'</td>'+
+            '<td class="tc tb" style="font-family:JetBrains Mono,monospace">'+it.sku+'</td>'+
+            '<td>'+it.name+'</td>'+
+            '<td class="tc">'+it.qty+'</td>'+
+            '<td class="tr2">&yen;'+fmt(it.price)+'</td>'+
+            '<td class="tr2">&yen;'+fmt(it.qty*it.price)+'</td>'+
+            '<td class="tc" style="font-size:10px;color:#555">'+stkTxt+'</td>'+
+            '</tr>';
+          }).join('')+
+          Array(emp).fill('<tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>').join('')+
+        '</tbody>'+
+      '</table>'+
+      (isLast?
+        '<div class="invfoot">'+
+          '<div class="bank">&#19977;&#33609;UFJ&#37504;&#34892;<br>&#22823;&#22618;&#25447;&#24215;&#12288;&#26222;&#36890; 0340734<br>&#12471;&#12486;&#12451;&#12540;&#12473;&#12479;&#12540;&#12459;&#12502;&#12471;&#12461;&#12459;&#12452;&#12471;&#12515;</div>'+
+          '<table class="ttbl">'+
+            '<tr><td class="tl2">AMOUNT</td><td class="tv">&yen;'+fmt(sub)+'</td></tr>'+
+            (discAmt>0?'<tr><td class="tl2">Discount'+(discType==='pct'?' ('+discVal+'%)':'')+'</td><td class="tv" style="color:#b91c1c">-&yen;'+fmt(discAmt)+'</td></tr>':'')+
+            '<tr><td class="tl2">Tax ('+taxRate+'%)</td><td class="tv">&yen;'+fmt(taxAmt)+'</td></tr>'+
+            '<tr><td class="tgl">TOTAL</td><td class="tgv">&yen;'+fmt(total)+'</td></tr>'+
+          '</table>'+
+        '</div>':'')+
+      '</div>';
+  }).join('');
+
+  document.getElementById('printOut').innerHTML=html;
+  const imgs=document.getElementById('printOut').querySelectorAll('img');
+  let done=0,tot=imgs.length;
+  if(!tot){window.print();return;}
+  imgs.forEach(img=>{
+    const go=()=>{if(++done===tot)window.print();};
+    if(img.complete)go();else{img.onload=go;img.onerror=go;}
+  });
+}
+
+init();
+
+fetch('/api/auth/me').then(r=>r.json()).then(d=>{
+  if(!d||!d.ok){ window.location.href='https://mm-mart-live.web.app/'; return; }
+  const host=document.getElementById('sideUser');
+  if(host){
+    host.style.display='flex';
+    const nm=(d.user&&d.user.name)?d.user.name:'User';
+    host.innerHTML='<div class="av">'+nm.trim().slice(0,2).toUpperCase()+'</div>'+
+      '<span class="nm">'+nm+'</span>'+
+      '<button onclick="fetch(\'/api/auth/logout\',{method:\'POST\'}).then(()=>{window.location.href=\'https://mm-mart-live.web.app/\'})">Sign out</button>';
+  }
+}).catch(()=>{ /* offline / preview — stay on page in offline mode */ });
+
+</script>
+
+</div><!-- /main-content -->
+
+<!-- Print area: MUST be a direct child of body so print CSS can show it -->
+<div class="print-only" id="printOut"></div>
+
+<!-- Add Shop Modal -->
+<div class="pm-ov" id="addShopOv" onclick="if(event.target===this)closeAddShop()"></div>
+<div class="pm-pop" id="addShopPop" style="width:440px">
+  <div class="pm-head">
+    <h3>Add New Shop</h3>
+    <button onclick="closeAddShop()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#7a6a58">×</button>
+  </div>
+  <div class="pm-body">
+    <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">Shop Name</label>
+      <input id="as-name" type="text" placeholder="e.g. MM-MART" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+    <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">Branch / Customer Name</label>
+      <input id="as-sub" type="text" placeholder="e.g. Kita Otsuka" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+    <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">Address</label>
+      <input id="as-address" type="text" placeholder="Full address" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">Phone</label>
+        <input id="as-tel" type="text" placeholder="03-xxxx-xxxx" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+      <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">ZIP Code</label>
+        <input id="as-zip" type="text" placeholder="170-0004" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+    </div>
+    <div class="fg"><label style="font-size:12px;font-weight:600;color:#7a6a58">Email</label>
+      <input id="as-email" type="email" placeholder="shop@example.com" style="width:100%;padding:8px 10px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:13px"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-ou" onclick="closeAddShop()">Cancel</button>
+      <button class="btn btn-gr" onclick="saveNewShop()">Save Shop</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

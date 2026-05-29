@@ -20,6 +20,48 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Billing runtime artifacts
+billing/billing.db
+billing/__pycache__/
+billing/*.pyc
+
+# Vendor / product folders (local only)
+A 1 Thai/
+ABC Company/
+Ambika corporation/
+Bompex Japan/
+Ichiba/
+Imai Japan/
+Kara Indonasian/
+Lifu Tou Thai/
+Next International/
+Sartaz Corporation/
+
+# Spreadsheets, PDFs, local exports
+*.xlsx
+*.xls
+*.pdf
+billing.pdf
+db1/*.csv
+db1/*.json
+
+# Duplicate / temp files (files ending in " 2" or " 2.ext")
+* 2
+* 2.*
+DEPLOY.md
+render_static.py
+generate_sku_billing.py
+stickertemplate/
+City\ Star\ System.html
+MM-MART\ Billing.html
+firebase\ 2.json
+
+# Firebase hosting output
+.firebase/
+.firebaserc
+public/
+firebase.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

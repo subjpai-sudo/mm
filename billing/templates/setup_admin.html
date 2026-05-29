@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MM-MART — First Admin Setup</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{background:#1e293b;border:1px solid #2d3748;border-radius:20px;padding:32px;width:100%;max-width:400px}
+.logo{font-size:28px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#38bdf8,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.sub{font-size:12px;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px}
+h2{font-size:18px;color:#f1f5f9;margin-bottom:6px}
+p{font-size:13px;color:#64748b;margin-bottom:20px;line-height:1.5}
+label{display:block;font-size:12px;color:#94a3b8;margin-bottom:6px}
+input{width:100%;background:#0f172a;border:1px solid #2d3748;border-radius:10px;color:#f1f5f9;padding:11px 14px;font-size:14px;margin-bottom:14px;outline:none;font-family:monospace}
+input:focus{border-color:#38bdf8}
+.btn{width:100%;background:#0284c7;color:#fff;font-weight:600;border:none;border-radius:10px;padding:12px;font-size:14px;cursor:pointer;margin-top:4px}
+.btn:hover{background:#0369a1}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.result{margin-top:16px;padding:12px;border-radius:10px;font-size:13px;text-align:center}
+.ok{background:#052e16;border:1px solid #166534;color:#4ade80}
+.err{background:#450a0a;border:1px solid #7f1d1d;color:#fca5a5}
+.note{margin-top:20px;padding:12px;background:#0f172a;border-radius:10px;font-size:12px;color:#475569;line-height:1.5}
+.note strong{color:#64748b}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">MM-MART</div>
+  <div class="sub">First Admin Setup</div>
+  <h2>Add Admin User</h2>
+  <p>This page is only available before any users are added. Enter your phone number to become the first admin — you'll be able to add other users from inside the app.</p>
+
+  <label>Your Name</label>
+  <input type="text" id="name" placeholder="e.g. Anique" />
+
+  <label>Phone Number (with country code)</label>
+  <input type="tel" id="phone" placeholder="+81 90 1234 5678" style="font-family:monospace" />
+
+  <label>Set Your PIN (4–8 digits)</label>
+  <input type="password" id="pin" placeholder="e.g. 1234" inputmode="numeric" maxlength="8" />
+
+  <button class="btn" id="btn" onclick="submit()">Create Admin Account</button>
+
+  <div id="result" class="result" style="display:none"></div>
+
+  <div class="note">
+    <strong>Before signing in:</strong> Enable Phone Authentication in your Firebase Console →
+    Authentication → Sign-in method → Phone. Also add <code>localhost</code> to Authorized Domains.
+  </div>
+</div>
+<script>
+async function submit(){
+  const phone=document.getElementById('phone').value.replace(/\s/g,'');
+  const name=document.getElementById('name').value.trim();
+  const btn=document.getElementById('btn');
+  const res=document.getElementById('result');
+  res.style.display='none';
+  btn.disabled=true; btn.textContent='Adding…';
+  try{
+    const pin=document.getElementById('pin').value.trim();
+    const r=await fetch('/setup-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,name,pin})});
+    const d=await r.json();
+    res.className='result '+(d.ok?'ok':'err');
+    res.textContent=d.message||d.error;
+    res.style.display='block';
+    if(d.ok) setTimeout(()=>window.location.href='https://mm-mart-live.web.app/',2000);
+  }catch(e){
+    res.className='result err'; res.textContent=e.message; res.style.display='block';
+  } finally{ btn.disabled=false; btn.textContent='Create Admin Account'; }
+}
+</script>
+</body>
+</html>

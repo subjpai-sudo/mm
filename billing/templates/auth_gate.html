@@ -1,0 +1,157 @@
+<!-- MM-MART Auth Gate — client-side Firebase RTDB auth, no server required -->
+<div id="auth-gate" style="display:none;position:fixed;inset:0;z-index:9999;background:#1a120a;align-items:center;justify-content:center;padding:16px">
+  <div style="width:100%;max-width:360px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-size:32px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,#d4845a,#c4885e);-webkit-background-clip:text;-webkit-text-fill-color:transparent">MM-MART</div>
+      <div style="font-size:11px;color:#9e8870;letter-spacing:2px;text-transform:uppercase;margin-top:4px">Internal Access</div>
+    </div>
+    <div id="auth-card" style="background:#2a1c10;border:1px solid #3d2c1c;border-radius:20px;padding:24px">
+      <div id="auth-denied" style="display:none;background:#450a0a;border:1px solid #7f1d1d;border-radius:10px;padding:12px;margin-bottom:16px;color:#fca5a5;font-size:13px;text-align:center"></div>
+
+      <p style="color:#f5efe6;font-size:14px;font-weight:600;margin-bottom:16px">Sign in to MM-MART</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <select id="auth-cc" style="background:#1a120a;border:1px solid #3d2c1c;border-radius:10px;color:#f5efe6;padding:10px 8px;font-size:13px;width:100px;cursor:pointer">
+          <option value="+81">🇯🇵 +81</option>
+          <option value="+1">🇺🇸 +1</option>
+          <option value="+44">🇬🇧 +44</option>
+          <option value="+65">🇸🇬 +65</option>
+          <option value="+66">🇹🇭 +66</option>
+          <option value="+62">🇮🇩 +62</option>
+          <option value="+95">🇲🇲 +95</option>
+          <option value="+91">🇮🇳 +91</option>
+          <option value="+60">🇲🇾 +60</option>
+        </select>
+        <input id="auth-phone" type="tel" placeholder="90 1234 5678" style="flex:1;background:#1a120a;border:1px solid #3d2c1c;border-radius:10px;color:#f5efe6;padding:10px 12px;font-size:13px;font-family:'JetBrains Mono',monospace;outline:none" />
+      </div>
+
+      <input id="auth-pin" type="password" inputmode="numeric" placeholder="PIN" maxlength="8"
+        style="width:100%;background:#1a120a;border:1px solid #3d2c1c;border-radius:10px;color:#f5efe6;padding:10px 12px;font-size:16px;font-family:'JetBrains Mono',monospace;letter-spacing:4px;outline:none;box-sizing:border-box;margin-bottom:10px"
+        onkeydown="if(event.key==='Enter') authLogin()" />
+
+      <div id="auth-err" style="color:#f87171;font-size:12px;margin-bottom:8px;display:none"></div>
+      <button id="auth-btn" onclick="authLogin()" style="width:100%;background:#8c4a28;color:#fff;font-weight:600;border:none;border-radius:10px;padding:11px;font-size:13px;cursor:pointer">Sign In</button>
+    </div>
+    <p style="color:#2a1c10;font-size:11px;text-align:center;margin-top:16px">MM-MART Internal System · Authorized Users Only</p>
+  </div>
+</div>
+
+<script>
+const _gate = document.getElementById('auth-gate');
+const _FB_AUTH = 'https://migrate-86fa4-default-rtdb.asia-southeast1.firebasedatabase.app/auth_users';
+const _SESSION_KEY = 'mm-session';
+
+function showGate(msg) {
+  _gate.style.display = 'flex';
+  const m = document.getElementById('main-content');
+  if (m) m.style.display = 'none';
+  if (msg) {
+    const el = document.getElementById('auth-denied');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+}
+function hideGate() {
+  _gate.style.display = 'none';
+  const m = document.getElementById('main-content');
+  if (m) m.style.display = '';
+}
+
+async function _sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function _phoneKey(phone) { return phone.replace(/\D/g, ''); }
+
+// Check existing session from sessionStorage
+async function _authInit() {
+  try {
+    const stored = sessionStorage.getItem(_SESSION_KEY);
+    if (stored) {
+      const u = JSON.parse(stored);
+      // Validate session is less than 12 hours old
+      if (u && u.ts && (Date.now() - u.ts) < 12 * 60 * 60 * 1000) {
+        hideGate();
+        window.mmUser = u;
+        if (typeof onAuthReady === 'function') onAuthReady(u);
+        return;
+      }
+    }
+  } catch(e) {}
+  showGate();
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _authInit);
+} else {
+  _authInit();
+}
+
+window.authLogin = async function() {
+  const cc    = document.getElementById('auth-cc').value;
+  const num   = document.getElementById('auth-phone').value.replace(/\D/g, '');
+  const pin   = document.getElementById('auth-pin').value.trim();
+  const errEl = document.getElementById('auth-err');
+  const btn   = document.getElementById('auth-btn');
+  errEl.style.display = 'none';
+
+  if (!num) { errEl.textContent = 'Enter your phone number'; errEl.style.display = 'block'; return; }
+  if (!pin) { errEl.textContent = 'Enter your PIN';          errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const phone    = cc + num;
+    const phoneKey = _phoneKey(phone);
+
+    // Fetch user record directly from Firebase RTDB (no server needed)
+    const r = await fetch(`${_FB_AUTH}/${phoneKey}.json`);
+    if (!r.ok) throw new Error('Cannot reach Firebase');
+    const user = await r.json();
+
+    if (!user || !user.allowed) {
+      errEl.textContent = 'Phone number not authorized';
+      errEl.style.display = 'block';
+      return;
+    }
+    if (!user.pin_hash) {
+      errEl.textContent = 'PIN not set — ask admin to set your PIN via /setup-admin';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    const hash = await _sha256(pin);
+    if (hash !== user.pin_hash) {
+      errEl.textContent = 'Incorrect PIN';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    // Auth success — store session
+    const session = {
+      phone,
+      name:  user.name  || phone,
+      admin: !!user.admin,
+      ts:    Date.now(),
+    };
+    sessionStorage.setItem(_SESSION_KEY, JSON.stringify(session));
+    window.mmUser = session;
+    hideGate();
+    if (typeof onAuthReady === 'function') onAuthReady(session);
+  } catch(e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+};
+
+window.authSignOut = async function() {
+  sessionStorage.removeItem(_SESSION_KEY);
+  window.mmUser = null;
+  document.getElementById('auth-pin').value = '';
+  // Clear the denied message and re-show gate cleanly
+  const el = document.getElementById('auth-denied');
+  el.style.display = 'none';
+  showGate();
+};
+</script>
