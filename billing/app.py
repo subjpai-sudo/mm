@@ -444,14 +444,14 @@ _last_supabase_sync = 0.0
 _SYNC_INTERVAL = 5          # seconds — Firebase sync
 _SUPABASE_INTERVAL = 30     # seconds — Supabase stock sync
 
-def _sb_adjust_qty_by_barcode(barcode, delta):
-    """Increment or decrement warehouse product qty in Supabase by barcode.
+def _sb_adjust_qty_by_sku(sku, delta):
+    """Increment or decrement warehouse product qty in Supabase by SKU.
     delta=-N deducts stock (invoice saved), +N restores (invoice deleted)."""
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY or not barcode:
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY or not sku:
         return
     try:
-        bc = urllib.parse.quote(str(barcode), safe='')
-        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,qty&barcode=eq.{bc}'
+        encoded_sku = urllib.parse.quote(str(sku), safe='')
+        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,qty&sku=eq.{encoded_sku}'
         req = urllib.request.Request(fetch_url, headers={
             'apikey':        SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
@@ -459,6 +459,7 @@ def _sb_adjust_qty_by_barcode(barcode, delta):
         with urllib.request.urlopen(req, timeout=8) as r:
             rows = json.loads(r.read())
         if not rows:
+            print(f'[sb-adj] sku={sku} not found in Supabase')
             return
         row = rows[0]
         new_qty = max(0, int(row.get('qty') or 0) + delta)
@@ -471,8 +472,9 @@ def _sb_adjust_qty_by_barcode(barcode, delta):
             'Prefer':        'return=minimal',
         })
         urllib.request.urlopen(patch_req, timeout=8)
+        print(f'[sb-adj] sku={sku} delta={delta} new_qty={new_qty}')
     except Exception as e:
-        print(f'[sb-adj] barcode={barcode} delta={delta} err={e}')
+        print(f'[sb-adj] sku={sku} delta={delta} err={e}')
 
 def _pull_supabase_stock(conn):
     """Pull product stock levels from Supabase warehouse and update SQLite."""
@@ -1605,19 +1607,16 @@ def save_invoice():
     if fb_key:
         conn.execute('UPDATE invoices SET fb_key=? WHERE id=?', (fb_key, inv_id))
         conn.commit()
-    # Resolve barcodes while conn is still open, then push to Supabase in background
-    items_with_bc = []
-    for item in data.get('items', []):
-        sku = (item.get('sku') or '').strip()
-        boxes = int(item.get('qty') or 0)
-        if sku and boxes > 0:
-            row = conn.execute('SELECT barcode FROM products WHERE sku=?', (sku,)).fetchone()
-            if row and row['barcode']:
-                items_with_bc.append({'barcode': row['barcode'], 'qty': boxes})
     conn.close()
-    if items_with_bc:
+    # Deduct warehouse stock in Supabase for each invoiced SKU
+    invoice_items = [
+        {'sku': (i.get('sku') or '').strip(), 'qty': int(i.get('qty') or 0)}
+        for i in data.get('items', [])
+        if (i.get('sku') or '').strip() and int(i.get('qty') or 0) > 0
+    ]
+    if invoice_items:
         threading.Thread(
-            target=lambda: [_sb_adjust_qty_by_barcode(i['barcode'], -i['qty']) for i in items_with_bc],
+            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], -i['qty']) for i in invoice_items],
             daemon=True
         ).start()
     return jsonify({'ok': True, 'id': inv_id})
@@ -1639,25 +1638,23 @@ def delete_invoice(inv_id):
     row = conn.execute('SELECT fb_key, items FROM invoices WHERE id=?', (inv_id,)).fetchone()
     conn.execute('DELETE FROM invoices WHERE id=?', (inv_id,))
     conn.commit()
-    # Resolve barcodes before closing connection, restore stock in background
-    items_with_bc = []
-    if row and row['items']:
-        try:
-            for item in json.loads(row['items']):
-                sku = (item.get('sku') or '').strip()
-                boxes = int(item.get('qty') or 0)
-                if sku and boxes > 0:
-                    bc_row = conn.execute('SELECT barcode FROM products WHERE sku=?', (sku,)).fetchone()
-                    if bc_row and bc_row['barcode']:
-                        items_with_bc.append({'barcode': bc_row['barcode'], 'qty': boxes})
-        except Exception:
-            pass
     conn.close()
     if row and row['fb_key']:
         _fb_inv_delete(row['fb_key'])
-    if items_with_bc:
+    # Restore warehouse stock in Supabase for each deleted invoice SKU
+    invoice_items = []
+    if row and row['items']:
+        try:
+            invoice_items = [
+                {'sku': (i.get('sku') or '').strip(), 'qty': int(i.get('qty') or 0)}
+                for i in json.loads(row['items'])
+                if (i.get('sku') or '').strip() and int(i.get('qty') or 0) > 0
+            ]
+        except Exception:
+            pass
+    if invoice_items:
         threading.Thread(
-            target=lambda: [_sb_adjust_qty_by_barcode(i['barcode'], +i['qty']) for i in items_with_bc],
+            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], +i['qty']) for i in invoice_items],
             daemon=True
         ).start()
     return jsonify({'ok': True})
