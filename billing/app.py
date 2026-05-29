@@ -656,6 +656,7 @@ def seed_categories():
 LOVABLE_BASE = 'https://artful-catalog-maker.lovable.app'
 FIREBASE_BASE    = 'https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app/catalog'
 INVOICE_FB_BASE  = 'https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app/invoices'
+STORE_FB_BASE    = 'https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app/billing_stores'
 CATALOG_ORIGINS = {
     'http://localhost:5173', 'http://127.0.0.1:5173',
     'https://mm-mart-live.web.app', 'https://mm-mart-live.firebaseapp.com',
@@ -730,6 +731,64 @@ def _fb_inv_delete(fb_key):
             pass
     except Exception as e:
         print(f'  Firebase invoice delete error: {e}')
+
+def _fb_store_save(store_id, data):
+    """PUT a store to Firebase RTDB billing_stores/{id}."""
+    payload = json.dumps(data).encode()
+    req = urllib.request.Request(
+        f'{STORE_FB_BASE}/{store_id}.json',
+        data=payload, method='PUT',
+        headers={'Content-Type': 'application/json'}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+    except Exception as e:
+        print(f'  Firebase store save error: {e}')
+
+def _fb_store_delete(store_id):
+    """DELETE a store from Firebase RTDB billing_stores/{id}."""
+    req = urllib.request.Request(
+        f'{STORE_FB_BASE}/{store_id}.json', method='DELETE'
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15):
+            pass
+    except Exception as e:
+        print(f'  Firebase store delete error: {e}')
+
+def _load_stores_from_firebase():
+    """Load stores from Firebase RTDB into SQLite on startup.
+    If Firebase has no stores yet, seeds from _DEFAULT_STORES and pushes them up."""
+    try:
+        with urllib.request.urlopen(f'{STORE_FB_BASE}.json', timeout=20) as r:
+            raw = json.loads(r.read())
+    except Exception as e:
+        print(f'  Could not load stores from Firebase: {e}')
+        return
+    if isinstance(raw, dict) and raw:
+        conn = get_db()
+        # Replace entire stores table with what Firebase has
+        conn.execute('DELETE FROM stores')
+        for sid, s in raw.items():
+            if not isinstance(s, dict):
+                continue
+            conn.execute(
+                'INSERT OR REPLACE INTO stores(id,name,sub,address,tel,email,zip) VALUES(?,?,?,?,?,?,?)',
+                (sid, s.get('name',''), s.get('sub',''), s.get('address',''),
+                 s.get('tel',''), s.get('email',''), s.get('zip',''))
+            )
+        conn.commit()
+        conn.close()
+        print(f'  Loaded {len(raw)} stores from Firebase')
+    else:
+        # Firebase empty — push defaults up so they persist going forward
+        conn = get_db()
+        rows = conn.execute('SELECT * FROM stores').fetchall()
+        conn.close()
+        for r in rows:
+            _fb_store_save(r['id'], dict(r))
+        print(f'  Pushed {len(rows)} default stores to Firebase')
 
 def _load_invoices_from_firebase():
     """Seed SQLite invoices from Firebase on container start."""
@@ -1235,27 +1294,32 @@ def create_store():
          data.get('email','').strip(), data.get('zip','').strip())
     )
     conn.commit()
+    store_data = {'id': sid, 'name': name, 'sub': sub,
+                  'address': data.get('address','').strip(), 'tel': data.get('tel','').strip(),
+                  'email': data.get('email','').strip(), 'zip': data.get('zip','').strip()}
     conn.close()
+    threading.Thread(target=lambda: _fb_store_save(sid, store_data), daemon=True).start()
     return jsonify({'ok': True, 'id': sid})
 
 @app.route('/api/stores/<store_id>', methods=['PUT'])
 def update_store(store_id):
     data = request.get_json() or {}
+    fields = {
+        'name':    (data.get('name')    or '').strip(),
+        'sub':     (data.get('sub')     or '').strip(),
+        'address': (data.get('address') or '').strip(),
+        'tel':     (data.get('tel')     or '').strip(),
+        'email':   (data.get('email')   or '').strip(),
+        'zip':     (data.get('zip')     or '').strip(),
+    }
     conn = get_db()
     conn.execute(
         'UPDATE stores SET name=?,sub=?,address=?,tel=?,email=?,zip=? WHERE id=?',
-        (
-            (data.get('name') or '').strip(),
-            (data.get('sub')  or '').strip(),
-            (data.get('address') or '').strip(),
-            (data.get('tel')     or '').strip(),
-            (data.get('email')   or '').strip(),
-            (data.get('zip')     or '').strip(),
-            store_id
-        )
+        (*fields.values(), store_id)
     )
     conn.commit()
     conn.close()
+    threading.Thread(target=lambda: _fb_store_save(store_id, {'id': store_id, **fields}), daemon=True).start()
     return jsonify({'ok': True})
 
 @app.route('/api/stores/<store_id>', methods=['DELETE'])
@@ -1264,6 +1328,7 @@ def delete_store(store_id):
     conn.execute('DELETE FROM stores WHERE id=?', (store_id,))
     conn.commit()
     conn.close()
+    threading.Thread(target=lambda: _fb_store_delete(store_id), daemon=True).start()
     return jsonify({'ok': True})
 
 # ── Sync (for Lovable catalog integration) ────────────────────────────────────
@@ -1715,7 +1780,8 @@ def get_summary():
 # Always initialize DB on import so gunicorn workers are ready immediately
 init_db()
 seed_categories()        # categories must exist before products are linked
-seed_stores()            # seed default store list if empty
+seed_stores()            # seed default store list if empty (needed before Firebase load)
+_load_stores_from_firebase()    # overwrite with Firebase state (respects deletes/edits)
 load_products_if_empty() # loads from Firebase and links to categories
 _load_invoices_from_firebase()  # restore invoice history from Firebase RTDB
 try:
