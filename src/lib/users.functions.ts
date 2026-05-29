@@ -14,12 +14,12 @@ export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdminOrOwner(context.userId, context.supabase);
-    const { data: profiles, error } = await context.supabase
+    const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, phone, created_at, must_change_pin, avatar_url")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
-    const { data: roles, error: rolesError } = await context.supabase
+    const { data: roles, error: rolesError } = await supabaseAdmin
       .from("user_roles")
       .select("user_id, role");
     if (rolesError) throw new Error(rolesError.message);
