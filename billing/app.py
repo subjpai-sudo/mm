@@ -444,14 +444,17 @@ _last_supabase_sync = 0.0
 _SYNC_INTERVAL = 5          # seconds — Firebase sync
 _SUPABASE_INTERVAL = 30     # seconds — Supabase stock sync
 
-def _sb_adjust_qty_by_sku(sku, delta):
-    """Increment or decrement warehouse product qty in Supabase by SKU.
-    delta=-N deducts stock (invoice saved), +N restores (invoice deleted)."""
+def _sb_adjust_qty_by_sku(sku, cs, pcs):
+    """Adjust warehouse stock in Supabase.
+    cs  = cases/boxes signed (negative = deduct, positive = restore)
+    pcs = loose pieces signed
+    Warehouse qty is stored in total pieces: boxes * pcs_per_case + loose_pcs.
+    If pcs_per_case is unset, 1 CS is treated as 1 unit."""
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY or not sku:
         return
     try:
         encoded_sku = urllib.parse.quote(str(sku), safe='')
-        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,qty&sku=eq.{encoded_sku}'
+        fetch_url = f'{SUPABASE_URL}/rest/v1/products?select=id,qty,pcs_per_case&sku=eq.{encoded_sku}'
         req = urllib.request.Request(fetch_url, headers={
             'apikey':        SUPABASE_SERVICE_KEY,
             'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
@@ -462,6 +465,8 @@ def _sb_adjust_qty_by_sku(sku, delta):
             print(f'[sb-adj] sku={sku} not found in Supabase')
             return
         row = rows[0]
+        ppc = int(row.get('pcs_per_case') or 0) or 1  # default 1 if not set
+        delta = cs * ppc + pcs
         new_qty = max(0, int(row.get('qty') or 0) + delta)
         patch_url = f'{SUPABASE_URL}/rest/v1/products?id=eq.{row["id"]}'
         payload = json.dumps({'qty': new_qty, 'last_updated': datetime.now().date().isoformat()}).encode()
@@ -472,9 +477,9 @@ def _sb_adjust_qty_by_sku(sku, delta):
             'Prefer':        'return=minimal',
         })
         urllib.request.urlopen(patch_req, timeout=8)
-        print(f'[sb-adj] sku={sku} delta={delta} new_qty={new_qty}')
+        print(f'[sb-adj] sku={sku} cs={cs} pcs={pcs} ppc={ppc} delta={delta} new_qty={new_qty}')
     except Exception as e:
-        print(f'[sb-adj] sku={sku} delta={delta} err={e}')
+        print(f'[sb-adj] sku={sku} cs={cs} pcs={pcs} err={e}')
 
 def _pull_supabase_stock(conn):
     """Pull product stock levels from Supabase warehouse and update SQLite."""
@@ -1608,15 +1613,15 @@ def save_invoice():
         conn.execute('UPDATE invoices SET fb_key=? WHERE id=?', (fb_key, inv_id))
         conn.commit()
     conn.close()
-    # Deduct warehouse stock in Supabase for each invoiced SKU
+    # Deduct warehouse stock: cs (boxes) and pcs (loose pieces) tracked separately
     invoice_items = [
-        {'sku': (i.get('sku') or '').strip(), 'qty': int(i.get('qty') or 0)}
+        {'sku': (i.get('sku') or '').strip(), 'cs': int(i.get('qty') or 0), 'pcs': int(i.get('pcs') or 0)}
         for i in data.get('items', [])
-        if (i.get('sku') or '').strip() and int(i.get('qty') or 0) > 0
+        if (i.get('sku') or '').strip() and (int(i.get('qty') or 0) + int(i.get('pcs') or 0)) > 0
     ]
     if invoice_items:
         threading.Thread(
-            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], -i['qty']) for i in invoice_items],
+            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], -i['cs'], -i['pcs']) for i in invoice_items],
             daemon=True
         ).start()
     return jsonify({'ok': True, 'id': inv_id})
@@ -1646,15 +1651,15 @@ def delete_invoice(inv_id):
     if row and row['items']:
         try:
             invoice_items = [
-                {'sku': (i.get('sku') or '').strip(), 'qty': int(i.get('qty') or 0)}
+                {'sku': (i.get('sku') or '').strip(), 'cs': int(i.get('qty') or 0), 'pcs': int(i.get('pcs') or 0)}
                 for i in json.loads(row['items'])
-                if (i.get('sku') or '').strip() and int(i.get('qty') or 0) > 0
+                if (i.get('sku') or '').strip() and (int(i.get('qty') or 0) + int(i.get('pcs') or 0)) > 0
             ]
         except Exception:
             pass
     if invoice_items:
         threading.Thread(
-            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], +i['qty']) for i in invoice_items],
+            target=lambda: [_sb_adjust_qty_by_sku(i['sku'], +i['cs'], +i['pcs']) for i in invoice_items],
             daemon=True
         ).start()
     return jsonify({'ok': True})
