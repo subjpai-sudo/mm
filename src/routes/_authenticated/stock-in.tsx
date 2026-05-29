@@ -13,6 +13,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { scanProductImage } from "@/lib/ai-scan.functions";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+
+const BILLING_SERVER = "https://billing-server-421265140321.asia-southeast1.run.app";
+function notifyBillingStockSync() {
+  fetch(`${BILLING_SERVER}/api/sync/stock`, { method: "POST", credentials: "include" }).catch(() => {});
+}
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { displaySize, displayStock, extractSizeFromName } from "@/lib/product-format";
@@ -122,6 +127,7 @@ function StockIn() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
+      notifyBillingStockSync();
       const b = Number(boxQty) || 0;
       const p = Number(xPcs) || 0;
       const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;

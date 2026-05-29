@@ -12,6 +12,11 @@ import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/u
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+
+const BILLING_SERVER = "https://billing-server-421265140321.asia-southeast1.run.app";
+function notifyBillingStockSync() {
+  fetch(`${BILLING_SERVER}/api/sync/stock`, { method: "POST", credentials: "include" }).catch(() => {});
+}
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { displaySize, displayStock } from "@/lib/product-format";
@@ -204,6 +209,7 @@ function StockOut() {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
       qc.invalidateQueries({ queryKey: ["shop-movements"] });
+      notifyBillingStockSync();
       toast.success(`Submitted ${scanned.length} item${scanned.length === 1 ? "" : "s"}`);
       setScanned([]);
     },
@@ -243,6 +249,7 @@ function StockOut() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
+      notifyBillingStockSync();
       const b = Number(outBoxes) || 0;
       const p = Number(outPcs) || 0;
       const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
