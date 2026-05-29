@@ -116,6 +116,148 @@ export type Database = {
         }
         Relationships: []
       }
+      billing_customers: {
+        Row: {
+          address: string | null
+          company: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          tel: string | null
+        }
+        Insert: {
+          address?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          tel?: string | null
+        }
+        Update: {
+          address?: string | null
+          company?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          tel?: string | null
+        }
+        Relationships: []
+      }
+      billing_invoices: {
+        Row: {
+          bill_to_store_id: string | null
+          bill_to_type: string
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          date: string
+          discount: number
+          id: string
+          invoice_no: string | null
+          items: Json
+          store_id: string | null
+          subtotal: number
+          tax: number
+          tax_rate: number
+          total: number
+        }
+        Insert: {
+          bill_to_store_id?: string | null
+          bill_to_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          date: string
+          discount?: number
+          id?: string
+          invoice_no?: string | null
+          items?: Json
+          store_id?: string | null
+          subtotal?: number
+          tax?: number
+          tax_rate?: number
+          total?: number
+        }
+        Update: {
+          bill_to_store_id?: string | null
+          bill_to_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          date?: string
+          discount?: number
+          id?: string
+          invoice_no?: string | null
+          items?: Json
+          store_id?: string | null
+          subtotal?: number
+          tax?: number
+          tax_rate?: number
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_invoices_bill_to_store_id_fkey"
+            columns: ["bill_to_store_id"]
+            isOneToOne: false
+            referencedRelation: "billing_stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "billing_customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_invoices_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "billing_stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_stores: {
+        Row: {
+          address: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          name: string
+          sub: string | null
+          tel: string | null
+          zip: string | null
+        }
+        Insert: {
+          address?: string | null
+          created_at?: string | null
+          email?: string | null
+          id: string
+          name: string
+          sub?: string | null
+          tel?: string | null
+          zip?: string | null
+        }
+        Update: {
+          address?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          sub?: string | null
+          tel?: string | null
+          zip?: string | null
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           created_at: string

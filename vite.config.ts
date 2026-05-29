@@ -12,4 +12,6 @@ export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },
   },
+  // public/ is Firebase Hosting's dir — don't copy portal HTML into the Cloudflare build
+  vite: { publicDir: false },
 });
