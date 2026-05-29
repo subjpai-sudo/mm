@@ -59,7 +59,7 @@ firebase\ 2.json
 # Firebase hosting output
 .firebase/
 .firebaserc
-public/
+/public/
 firebase.json
 
 # Editor directories and files
