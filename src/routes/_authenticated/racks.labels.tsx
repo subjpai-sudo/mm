@@ -160,7 +160,7 @@ function PrintProductLabels() {
                           <ProductLocationCard
                             rackCode={code}
                             product={{ ...p, mainCategoryName: resolveMainCategoryName(p.category_id, allCategories) }}
-                            showImage={sizeKey === "lg"}
+                            showImage={true}
                           />
                         </div>
                       )
