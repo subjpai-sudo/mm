@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type Role = "admin" | "operator" | "owner";
+export type Role = "admin" | "operator" | "owner" | "manager";
 
 interface AuthCtx {
   user: User | null;
@@ -73,6 +73,7 @@ export const NAV_BY_ROLE: Record<Role, string[]> = {
   admin:    ["dashboard", "stock-in", "stock-out", "products", "racks", "shops", "billing", "billing-history", "order-request", "shipments", "order-history", "reports", "settings", "users", "audit", "health", "backups"],
   operator: ["dashboard", "stock-in", "stock-out", "products", "billing", "billing-history"],
   owner:    ["dashboard", "stock-in", "stock-out", "products", "racks", "shops", "billing", "billing-history", "shipments", "order-history", "reports", "users", "audit", "health", "backups"],
+  manager:  ["products", "billing", "billing-history"],
 };
 
 export function canAccess(role: Role | null, page: string) {

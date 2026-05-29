@@ -8,7 +8,7 @@ import {
   ShoppingCart, ClipboardList, BarChart3, Settings as SettingsIcon,
   LogOut, Shield, UserCog, Eye, Menu, Activity, Users as UsersIcon,
   ScrollText, PackageCheck, Database, Warehouse, Store,
-  Search, Bell, ScanLine, Sun, Moon, ChevronDown, AlertTriangle, Receipt,
+  Search, Bell, ScanLine, Sun, Moon, ChevronDown, AlertTriangle, Receipt, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,9 +39,10 @@ const NAV = [
 ] as const;
 
 const ROLE_META: Record<Role, { label: string; icon: any; cls: string }> = {
-  admin:    { label: "Admin",    icon: Shield,  cls: "bg-primary/15 text-primary border-primary/30" },
-  operator: { label: "Operator", icon: UserCog, cls: "bg-accent/15 text-accent border-accent/30" },
-  owner:    { label: "Owner",    icon: Eye,     cls: "bg-success/15 text-success border-success/30" },
+  admin:    { label: "Admin",    icon: Shield,    cls: "bg-primary/15 text-primary border-primary/30" },
+  operator: { label: "Operator", icon: UserCog,   cls: "bg-accent/15 text-accent border-accent/30" },
+  owner:    { label: "Owner",    icon: Eye,       cls: "bg-success/15 text-success border-success/30" },
+  manager:  { label: "Manager",  icon: Briefcase, cls: "bg-warning/15 text-warning border-warning/30" },
 };
 
 function ProtectedLayout() {
