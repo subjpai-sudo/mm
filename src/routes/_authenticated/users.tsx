@@ -184,6 +184,7 @@ function UsersPage() {
                     <SelectItem value="operator">Operator</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                     <SelectItem value="owner">Owner</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
                   </SelectContent>
                 </Select>
                 <Badge variant="secondary" className="text-[10px]">
@@ -269,6 +270,7 @@ function CreateUserDialog({
                 <SelectItem value="operator">Operator (default)</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="manager">Manager (billing only)</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -385,6 +387,7 @@ function InviteUserDialog({
                 <SelectItem value="operator">Operator (default)</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="owner">Owner</SelectItem>
+                <SelectItem value="manager">Manager (billing only)</SelectItem>
               </SelectContent>
             </Select>
           </div>

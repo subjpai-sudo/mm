@@ -43,7 +43,7 @@ export const createManagedUser = createServerFn({ method: "POST" })
       fullName: z.string().min(1).max(80),
       username: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/, "lowercase letters, numbers, . _ - only"),
       pin: z.string().min(4).max(12).regex(/^\d+$/, "PIN must be digits"),
-      role: z.enum(["operator", "admin", "owner"]).default("operator"),
+      role: z.enum(["operator", "admin", "owner", "manager"]).default("operator"),
       mustChangePin: z.boolean().optional().default(false),
     }).parse(input),
   )
@@ -95,7 +95,7 @@ export const inviteManagedUser = createServerFn({ method: "POST" })
     z.object({
       fullName: z.string().min(1).max(80),
       username: z.string().min(3).max(40).regex(/^[a-z0-9._-]+$/, "lowercase letters, numbers, . _ - only"),
-      role: z.enum(["operator", "admin", "owner"]).default("operator"),
+      role: z.enum(["operator", "admin", "owner", "manager"]).default("operator"),
       phone: z.string().min(8).max(20).regex(/^\+[1-9]\d{6,18}$/, "Phone must be E.164 e.g. +15551234567"),
     }).parse(input),
   )
@@ -226,7 +226,7 @@ export const setUserRole = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z.object({
       userId: z.string().uuid(),
-      role: z.enum(["operator", "admin", "owner"]),
+      role: z.enum(["operator", "admin", "owner", "manager"]),
     }).parse(input),
   )
   .handler(async ({ data, context }) => {
