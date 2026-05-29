@@ -28,7 +28,11 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PROJECT_ID: ${{ secrets.VITE_SUPABASE_PROJECT_ID }}
         run: npm run build
 
       - name: Deploy to Cloudflare Workers
-        run: npx wrangler@3 deploy --config dist/server/wrangler.json
+        run: npx wrangler deploy --config dist/server/wrangler.json
