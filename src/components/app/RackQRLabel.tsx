@@ -26,7 +26,7 @@ export function RackQRLabel({ rackId, size = 220 }: { rackId: string; size?: num
         Warehouse rack
       </div>
       <div className="text-4xl font-black tracking-tight leading-none">{normalizedRackId}</div>
-      <canvas ref={ref} className="rounded-lg [image-rendering:pixelated] max-w-full h-auto" />
+      <canvas ref={ref} className="rounded-lg [image-rendering:pixelated] w-full h-auto" />
       <div className="text-[10px] text-neutral-500 font-mono">{payload}</div>
       <div className="text-[10px] text-neutral-400">
         Scan with the warehouse app or use the rack code above

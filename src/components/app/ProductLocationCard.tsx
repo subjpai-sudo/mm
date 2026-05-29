@@ -25,9 +25,11 @@ export type LocationCardProduct = {
 export function ProductLocationCard({
   rackCode,
   product,
+  showImage = true,
 }: {
   rackCode: string;
   product: LocationCardProduct;
+  showImage?: boolean;
 }) {
   const barcodeRef = useRef<SVGSVGElement | null>(null);
 
@@ -92,22 +94,24 @@ export function ProductLocationCard({
       </div>
 
       <div className="p-3 flex flex-col items-center gap-2">
-        <div className="w-full aspect-[4/3] bg-white grid place-items-center overflow-hidden">
-          {product.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={product.image_url}
-              alt={product.name}
-              className="w-full h-full object-contain print:!block"
-              referrerPolicy="no-referrer"
-              loading="eager"
-              decoding="sync"
-              style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties}
-            />
-          ) : (
-            <Package className="size-16 text-neutral-300" />
-          )}
-        </div>
+        {showImage && (
+          <div className="w-full aspect-[4/3] bg-white grid place-items-center overflow-hidden">
+            {product.image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.image_url}
+                alt={product.name}
+                className="w-full h-full object-contain print:!block"
+                referrerPolicy="no-referrer"
+                loading="eager"
+                decoding="sync"
+                style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" } as React.CSSProperties}
+              />
+            ) : (
+              <Package className="size-16 text-neutral-300" />
+            )}
+          </div>
+        )}
 
         <div className="text-center font-bold text-[16px] leading-tight line-clamp-2 min-h-[36px]">
           {product.name}
