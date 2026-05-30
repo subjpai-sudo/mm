@@ -7,10 +7,10 @@ import { getAuth, signInAnonymously } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBF02Uctly222wJh42zOzx4CFq0BfE3LTE",
-  authDomain: "migrate-86fa4.firebaseapp.com",
-  databaseURL: "https://migrate-86fa4-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "migrate-86fa4",
-  storageBucket: "migrate-86fa4.firebasestorage.app",
+  authDomain: "mm-mart-live.firebaseapp.com",
+  databaseURL: "https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "mm-mart-live",
+  storageBucket: "mm-mart-live.firebasestorage.app",
   messagingSenderId: "185038751234",
   appId: "1:185038751234:web:51eaf7763c02a9aa97091b",
 };
