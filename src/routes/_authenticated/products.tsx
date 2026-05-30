@@ -761,16 +761,19 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button className="gradient-primary text-primary-foreground border-0" onClick={() => onSave({
-            name, sku: sku || null, barcode: barcode || null,
-            category_id: categoryId || null, image_url: imageUrl || null,
-            size: sizeNum ? sizeNum : null,
-            unit: sizeNum ? sizeUnit : null,
-            price: Number(price),
-            stock: Number(stockBoxes) * (Number(pcsPerCase) || 0) + Number(stockPcs),
-            low_stock_threshold: Number(threshold),
-            pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
-          })}>Save changes</Button>
+          <Button className="gradient-primary text-primary-foreground border-0" onClick={() => {
+            (document.activeElement as HTMLElement)?.blur();
+            onSave({
+              name, sku: sku || null, barcode: barcode || null,
+              category_id: categoryId || null, image_url: imageUrl || null,
+              size: sizeNum ? sizeNum : null,
+              unit: sizeNum ? sizeUnit : null,
+              price: Number(price),
+              stock: Number(stockBoxes) * (Number(pcsPerCase) || 0) + Number(stockPcs),
+              low_stock_threshold: Number(threshold),
+              pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
+            });
+          }}>Save changes</Button>
         </DialogFooter>
         <StrichScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
       </DialogContent>
@@ -817,16 +820,32 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
             )}
             <div className="flex-1 min-w-0 space-y-1.5 text-sm">
               <div className="text-xs text-muted-foreground">{product.categories?.name ?? "Uncategorized"}</div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold">{product.stock}</span>
-                <span className="text-xs text-muted-foreground">in stock · low at {product.low_stock_threshold}</span>
-              </div>
-              {stockInBoxes(product.stock, product.pcs_per_case) && (
-                <div className="text-xs text-muted-foreground">
-                  ≈ <span className="text-foreground font-semibold">{stockInBoxes(product.stock, product.pcs_per_case)}</span>
-                  <span className="opacity-70"> ({product.pcs_per_case}/box)</span>
-                </div>
-              )}
+              {(() => {
+                const ppc = product.pcs_per_case;
+                const stock = product.stock ?? 0;
+                if (ppc && ppc >= 2) {
+                  const boxes = Math.floor(stock / ppc);
+                  const pcs = stock % ppc;
+                  return (
+                    <>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-2xl font-bold">{boxes}</span>
+                        <span className="text-sm font-medium text-muted-foreground">boxes</span>
+                        <span className="text-lg font-semibold">+</span>
+                        <span className="text-2xl font-bold">{pcs}</span>
+                        <span className="text-sm font-medium text-muted-foreground">pcs</span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">{stock} total pcs · {ppc}/box · low at {product.low_stock_threshold}</div>
+                    </>
+                  );
+                }
+                return (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-bold">{stock}</span>
+                    <span className="text-xs text-muted-foreground">in stock · low at {product.low_stock_threshold}</span>
+                  </div>
+                );
+              })()}
               <div><StockStatus stock={product.stock} threshold={product.low_stock_threshold} /></div>
               <div className="text-xs text-muted-foreground">SKU <span className="font-mono">{product.sku ?? "—"}</span></div>
               {displaySize(product) && (

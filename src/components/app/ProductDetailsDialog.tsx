@@ -230,7 +230,24 @@ export function ProductDetailsDialog({
                   <dt className="text-muted-foreground">Barcode</dt>
                   <dd className="font-mono break-all">{(product as any).barcode ?? "—"}</dd>
                   <dt className="text-muted-foreground">Stock</dt>
-                  <dd className="font-bold tabular-nums">{(product as any).stock}</dd>
+                  <dd className="font-bold tabular-nums">
+                    {(() => {
+                      const stock = (product as any).stock ?? 0;
+                      const ppc = (product as any).pcs_per_case;
+                      if (ppc && ppc >= 2) {
+                        const boxes = Math.floor(stock / ppc);
+                        const pcs = stock % ppc;
+                        return (
+                          <span>
+                            {boxes} <span className="font-normal text-muted-foreground text-xs">boxes</span>
+                            {" + "}{pcs} <span className="font-normal text-muted-foreground text-xs">pcs</span>
+                            <span className="ml-1 text-xs font-normal text-muted-foreground">({stock} total)</span>
+                          </span>
+                        );
+                      }
+                      return stock;
+                    })()}
+                  </dd>
                   <dt className="text-muted-foreground">Low at</dt>
                   <dd className="tabular-nums">{(product as any).low_stock_threshold}</dd>
                   {(product as any).price ? (
@@ -241,7 +258,7 @@ export function ProductDetailsDialog({
                   ) : null}
                   {(product as any).pcs_per_case ? (
                     <>
-                      <dt className="text-muted-foreground">Pcs / case</dt>
+                      <dt className="text-muted-foreground">Pcs / box</dt>
                       <dd className="tabular-nums">{(product as any).pcs_per_case}</dd>
                     </>
                   ) : null}
