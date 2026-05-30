@@ -49,6 +49,32 @@ async function searchAndUpload(name: string): Promise<string> {
   return data.publicUrl;
 }
 
+export const uploadProductImageFile = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ dataUrl: z.string().min(10), ext: z.string().max(10).default("jpg") }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    // Auto-create bucket if it doesn't exist
+    await supabaseAdmin.storage.createBucket("product-images", { public: true, allowedMimeTypes: ["image/*"] })
+      .catch(() => {/* already exists — ignore */});
+
+    const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(data.dataUrl);
+    if (!match) throw new Error("Invalid image data URL");
+    const contentType = match[1];
+    const ext = contentType.split("/")[1]?.split(";")[0] || data.ext;
+    const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
+
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabaseAdmin.storage
+      .from("product-images")
+      .upload(path, bytes, { contentType, upsert: false });
+    if (error) throw new Error(error.message);
+
+    const { data: urlData } = supabaseAdmin.storage.from("product-images").getPublicUrl(path);
+    return { url: urlData.publicUrl };
+  });
+
 export const fetchProductImage = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ name: z.string().min(1).max(200) }).parse(d))

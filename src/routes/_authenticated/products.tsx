@@ -20,8 +20,8 @@ import { cn } from "@/lib/utils";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
 import { useServerFn } from "@tanstack/react-start";
-import { fetchProductImage, bulkFetchProductImages, generateProductImageAI, bulkGenerateProductImagesAI } from "@/lib/product-images.functions";
-import { Sparkles, Globe, Wand2 } from "lucide-react";
+import { uploadProductImageFile, fetchProductImage, bulkFetchProductImages, generateProductImageAI, bulkGenerateProductImagesAI } from "@/lib/product-images.functions";
+import { Sparkles, Globe, Wand2, Images } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
@@ -887,31 +887,23 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
   );
 }
 
-function ImagePicker({ value, onChange, productName }: { value: string; onChange: (url: string) => void; productName?: string }) {
+function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void; productName?: string }) {
   const [uploading, setUploading] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const fetchImageFn = useServerFn(fetchProductImage);
-  async function searchWeb() {
-    if (!productName?.trim()) { toast.error("Enter product name first"); return; }
-    setSearching(true);
-    try {
-      const res = await fetchImageFn({ data: { name: productName.trim() } });
-      onChange(res.url);
-      toast.success("Image found");
-    } catch (e: any) {
-      toast.error(e?.message ?? "Search failed");
-    } finally { setSearching(false); }
-  }
+  const uploadFn = useServerFn(uploadProductImageFile);
+
   async function handleFile(file: File) {
     if (!file) return;
     setUploading(true);
     try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
       const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: false, contentType: file.type });
-      if (error) throw error;
-      const { data } = supabase.storage.from("product-images").getPublicUrl(path);
-      onChange(data.publicUrl);
+      const res = await uploadFn({ data: { dataUrl, ext } });
+      onChange(res.url);
       toast.success("Image uploaded");
     } catch (e: any) {
       toast.error(e.message ?? "Upload failed");
@@ -919,6 +911,7 @@ function ImagePicker({ value, onChange, productName }: { value: string; onChange
       setUploading(false);
     }
   }
+
   return (
     <div className="flex items-center gap-3">
       {value ? (
@@ -929,16 +922,22 @@ function ImagePicker({ value, onChange, productName }: { value: string; onChange
         </div>
       )}
       <div className="space-y-2">
+        {/* Camera — opens camera directly on mobile */}
         <label className="inline-flex">
           <input type="file" accept="image/*" capture="environment" className="hidden"
             onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
           <span className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-border bg-secondary hover:bg-secondary/70 cursor-pointer">
-            <ImagePlus className="size-3.5" />{uploading ? "Uploading…" : value ? "Change picture" : "Add picture"}
+            <ImagePlus className="size-3.5" />{uploading ? "Uploading…" : "Take photo"}
           </span>
         </label>
-        <Button type="button" variant="secondary" size="sm" className="h-7 text-xs" disabled={searching} onClick={searchWeb}>
-          <Globe className="size-3.5" /> {searching ? "Searching…" : "Search web"}
-        </Button>
+        {/* Gallery — file picker (phone gallery / computer folder) */}
+        <label className="inline-flex">
+          <input type="file" accept="image/*" className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          <span className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-border bg-secondary hover:bg-secondary/70 cursor-pointer">
+            <Images className="size-3.5" />Gallery
+          </span>
+        </label>
         {value && (
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
         )}
