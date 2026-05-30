@@ -242,10 +242,31 @@ function ProductDetailPage() {
             <div className="flex flex-wrap items-end gap-5 mt-6">
               <div>
                 <div className="upper-label mb-1">Current stock</div>
-                <div className="flex items-baseline gap-2">
-                  <span className={cn("num-xl", `text-${toneKey}`)}>{stock}</span>
-                  <span className="text-muted-foreground text-sm">units</span>
-                </div>
+                {(() => {
+                  const ppc = p.pcs_per_case;
+                  if (ppc && ppc >= 2) {
+                    const boxes = Math.floor(stock / ppc);
+                    const pcs = stock % ppc;
+                    return (
+                      <div>
+                        <div className="flex items-baseline gap-1.5">
+                          <span className={cn("num-xl", `text-${toneKey}`)}>{boxes}</span>
+                          <span className="text-muted-foreground text-sm">boxes</span>
+                          <span className="text-muted-foreground text-sm font-bold">+</span>
+                          <span className={cn("num-xl", `text-${toneKey}`)}>{pcs}</span>
+                          <span className="text-muted-foreground text-sm">pcs</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{stock} total pcs · {ppc} per box</div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="flex items-baseline gap-2">
+                      <span className={cn("num-xl", `text-${toneKey}`)}>{stock}</span>
+                      <span className="text-muted-foreground text-sm">units</span>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="h-12 w-px bg-border" />
               <div>

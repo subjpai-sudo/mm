@@ -760,10 +760,12 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button className="gradient-primary text-primary-foreground border-0" onClick={() => {
-            (document.activeElement as HTMLElement)?.blur();
-            onSave({
+          <Button variant="ghost"
+            onPointerDown={() => (document.activeElement as HTMLElement)?.blur()}
+            onClick={onClose}>Cancel</Button>
+          <Button className="gradient-primary text-primary-foreground border-0"
+            onPointerDown={() => (document.activeElement as HTMLElement)?.blur()}
+            onClick={() => onSave({
               name, sku: sku || null, barcode: barcode || null,
               category_id: categoryId || null, image_url: imageUrl || null,
               size: sizeNum ? sizeNum : null,
@@ -772,8 +774,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
               stock: Number(stockBoxes) * (Number(pcsPerCase) || 0) + Number(stockPcs),
               low_stock_threshold: Number(threshold),
               pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
-            });
-          }}>Save changes</Button>
+            })}>Save changes</Button>
         </DialogFooter>
         <StrichScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
       </DialogContent>
