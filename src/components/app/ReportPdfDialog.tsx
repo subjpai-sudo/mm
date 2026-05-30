@@ -244,29 +244,49 @@ function buildReportHtml(opts: {
       </div>
     </header>`;
 
-  // ── PAGE 1: summary + all products
+  // ── PAGE 1+: summary + all products (paginated — 15 rows on first page, 30 on each continuation)
   if (selected.summary || selected.all) {
-    const rows = (selected.all ? products : [])
+    const FIRST_PAGE_ROWS = 15;
+    const CONT_PAGE_ROWS = 30;
+
+    const tableHeader = `<thead><tr>
+      <th style="width:14pt"></th>
+      <th>Product</th><th>Brand</th><th>Origin</th>
+      <th>Size</th><th>Rack</th>
+      <th class="right">Stock</th><th class="right">¥×1</th>
+      <th>Status</th>
+    </tr></thead>`;
+
+    const makeRow = (p: Product) => {
+      const s = statusOf(p);
+      const origin = originOf(p);
+      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
+      const stockColor = p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
+      return `<tr>
+        <td><span class="swatch" style="background:${swColor}"></span></td>
+        <td>${esc(p.name)}</td>
+        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
+        <td>${originPill(origin)}</td>
+        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
+        <td class="mono-sm">${esc(rackLabel(p))}</td>
+        <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
+        <td class="right mono-sm">${p.price ? fmtNum(Number(p.price)) : "—"}</td>
+        <td><span style="color:${s.color};font-weight:600;font-size:7pt">● ${s.label}</span></td>
+      </tr>`;
+    };
+
+    const sortedAll = (selected.all ? products : [])
       .slice()
-      .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name))
-      .map((p) => {
-        const s = statusOf(p);
-        const origin = originOf(p);
-        const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
-        const stockColor =
-          p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
-        return `<tr>
-          <td><span class="swatch" style="background:${swColor}"></span></td>
-          <td>${esc(p.name)}</td>
-          <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-          <td>${originPill(origin)}</td>
-          <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
-          <td class="mono-sm">${esc(rackLabel(p))}</td>
-          <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
-          <td class="right mono-sm">${p.price ? fmtNum(Number(p.price)) : "—"}</td>
-          <td><span style="color:${s.color};font-weight:600;font-size:7pt">● ${s.label}</span></td>
-        </tr>`;
-      }).join("");
+      .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name));
+
+    const firstBatch = sortedAll.slice(0, FIRST_PAGE_ROWS);
+    const remaining = sortedAll.slice(FIRST_PAGE_ROWS);
+
+    // Build page chunks for remaining rows
+    const contBatches: Product[][] = [];
+    for (let i = 0; i < remaining.length; i += CONT_PAGE_ROWS) {
+      contBatches.push(remaining.slice(i, i + CONT_PAGE_ROWS));
+    }
 
     pages.push(`<div class="page">
       <header class="doc-head">
@@ -301,16 +321,11 @@ function buildReportHtml(opts: {
           <div class="rule"></div>
           <span class="upper">SORTED BY CATEGORY</span>
         </div>
-        <table>
-          <thead><tr>
-            <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Origin</th>
-            <th>Size</th><th>Rack</th>
-            <th class="right">Stock</th><th class="right">¥ × 1</th>
-            <th>Status</th>
-          </tr></thead>
-          <tbody>${rows || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No products.</td></tr>`}</tbody>
-        </table>
+        <table>${tableHeader}<tbody>${
+          firstBatch.length ? firstBatch.map(makeRow).join("") :
+          `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No products.</td></tr>`
+        }</tbody></table>
+        ${contBatches.length ? `<p style="font-size:7pt;color:var(--ink-3);text-align:right;margin-top:4pt">Continued on next page…</p>` : ""}
       </div>` : ""}
 
       <footer class="doc-foot">
@@ -319,6 +334,24 @@ function buildReportHtml(opts: {
         <span>PAGE __P__</span>
       </footer>
     </div>`);
+
+    // Continuation pages for all-products
+    for (let ci = 0; ci < contBatches.length; ci++) {
+      const batch = contBatches[ci];
+      const isLast = ci === contBatches.length - 1;
+      pages.push(`<div class="page">
+        ${subHead("All products (continued)", `PAGE ${ci + 2} OF ${contBatches.length + 1} · ${products.length} TOTAL ITEMS`, pages.length + 1)}
+        <div style="margin-top:10pt">
+          <table>${tableHeader}<tbody>${batch.map(makeRow).join("")}</tbody></table>
+          ${!isLast ? `<p style="font-size:7pt;color:var(--ink-3);text-align:right;margin-top:4pt">Continued on next page…</p>` : ""}
+        </div>
+        <footer class="doc-foot">
+          <span>CITYSTAR INVENTORY · CONFIDENTIAL</span>
+          <span>${esc(reference)}</span>
+          <span>PAGE __P__</span>
+        </footer>
+      </div>`);
+    }
   }
 
   // ── PAGE 2: out of stock
@@ -677,14 +710,20 @@ export function ReportPdfDialog({
       const { error } = await supabase.storage.from("reports").upload(path, blob, {
         contentType: "application/pdf", upsert: false,
       });
-      if (error) throw error;
-      // Reports bucket is private; issue a signed URL (valid 7 days)
+      if (error) {
+        if (error.message?.toLowerCase().includes("bucket") || error.message?.toLowerCase().includes("not found")) {
+          toast.error('Storage bucket "reports" not found. Create it in Supabase → Storage, then retry. For now use Download instead.');
+        } else {
+          toast.error(`Upload failed: ${error.message}`);
+        }
+        return;
+      }
       const { data, error: signErr } = await supabase
         .storage.from("reports")
         .createSignedUrl(path, 60 * 60 * 24 * 7);
       if (signErr) throw signErr;
       setUrl(data.signedUrl);
-      toast.success("Report generated and uploaded");
+      toast.success("Report generated — link valid for 7 days");
     } catch (e: any) {
       toast.error(e.message ?? "Failed to generate report");
     } finally {
