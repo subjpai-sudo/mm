@@ -24,9 +24,9 @@ export default defineConfig(({ mode }) => {
       ],
     resolve: {
       alias: [
-        { find: "@/components/app/ScannerFAB", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
-        { find: "@/components/app/UniversalScanner", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
-        { find: "@/components/app/StrichScanner", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
+        // { find: "@/components/app/ScannerFAB", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
+        // { find: "@/components/app/UniversalScanner", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
+        // { find: "@/components/app/StrichScanner", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
         { find: "@/components/app/ReportPdfDialog", replacement: path.join(repoRoot, "src/local/scanner-stubs.tsx") },
         { find: "@/lib/notifications.functions", replacement: path.join(repoRoot, "src/local/server-function-stubs.ts") },
         { find: "@/lib/ai-scan.functions", replacement: path.join(repoRoot, "src/local/server-function-stubs.ts") },

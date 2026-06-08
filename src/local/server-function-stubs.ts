@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+
 type ServerFn = ((input?: any) => Promise<any>) & { url?: string };
 
 function stub(value: any = null): ServerFn {
@@ -13,7 +15,20 @@ export const submitOrderRequest = stub({ ok: true });
 export const sendReportLinkSms = stub({ ok: true });
 
 export const scanProductImage = stub({ name: "", sku: "", barcode: "" });
-export const getStrichLicense = stub({ licenseKey: "" });
+
+export const getStrichLicense = Object.assign(
+  async () => {
+    try {
+      const { data } = await supabase.from("app_settings").select("strich_license_key").eq("id", 1).maybeSingle();
+      return { key: data?.strich_license_key ?? "" };
+    } catch (e) {
+      console.error("Failed to fetch STRICH license locally", e);
+      return { key: "" };
+    }
+  },
+  { url: "/__local_stub__" }
+);
+
 export const reportKeyError = stub({ ok: true });
 export async function alertKeyError() { return { ok: true }; }
 export function looksLikeKeyError() { return false; }
