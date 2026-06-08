@@ -41,6 +41,26 @@ function formatDetectedProductLabel(code: string, products: any[]) {
   return match ? `${match.name} · ${code}` : code;
 }
 
+function playErrorBuzz() {
+  try {
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sawtooth";
+    o.frequency.value = 150;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.5);
+    o.onended = () => ctx.close().catch(() => undefined);
+  } catch {}
+}
+
 function StockIn() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -125,7 +145,15 @@ function StockIn() {
     const v = code.trim();
     if (!v) return;
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
-    if (!p) { setNotFound(v); setPickSearch(""); setScan(""); return; }
+    if (!p) {
+      playErrorBuzz();
+      if (navigator.vibrate) navigator.vibrate([150, 100, 150]);
+      setCamOpen(false);
+      setNotFound(v);
+      setPickSearch("");
+      setScan("");
+      return;
+    }
 
     if (speedMode) {
       setScanned((rows) => {

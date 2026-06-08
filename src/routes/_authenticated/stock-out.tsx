@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Camera, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, X, Plus, ReceiptText, ExternalLink } from "lucide-react";
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
+import { ScanLine, Search, Camera, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, X, Plus, ReceiptText, ExternalLink, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogFooter, DialogTitle, DialogHeader } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -43,6 +43,26 @@ function formatYen(value: number) {
   return `¥${Math.round(value || 0).toLocaleString("en-US")}`;
 }
 
+function playErrorBuzz() {
+  try {
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sawtooth";
+    o.frequency.value = 150;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.5);
+    o.onended = () => ctx.close().catch(() => undefined);
+  } catch {}
+}
+
 function StockOut() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -68,6 +88,7 @@ function StockOut() {
   const [massScanMode, setMassScanMode] = useState(false);
   const [issuedBill, setIssuedBill] = useState<IssuedBill | null>(null);
   const [speedMode, setSpeedMode] = useState(false);
+  const [errorProductCode, setErrorProductCode] = useState<string | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -136,7 +157,14 @@ function StockOut() {
       return;
     }
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
-    if (!p) { toast.error("Product not found"); return; }
+    if (!p) {
+      playErrorBuzz();
+      if (navigator.vibrate) navigator.vibrate([150, 100, 150]);
+      setCamOpen(false);
+      setErrorProductCode(v);
+      setScan("");
+      return;
+    }
 
     if (speedMode) {
       setScanned((rows) => {
@@ -898,6 +926,28 @@ function StockOut() {
               </DialogFooter>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={!!errorProductCode} onOpenChange={(v) => !v && setErrorProductCode(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="size-5 text-destructive animate-bounce" /> Product Not Found
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              The scanned barcode/SKU does not exist in the product catalog. Continuous scanning has been paused.
+            </p>
+            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-sm font-mono text-center text-destructive font-bold">
+              {errorProductCode}
+            </div>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button className="w-full gradient-primary text-primary-foreground border-0 h-11 font-bold" onClick={() => setErrorProductCode(null)}>
+              Dismiss & Resume
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       <StrichScanner
