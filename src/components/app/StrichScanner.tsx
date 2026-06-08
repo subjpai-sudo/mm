@@ -15,6 +15,7 @@ type Props = {
   onDetected: (code: string) => void;
   keepOpenOnDetect?: boolean;
   onDetectedLabel?: (code: string) => string | null | undefined;
+  muteBeep?: boolean;
 };
 
 let sdkReadyPromise: Promise<{ ok: boolean; error?: string }> | null = null;
@@ -73,6 +74,7 @@ export function StrichScanner({
   onDetected,
   keepOpenOnDetect = false,
   onDetectedLabel,
+  muteBeep = false,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<any>(null);
@@ -93,8 +95,10 @@ export function StrichScanner({
     if (lastRef.current.code === trimmed && now - lastRef.current.ts < 1200) return;
     lockRef.current = true;
     lastRef.current = { code: trimmed, ts: now };
-    beep();
-    if (navigator.vibrate) navigator.vibrate(60);
+    if (!muteBeep) {
+      beep();
+      if (navigator.vibrate) navigator.vibrate(60);
+    }
     const label = onDetectedLabel?.(trimmed);
     setStatus(label ? `✓ ${label}` : `✓ ${trimmed}`);
     window.setTimeout(

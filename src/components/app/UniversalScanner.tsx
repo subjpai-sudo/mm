@@ -53,6 +53,46 @@ type RackHit = {
 };
 type Hit = ProductHit | RackHit | { kind: "unknown"; code: string };
 
+function playErrorBuzz() {
+  try {
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sawtooth";
+    o.frequency.value = 150;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.5);
+    o.onended = () => ctx.close().catch(() => undefined);
+  } catch {}
+}
+
+function playSuccessBeep() {
+  try {
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 1046; // C6 note
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.14);
+    o.onended = () => ctx.close().catch(() => undefined);
+  } catch {}
+}
+
 /**
  * Universal scanner — handles both QR (rack labels) and product barcodes.
  * Shows a rich result dialog with image, stock, price, last movement, etc.
@@ -103,6 +143,8 @@ export function UniversalScanner({
           supabase.from("products").select("*").eq("rack", rackId).order("name"),
         ]);
         setHit({ kind: "rack", code: rackId, name: rack?.name ?? null, items: items ?? [] });
+        playSuccessBeep();
+        if (navigator.vibrate) navigator.vibrate(60);
         return;
       }
       // Build a small set of barcode variants so UPC-A (12) and EAN-13 (13)
@@ -130,9 +172,13 @@ export function UniversalScanner({
         product = bySku?.[0] ?? null;
       }
       if (!product) {
+        playErrorBuzz();
+        if (navigator.vibrate) navigator.vibrate([150, 100, 150]);
         setHit({ kind: "unknown", code: trimmed });
         return;
       }
+      playSuccessBeep();
+      if (navigator.vibrate) navigator.vibrate(60);
       const [{ data: movements }, { data: rackRow }] = await Promise.all([
         supabase
           .from("stock_movements")
@@ -237,6 +283,7 @@ export function UniversalScanner({
           const rackId = parseRackCode(c);
           return rackId ? `Rack ${rackId}` : c;
         }}
+        muteBeep
       />
 
       <Dialog open={!!hit} onOpenChange={(v) => !v && closeAll()}>

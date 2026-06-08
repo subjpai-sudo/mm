@@ -186,9 +186,10 @@ function StockOut() {
       return;
     }
 
+    playSuccessBeep();
+    if (navigator.vibrate) navigator.vibrate(60);
+
     if (speedMode) {
-      playSuccessBeep();
-      if (navigator.vibrate) navigator.vibrate(60);
       setScanned((rows) => {
         const idx = rows.findIndex((r) => r.productId === p.id);
         if (idx >= 0) {
@@ -978,6 +979,7 @@ function StockOut() {
         onDetected={lookup}
         keepOpenOnDetect
         onDetectedLabel={(code) => formatDetectedProductLabel(code, products)}
+        muteBeep
       />
     </div>
   );
