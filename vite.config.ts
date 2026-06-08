@@ -13,5 +13,6 @@ export default defineConfig({
     server: { entry: "server" },
   },
   // public/ is Firebase Hosting's dir — don't copy portal HTML into the Cloudflare build
-  vite: { publicDir: false },
+  // Port 5173 avoids clashing with billing/app.py which also binds to 8080.
+  vite: { publicDir: false, server: { port: 5173, strictPort: true } },
 });
