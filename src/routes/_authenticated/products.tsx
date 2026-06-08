@@ -24,19 +24,10 @@ import { uploadProductImageFile, fetchProductImage, bulkFetchProductImages, gene
 import { Sparkles, Globe, Wand2, Images } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
+import { ProductHeroCard } from "@/components/app/ProductHeroCard";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
-function stockInBoxes(stock: number, pcsPerCase: number | null | undefined): string | null {
-  if (!pcsPerCase || pcsPerCase < 2) return null;
-  const boxes = Math.floor(stock / pcsPerCase);
-  const rem = stock - boxes * pcsPerCase;
-  if (boxes <= 0 && rem <= 0) return null;
-  return rem === 0
-    ? `${boxes} box${boxes === 1 ? "" : "es"}`
-    : `${boxes} box${boxes === 1 ? "" : "es"} + ${rem} pcs`;
-}
 
 type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
 export const Route = createFileRoute("/_authenticated/products")({
@@ -482,9 +473,9 @@ function ProductsPage() {
                       {s.items.length}
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(245px,1fr))]">
                     {s.items.map((p: any) => (
-                      <ProductCard
+                      <ProductHeroCard
                         key={p.id}
                         p={p}
                         canEdit={canEdit}
@@ -962,65 +953,6 @@ function ImagePicker({ value, onChange }: { value: string; onChange: (url: strin
           <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
         )}
       </div>
-    </div>
-  );
-}
-
-function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, onClearBarcode }:
-  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void; onClearBarcode: () => void }) {
-  return (
-    <div className="rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/40 transition-colors cursor-pointer overflow-hidden" onClick={onView}>
-      <div className="flex items-start gap-3 p-3">
-        {p.image_url ? (
-          <img src={p.image_url} alt={p.name} className="size-14 rounded-lg object-cover border border-border shrink-0" />
-        ) : (
-          <div className="size-14 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-5" /></div>
-        )}
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="font-semibold text-sm leading-tight line-clamp-2">{p.name}</div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
-            <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
-            {stockInBoxes(p.stock, p.pcs_per_case) && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
-                {stockInBoxes(p.stock, p.pcs_per_case)}
-              </span>
-            )}
-            {displaySize(p) && (
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/15 text-accent border border-accent/30">{displaySize(p)}</span>
-            )}
-          </div>
-          {p.barcode && (
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <span className="font-mono text-[10px] text-muted-foreground truncate flex-1">{p.barcode}</span>
-              {canEdit && (
-                <button
-                  onClick={() => { if (confirm(`Remove barcode ${p.barcode} from "${p.name}"?`)) onClearBarcode(); }}
-                  className="size-5 grid place-items-center rounded text-destructive hover:bg-destructive/10"
-                  aria-label="Remove barcode"
-                >
-                  <Trash2 className="size-3" />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-      {canEdit && (
-        <div className="flex border-t border-border divide-x divide-border" onClick={(e) => e.stopPropagation()}>
-          <button onClick={onScan} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-            <ScanLine className="size-3.5" /> Scan
-          </button>
-          <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-            <Pencil className="size-3.5" /> Edit
-          </button>
-          {canDelete && (
-            <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="size-3.5" /> Delete
-            </button>
-          )}
-        </div>
-      )}
     </div>
   );
 }
