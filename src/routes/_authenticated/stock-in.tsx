@@ -61,6 +61,26 @@ function playErrorBuzz() {
   } catch {}
 }
 
+function playSuccessBeep() {
+  try {
+    const Ctx = (window as any).AudioContext ?? (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.type = "sine";
+    o.frequency.value = 1046; // C6 note
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.start();
+    o.stop(ctx.currentTime + 0.14);
+    o.onended = () => ctx.close().catch(() => undefined);
+  } catch {}
+}
+
 function StockIn() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -156,6 +176,8 @@ function StockIn() {
     }
 
     if (speedMode) {
+      playSuccessBeep();
+      if (navigator.vibrate) navigator.vibrate(60);
       setScanned((rows) => {
         const idx = rows.findIndex((r) => r.productId === p.id);
         if (idx >= 0) {
