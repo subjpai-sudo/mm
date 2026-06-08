@@ -20,7 +20,7 @@ function notifyBillingStockSync() {
 }
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
-import { displaySize, displayStock, extractSizeFromName } from "@/lib/product-format";
+import { casePackSize, displaySize, displayStock, extractSizeFromName, usesCasePack } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-in")({
@@ -111,7 +111,7 @@ function StockIn() {
     mutationFn: async () => {
       const b = Math.max(0, Number(boxQty) || 0);
       const p = Math.max(0, Number(xPcs) || 0);
-      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
+      const perBox = casePackSize(confirm.pcs_per_case);
       const actual = perBox > 0 ? b * perBox + p : p;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       const parts = perBox > 0 && b > 0
@@ -130,7 +130,7 @@ function StockIn() {
       notifyBillingStockSync();
       const b = Number(boxQty) || 0;
       const p = Number(xPcs) || 0;
-      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
+      const perBox = casePackSize(confirm.pcs_per_case);
       const actual = perBox > 0 ? b * perBox + p : p;
       toast.success(`Added ${actual} pcs to ${confirm.name}`);
       setConfirm(null); setBoxQty("0"); setXPcs("1");
@@ -386,7 +386,7 @@ function StockIn() {
                     {displaySize(confirm) && <span>Size <span className="font-semibold text-foreground">{displaySize(confirm)}</span></span>}
                   </div>
                 </div>
-                {confirm.pcs_per_case > 0 ? (
+                {usesCasePack(confirm) ? (
                   <div className="space-y-3">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
                     <div className="grid grid-cols-2 gap-3">
@@ -459,7 +459,7 @@ function StockIn() {
                   <Button variant="ghost" onClick={() => { setConfirm(null); setBoxQty("0"); setXPcs("1"); }} className="flex-1 h-12">Cancel</Button>
                   <Button className="gradient-success text-success-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
                     {(() => {
-                      const perBox = confirm.pcs_per_case ?? 0;
+                      const perBox = casePackSize(confirm.pcs_per_case);
                       const total = perBox > 0 ? Number(boxQty) * perBox + Number(xPcs) : Number(xPcs);
                       return `OK · Add ${total} pcs`;
                     })()}

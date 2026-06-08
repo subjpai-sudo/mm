@@ -35,4 +35,18 @@ jobs:
         run: npm run build
 
       - name: Deploy to Cloudflare Workers
-        run: npx wrangler deploy --config dist/server/wrangler.json
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ]; then
+            echo "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config dist/server/wrangler.json
+          fi
+          if [ -n "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "$SUPABASE_PUBLISHABLE_KEY" | npx wrangler secret put SUPABASE_PUBLISHABLE_KEY --config dist/server/wrangler.json
+          fi
+          if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "$SUPABASE_SERVICE_ROLE_KEY" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --config dist/server/wrangler.json
+          fi
+          npx wrangler deploy --config dist/server/wrangler.json

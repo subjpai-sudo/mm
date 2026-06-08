@@ -24,7 +24,7 @@ import { uploadProductImageFile, fetchProductImage, bulkFetchProductImages, gene
 import { Sparkles, Globe, Wand2, Images } from "lucide-react";
 import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
-import { ProductHeroCard } from "@/components/app/ProductHeroCard";
+import { ProductHeroCard, ProductViewToggle } from "@/components/app/ProductHeroCard";
 import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,6 +54,7 @@ function ProductsPage() {
   const [bulkShelfOpen, setBulkShelfOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [deleting, setDeleting] = useState<any | null>(null);
+  const [cardView, setCardView] = useState<"grid" | "list">("grid");
   const openProduct = (p: any) => navigate({ to: "/products/$productId", params: { productId: p.id } });
 
   const { data: products = [] } = useQuery({
@@ -123,17 +124,6 @@ function ProductsPage() {
       if (error) throw error;
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); setScanFor(null); toast.success("Barcode registered"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const clearBarcode = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products")
-        .update({ barcode: null, barcode_registered_by: null, barcode_registered_at: null })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Barcode removed"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -288,6 +278,7 @@ function ProductsPage() {
           className="flex-1 min-w-0 h-9 bg-transparent border-0 focus-visible:ring-0 focus-visible:ring-offset-0 px-0"
         />
         <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded border border-border bg-background text-[10px] font-mono text-muted-foreground shrink-0">⌘ K</kbd>
+        <ProductViewToggle view={cardView} onChange={setCardView} />
         <div className="hidden md:block w-px h-6 bg-border shrink-0" />
         <div className="hidden md:inline-flex p-0.5 rounded-xl border border-border bg-background gap-0.5 shrink-0">
           {([
@@ -473,18 +464,24 @@ function ProductsPage() {
                       {s.items.length}
                     </span>
                   </div>
-                  <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(245px,1fr))]">
+                  <div
+                    className={
+                      cardView === "grid"
+                        ? "grid gap-4 grid-cols-[repeat(auto-fill,minmax(245px,1fr))]"
+                        : "flex flex-col gap-2"
+                    }
+                  >
                     {s.items.map((p: any) => (
                       <ProductHeroCard
                         key={p.id}
                         p={p}
+                        view={cardView}
                         canEdit={canEdit}
                         canDelete={canDelete}
                         onView={() => openProduct(p)}
                         onEdit={() => setEditing(p)}
                         onDelete={() => setDeleting(p)}
                         onScan={() => setScanFor({ id: p.id, name: p.name })}
-                        onClearBarcode={() => clearBarcode.mutate(p.id)}
                       />
                     ))}
                   </div>

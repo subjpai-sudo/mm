@@ -20,12 +20,22 @@ export function displaySize(p: { size?: string | null; unit?: string | null }): 
   return `${num}${unit ? ` ${unit}` : ""}`;
 }
 
+/** Normalized case-pack size (≥2 pcs/box), or 0 when not using box breakdown. */
+export function casePackSize(pcs_per_case?: number | string | null): number {
+  const n = Number(pcs_per_case);
+  return Number.isFinite(n) && n >= 2 ? n : 0;
+}
+
+export function usesCasePack(p: { pcs_per_case?: number | string | null }): boolean {
+  return casePackSize(p.pcs_per_case) > 0;
+}
+
 /** Format current stock as "X boxes + Y pcs" when pcs_per_case is set.
  *  Returns plain number string when no pcs_per_case. */
-export function displayStock(p: { stock?: number | null; pcs_per_case?: number | null }): string {
+export function displayStock(p: { stock?: number | null; pcs_per_case?: number | string | null }): string {
   const stock = p.stock ?? 0;
-  const ppc = p.pcs_per_case;
-  if (!ppc || ppc < 2) return String(stock);
+  const ppc = casePackSize(p.pcs_per_case);
+  if (!ppc) return String(stock);
   if (stock <= 0) return "0";
   const boxes = Math.floor(stock / ppc);
   const rem = stock % ppc;

@@ -19,7 +19,7 @@ function notifyBillingStockSync() {
 }
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { checkLowStockAlert } from "@/lib/notifications.functions";
-import { displaySize, displayStock } from "@/lib/product-format";
+import { casePackSize, displaySize, displayStock, usesCasePack } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
 export const Route = createFileRoute("/_authenticated/stock-out")({
@@ -186,7 +186,7 @@ function StockOut() {
       const rows = scanned.map((r) => {
         const b = Math.max(0, Number(r.boxes) || 0);
         const p = Math.max(0, Number(r.qty) || 0);
-        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 0;
+        const perBox = casePackSize(r.pcsPerCase);
         const actual = perBox > 0 ? b * perBox + p : p;
         if (!actual || actual < 1) throw new Error(`Set quantity for ${r.name}`);
         if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
@@ -229,7 +229,7 @@ function StockOut() {
     mutationFn: async () => {
       const b = Math.max(0, Number(outBoxes) || 0);
       const p = Math.max(0, Number(outPcs) || 0);
-      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
+      const perBox = casePackSize(selected.pcs_per_case);
       const actual = perBox > 0 ? b * perBox + p : p;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
@@ -252,7 +252,7 @@ function StockOut() {
       notifyBillingStockSync();
       const b = Number(outBoxes) || 0;
       const p = Number(outPcs) || 0;
-      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
+      const perBox = casePackSize(selected.pcs_per_case);
       const actual = perBox > 0 ? b * perBox + p : p;
       toast.success(`Removed ${actual} pcs from ${selected.name}`);
       setSelected(null); setOutBoxes("0"); setOutPcs("1");
@@ -417,7 +417,7 @@ function StockOut() {
                     <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {displayStock({ stock: r.stock, pcs_per_case: r.pcsPerCase })}</div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {r.pcsPerCase && r.pcsPerCase > 0 ? (
+                    {casePackSize(r.pcsPerCase) > 0 ? (
                       <>
                         <div className="flex flex-col items-center">
                           <Input
@@ -589,7 +589,7 @@ function StockOut() {
                     {displaySize(selected) && <span>Size <span className="font-semibold text-foreground">{displaySize(selected)}</span></span>}
                   </div>
                 </div>
-                {selected.pcs_per_case > 0 ? (
+                {usesCasePack(selected) ? (
                   <div className="space-y-3">
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to remove</Label>
                     <div className="grid grid-cols-2 gap-3">
@@ -642,7 +642,7 @@ function StockOut() {
                   <Button variant="ghost" onClick={() => { setSelected(null); setOutBoxes("0"); setOutPcs("1"); }} className="flex-1 h-12">Cancel</Button>
                   <Button className="gradient-warning text-warning-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
                     {(() => {
-                      const perBox = selected.pcs_per_case ?? 0;
+                      const perBox = casePackSize(selected.pcs_per_case);
                       const total = perBox > 0 ? Number(outBoxes) * perBox + Number(outPcs) : Number(outPcs);
                       return `OK · Remove ${total} pcs`;
                     })()}

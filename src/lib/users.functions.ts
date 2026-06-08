@@ -5,6 +5,7 @@ import {
   USERNAME_DOMAIN,
   usernameToEmail,
   assertAdminOrOwner,
+  isServiceRoleConfigured,
   supabaseAdmin,
   writeAudit,
 } from "./users.server";
@@ -14,6 +15,11 @@ export const listManagedUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdminOrOwner(context.userId, context.supabase);
+    if (!isServiceRoleConfigured()) {
+      throw new Error(
+        "Server missing SUPABASE_SERVICE_ROLE_KEY — set it on the Cloudflare Worker (Users page needs admin API access to list all profiles).",
+      );
+    }
     const { data: profiles, error } = await supabaseAdmin
       .from("profiles")
       .select("id, full_name, email, phone, created_at, must_change_pin, avatar_url")

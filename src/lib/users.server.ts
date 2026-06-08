@@ -4,7 +4,7 @@ import type { Database } from "@/integrations/supabase/types";
 
 export const USERNAME_DOMAIN = "stockflow.local";
 
-function isServiceRoleConfigured() {
+export function isServiceRoleConfigured() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
