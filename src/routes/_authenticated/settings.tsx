@@ -79,6 +79,7 @@ function Settings() {
   const [notifyLow, setNotifyLow] = useState(true);
   const [notifyOut, setNotifyOut] = useState(true);
   const [notifyOrder, setNotifyOrder] = useState(true);
+  const [enableAiInsights, setEnableAiInsights] = useState(true);
 
   useEffect(() => {
     const d = data as any;
@@ -94,6 +95,7 @@ function Settings() {
     setNotifyLow(d.notify_low_stock !== false);
     setNotifyOut(d.notify_out_of_stock !== false);
     setNotifyOrder(d.notify_new_order !== false);
+    setEnableAiInsights(d.enable_ai_insights !== false);
   }, [data]);
 
   const save = useMutation({
@@ -111,6 +113,7 @@ function Settings() {
         notify_low_stock: notifyLow,
         notify_out_of_stock: notifyOut,
         notify_new_order: notifyOrder,
+        enable_ai_insights: enableAiInsights,
         updated_at: new Date().toISOString(),
       } as any).eq("id", 1);
       if (error) throw error;
@@ -150,6 +153,17 @@ function Settings() {
           <Toggle label="Low stock" desc="Alert when a product drops to/below its threshold." checked={notifyLow} onChange={setNotifyLow} icon={<Bell className="size-4" />} />
           <Toggle label="Out of stock" desc="Alert when a product hits zero." checked={notifyOut} onChange={setNotifyOut} icon={<Flame className="size-4" />} />
           <Toggle label="New order request" desc="Alert when staff submit an order request." checked={notifyOrder} onChange={setNotifyOrder} icon={<Send className="size-4" />} />
+        </div>
+      </Card>
+
+      {/* Dashboard Features */}
+      <Card className="card-elevated p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="size-10 rounded-xl gradient-primary grid place-items-center"><Sparkles className="size-5 text-primary-foreground" /></div>
+          <div><div className="font-semibold">Dashboard Features</div><div className="text-xs text-muted-foreground">Customize components shown on your dashboard.</div></div>
+        </div>
+        <div className="space-y-2">
+          <Toggle label="AI Insights Panel" desc="Show or hide the AI insights panel on the main admin dashboard." checked={enableAiInsights} onChange={setEnableAiInsights} icon={<Sparkles className="size-4" />} />
         </div>
       </Card>
 

@@ -74,6 +74,10 @@ function AdminDashboard() {
     queryKey: ["shipments"],
     queryFn: async () => (await supabase.from("order_requests").select("id, status, arrived_at")).data ?? [],
   });
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => (await supabase.from("app_settings").select("*").eq("id", 1).maybeSingle()).data,
+  });
   const pendingShipmentCount = shipments.filter((s: any) => !s.arrived_at && (s.status === "approved" || s.status === "backordered")).length;
   const containersCount = shipments.filter((s: any) => !s.arrived_at && s.status !== "declined").length;
 
@@ -275,7 +279,7 @@ function AdminDashboard() {
         />
       </div>
 
-      {!IS_LOCAL_PREVIEW && (
+      {!IS_LOCAL_PREVIEW && settings?.enable_ai_insights !== false && (
         <div className="mb-6">
           <AIInsightsPanel />
         </div>

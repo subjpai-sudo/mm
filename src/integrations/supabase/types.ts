@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       app_settings: {
         Row: {
+          enable_ai_insights: boolean
           id: number
           infobip_base_url: string | null
           owner_phone: string | null
@@ -25,8 +26,18 @@ export type Database = {
           viber_owner_id: string | null
           viber_sender: string | null
           viber_webhook_url: string | null
+          strich_license_key: string | null
+          gemini_api_key: string | null
+          anthropic_api_key: string | null
+          firebase_config: Json | null
+          notify_low_stock: boolean
+          notify_out_of_stock: boolean
+          notify_new_order: boolean
+          twilio_sid: string | null
+          twilio_token: string | null
         }
         Insert: {
+          enable_ai_insights?: boolean
           id?: number
           infobip_base_url?: string | null
           owner_phone?: string | null
@@ -36,8 +47,18 @@ export type Database = {
           viber_owner_id?: string | null
           viber_sender?: string | null
           viber_webhook_url?: string | null
+          strich_license_key?: string | null
+          gemini_api_key?: string | null
+          anthropic_api_key?: string | null
+          firebase_config?: Json | null
+          notify_low_stock?: boolean
+          notify_out_of_stock?: boolean
+          notify_new_order?: boolean
+          twilio_sid?: string | null
+          twilio_token?: string | null
         }
         Update: {
+          enable_ai_insights?: boolean
           id?: number
           infobip_base_url?: string | null
           owner_phone?: string | null
@@ -47,6 +68,15 @@ export type Database = {
           viber_owner_id?: string | null
           viber_sender?: string | null
           viber_webhook_url?: string | null
+          strich_license_key?: string | null
+          gemini_api_key?: string | null
+          anthropic_api_key?: string | null
+          firebase_config?: Json | null
+          notify_low_stock?: boolean
+          notify_out_of_stock?: boolean
+          notify_new_order?: boolean
+          twilio_sid?: string | null
+          twilio_token?: string | null
         }
         Relationships: []
       }
