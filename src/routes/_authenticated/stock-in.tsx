@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Camera, ImageIcon, PackageSearch, Package, PackagePlus, Sparkles, RotateCcw, Loader2 } from "lucide-react";
+import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Camera, ImageIcon, PackageSearch, Package, PackagePlus, Sparkles, RotateCcw, Loader2, Trash2, Zap, X } from "lucide-react";
 import { useServerFn } from "@/lib/use-server-fn";
 import { scanProductImage } from "@/lib/ai-scan.functions";
 import { useAuth } from "@/lib/auth";
@@ -20,6 +20,15 @@ import { StrichScanner } from "@/components/app/StrichScanner";
 import { displaySize, displayStock, extractSizeFromName } from "@/lib/product-format";
 
 type StockInSearch = { barcode?: string };
+type ScanRow = {
+  productId: string;
+  name: string;
+  stock: number;
+  barcode: string | null;
+  boxes: string;
+  qty: string;
+  pcsPerCase: number | null;
+};
 export const Route = createFileRoute("/_authenticated/stock-in")({
   component: StockIn,
   validateSearch: (s: Record<string, unknown>): StockInSearch => ({
@@ -54,6 +63,17 @@ function StockIn() {
   const [newProdImg, setNewProdImg] = useState<string | null>(null);
   const [aiScanning, setAiScanning] = useState(false);
   const [newProdFields, setNewProdFields] = useState({ name: "", brand: "", sku: "", size: "", unit: "", origin: "", pcs_per_case: "" });
+
+  const [scanned, setScanned] = useState<ScanRow[]>([]);
+  const [speedMode, setSpeedMode] = useState(false);
+
+  function updateRow(productId: string, patch: Partial<ScanRow>) {
+    setScanned((rows) => rows.map((r) => r.productId === productId ? { ...r, ...patch } : r));
+  }
+  function removeRow(productId: string) {
+    setScanned((rows) => rows.filter((r) => r.productId !== productId));
+  }
+
   const fileRef = useRef<HTMLInputElement>(null);
   const callScanProduct = useServerFn(scanProductImage);
 
@@ -70,8 +90,15 @@ function StockIn() {
   useEffect(() => {
     if (!routeSearch.barcode || products.length === 0) return;
     const p = (products as any[]).find((x) => x.barcode === routeSearch.barcode || x.sku === routeSearch.barcode);
-    if (p) setConfirm(p);
-    else setNotFound(routeSearch.barcode);
+    if (p) {
+      if (speedMode) {
+        lookup(routeSearch.barcode);
+      } else {
+        setConfirm(p);
+      }
+    } else {
+      setNotFound(routeSearch.barcode);
+    }
     nav({ search: {}, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeSearch.barcode, products.length]);
@@ -99,8 +126,36 @@ function StockIn() {
     if (!v) return;
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { setNotFound(v); setPickSearch(""); setScan(""); return; }
-    setConfirm(p);
-    setScan("");
+
+    if (speedMode) {
+      setScanned((rows) => {
+        const idx = rows.findIndex((r) => r.productId === p.id);
+        if (idx >= 0) {
+          const next = [...rows];
+          if (p.pcs_per_case && p.pcs_per_case > 0) {
+            next[idx] = { ...next[idx], boxes: String((Number(next[idx].boxes) || 0) + 1) };
+          } else {
+            next[idx] = { ...next[idx], qty: String((Number(next[idx].qty) || 0) + 1) };
+          }
+          return next;
+        }
+        return [...rows, {
+          productId: p.id,
+          name: p.name,
+          stock: p.stock,
+          barcode: p.barcode ?? null,
+          boxes: p.pcs_per_case && p.pcs_per_case > 0 ? "1" : "0",
+          qty: p.pcs_per_case && p.pcs_per_case > 0 ? "0" : "1",
+          pcsPerCase: p.pcs_per_case ?? null,
+        }];
+      });
+      const addedQty = p.pcs_per_case && p.pcs_per_case > 0 ? `${p.pcs_per_case} pcs (1 box)` : "1 pc";
+      toast.success(`Added ${addedQty} of ${p.name}`, { duration: 1200 });
+      setScan("");
+    } else {
+      setConfirm(p);
+      setScan("");
+    }
   }
   const onScan = () => lookup(scan);
 
@@ -109,7 +164,7 @@ function StockIn() {
       const b = Math.max(0, Number(boxQty) || 0);
       const p = Math.max(0, Number(xPcs) || 0);
       const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
-      const actual = perBox > 0 ? b * perBox + p : b;
+      const actual = perBox > 0 ? b * perBox + p : b + p;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       const parts = perBox > 0 && b > 0
         ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
@@ -128,9 +183,45 @@ function StockIn() {
       const b = Number(boxQty) || 0;
       const p = Number(xPcs) || 0;
       const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
-      const actual = perBox > 0 ? b * perBox + p : b;
+      const actual = perBox > 0 ? b * perBox + p : b + p;
       toast.success(`Added ${actual} pcs to ${confirm.name}`);
       setConfirm(null); setBoxQty("0"); setXPcs("0");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const submitAll = useMutation({
+    mutationFn: async () => {
+      const movements = scanned.map((r) => {
+        const b = Math.max(0, Number(r.boxes) || 0);
+        const p = Math.max(0, Number(r.qty) || 0);
+        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 0;
+        const actual = perBox > 0 ? b * perBox + p : b + p;
+        if (actual < 1) return null;
+        const parts = perBox > 0 && b > 0
+          ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
+          : `${actual} pcs`;
+        return {
+          product_id: r.productId,
+          type: "in",
+          quantity: actual,
+          user_id: user?.id,
+          reason: `Stock In (Batch) · ${parts} · ${location}`,
+          destination: location,
+        };
+      }).filter(Boolean);
+
+      if (movements.length === 0) throw new Error("No items to stock in");
+
+      const { error } = await supabase.from("stock_movements").insert(movements as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["movements-recent"] });
+      notifyBillingStockSync();
+      toast.success(`Received ${scanned.length} items successfully`);
+      setScanned([]);
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -281,7 +372,105 @@ function StockIn() {
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products by name, SKU or barcode…" className="pl-9" />
           </div>
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={speedMode}
+                onChange={(e) => {
+                  setSpeedMode(e.target.checked);
+                  if (e.target.checked) toast.success("Speed Scan active: scanning auto-adds to queue");
+                }}
+                className="size-4 accent-success"
+              />
+              <span className="text-xs font-semibold flex items-center gap-1 text-foreground">
+                <Zap className="size-3 text-success fill-success animate-pulse" /> Speed Scan Mode (Continuous)
+              </span>
+            </label>
+            {scanned.length > 0 && (
+              <span className="text-[11px] text-muted-foreground font-semibold bg-success/15 text-success px-2 py-0.5 rounded-full">
+                Queue: {scanned.length} items
+              </span>
+            )}
+          </div>
         </Card>
+
+        {scanned.length > 0 && (
+          <Card className="card-elevated p-3 sm:p-4 space-y-2 border-success/40">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-lg gradient-success grid place-items-center">
+                <Package className="size-4 text-success-foreground" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-sm">Receiving Queue · {scanned.length} items</div>
+                <div className="text-[11px] text-muted-foreground">
+                  → receiving to {location} · set quantity then submit
+                </div>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setScanned([])} className="text-muted-foreground">
+                <Trash2 className="size-4 text-destructive" /> Clear
+              </Button>
+            </div>
+            <div className="divide-y divide-border max-h-[55vh] overflow-y-auto -mx-1">
+              {scanned.map((r) => (
+                <div key={r.productId} className="flex items-center gap-2 py-2 px-1">
+                  <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0">
+                    <Package className="size-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-semibold truncate">{r.name}</div>
+                    <div className="text-[11px] text-muted-foreground font-mono truncate">
+                      {r.barcode ?? "—"} · stock {displayStock({ stock: r.stock, pcs_per_case: r.pcsPerCase })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {r.pcsPerCase && r.pcsPerCase > 0 ? (
+                      <>
+                        <div className="flex flex-col items-center">
+                          <Input
+                            type="number" inputMode="numeric" min="0"
+                            value={r.boxes}
+                            onChange={(e) => updateRow(r.productId, { boxes: e.target.value })}
+                            className="h-9 w-12 text-center font-bold text-xs"
+                          />
+                          <span className="text-[9px] text-muted-foreground leading-none mt-0.5">box</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground font-bold">+</span>
+                        <div className="flex flex-col items-center">
+                          <Input
+                            type="number" inputMode="numeric" min="0"
+                            value={r.qty}
+                            onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
+                            className="h-9 w-12 text-center font-bold text-xs"
+                          />
+                          <span className="text-[9px] text-muted-foreground leading-none mt-0.5">pcs</span>
+                        </div>
+                        <span className="text-[9px] font-bold text-success whitespace-nowrap">
+                          ={Number(r.boxes) * r.pcsPerCase + Number(r.qty)}
+                        </span>
+                      </>
+                    ) : (
+                      <Input
+                        type="number" inputMode="numeric" min="1"
+                        value={r.qty}
+                        onChange={(e) => updateRow(r.productId, { qty: e.target.value })}
+                        className="h-9 w-16 text-center font-bold"
+                      />
+                    )}
+                    <button type="button" onClick={() => removeRow(r.productId)}
+                      className="size-9 rounded-lg bg-secondary text-muted-foreground hover:text-destructive grid place-items-center border border-border">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button onClick={() => submitAll.mutate()} disabled={submitAll.isPending}
+              className="w-full h-12 gradient-success text-success-foreground border-0 font-bold">
+              <PackagePlus className="size-5 mr-1" /> Complete Stock In · {scanned.length}
+            </Button>
+          </Card>
+        )}
 
         {/* Browse: category cards or results */}
         {!showResults ? (
@@ -377,10 +566,13 @@ function StockIn() {
               <div className="p-4 sm:p-5 space-y-4">
                 <div>
                   <DialogTitle className="text-lg sm:text-xl font-bold leading-tight break-words">{confirm.name}</DialogTitle>
-                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 items-center">
                     <span>SKU <span className="font-mono text-foreground">{confirm.sku ?? "—"}</span></span>
                     <span>Barcode <span className="font-mono text-foreground">{confirm.barcode ?? "—"}</span></span>
                     {displaySize(confirm) && <span>Size <span className="font-semibold text-foreground">{displaySize(confirm)}</span></span>}
+                    <span className="inline-flex items-center gap-1 bg-secondary px-2 py-0.5 rounded border border-border text-[11px] font-semibold text-foreground">
+                      🏠 Rack: {confirm.rack ? `${confirm.rack}${confirm.shelf ? ` / ${confirm.shelf}` : ""}` : "Unassigned"}
+                    </span>
                   </div>
                 </div>
                 {confirm.pcs_per_case > 0 ? (
@@ -478,10 +670,49 @@ function StockIn() {
                 </div>
                 <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
                   <Button variant="ghost" onClick={() => { setConfirm(null); setBoxQty("0"); setXPcs("1"); }} className="flex-1 h-12">Cancel</Button>
-                  <Button className="gradient-success text-success-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
+                  <Button
+                    className="gradient-success text-success-foreground border-0 flex-1 h-12 text-base font-bold"
+                    disabled={apply.isPending || submitAll.isPending}
+                    onClick={() => {
+                      const b = Math.max(0, Number(boxQty) || 0);
+                      const p = Math.max(0, Number(xPcs) || 0);
+                      const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
+                      const actual = perBox > 0 ? b * perBox + p : b + p;
+                      if (!actual || actual < 1) { toast.error("Enter a quantity"); return; }
+
+                      if (speedMode || scanned.length > 0) {
+                        setScanned((rows) => {
+                          const idx = rows.findIndex((r) => r.productId === confirm.id);
+                          if (idx >= 0) {
+                            const next = [...rows];
+                            const existB = Number(next[idx].boxes) || 0;
+                            const existP = Number(next[idx].qty) || 0;
+                            next[idx] = { ...next[idx], boxes: String(existB + b), qty: String(existP + p) };
+                            return next;
+                          }
+                          return [...rows, {
+                            productId: confirm.id,
+                            name: confirm.name,
+                            stock: confirm.stock,
+                            barcode: confirm.barcode ?? null,
+                            boxes: String(b),
+                            qty: String(p),
+                            pcsPerCase: confirm.pcs_per_case ?? null,
+                          }];
+                        });
+                        const addedQty = perBox > 0 && b > 0
+                          ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
+                          : `${actual} pcs`;
+                        toast.success(`Added ${addedQty} of ${confirm.name} to queue`, { duration: 1200 });
+                        setConfirm(null); setBoxQty("0"); setXPcs("0");
+                      } else {
+                        apply.mutate();
+                      }
+                    }}
+                  >
                     {(() => {
                       const perBox = confirm.pcs_per_case ?? 0;
-                      const total = perBox > 0 ? Number(boxQty) * perBox + Number(xPcs) : Number(xPcs);
+                      const total = perBox > 0 ? Number(boxQty) * perBox + Number(xPcs) : Number(boxQty) + Number(xPcs);
                       return `OK · Add ${total} pcs`;
                     })()}
                   </Button>

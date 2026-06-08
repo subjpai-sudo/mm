@@ -67,6 +67,7 @@ function StockOut() {
   const [destModalOpen, setDestModalOpen] = useState(false);
   const [massScanMode, setMassScanMode] = useState(false);
   const [issuedBill, setIssuedBill] = useState<IssuedBill | null>(null);
+  const [speedMode, setSpeedMode] = useState(false);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -136,12 +137,40 @@ function StockOut() {
     }
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
-    setScan("");
-    setOutBoxes("0");
-    setOutPcs(p.pcs_per_case && p.pcs_per_case > 0 ? "0" : "1");
-    // pause camera while product dialog is shown — no two dialogs at once
-    if (camOpen) setCamOpen(false);
-    setSelected(p);
+
+    if (speedMode) {
+      setScanned((rows) => {
+        const idx = rows.findIndex((r) => r.productId === p.id);
+        if (idx >= 0) {
+          const next = [...rows];
+          if (p.pcs_per_case && p.pcs_per_case > 0) {
+            next[idx] = { ...next[idx], boxes: String((Number(next[idx].boxes) || 0) + 1) };
+          } else {
+            next[idx] = { ...next[idx], qty: String((Number(next[idx].qty) || 0) + 1) };
+          }
+          return next;
+        }
+        return [...rows, {
+          productId: p.id,
+          name: p.name,
+          stock: p.stock,
+          barcode: p.barcode ?? null,
+          boxes: p.pcs_per_case && p.pcs_per_case > 0 ? "1" : "0",
+          qty: p.pcs_per_case && p.pcs_per_case > 0 ? "0" : "1",
+          pcsPerCase: p.pcs_per_case ?? null,
+        }];
+      });
+      const addedQty = p.pcs_per_case && p.pcs_per_case > 0 ? `${p.pcs_per_case} pcs (1 box)` : "1 pc";
+      toast.success(`Added ${addedQty} of ${p.name}`, { duration: 1200 });
+      setScan("");
+    } else {
+      setScan("");
+      setOutBoxes("0");
+      setOutPcs(p.pcs_per_case && p.pcs_per_case > 0 ? "0" : "1");
+      // pause camera while product dialog is shown — no two dialogs at once
+      if (camOpen) setCamOpen(false);
+      setSelected(p);
+    }
   }
 
   function updateRow(productId: string, patch: Partial<ScanRow>) {
@@ -468,6 +497,27 @@ function StockOut() {
             <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products by name, SKU or barcode…" className="pl-9" />
           </div>
+          <div className="flex items-center justify-between gap-3 pt-1 border-t border-border/40">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={speedMode}
+                onChange={(e) => {
+                  setSpeedMode(e.target.checked);
+                  if (e.target.checked) toast.success("Speed Scan active: scanning auto-adds to queue");
+                }}
+                className="size-4 accent-destructive"
+              />
+              <span className="text-xs font-semibold flex items-center gap-1 text-foreground">
+                <Zap className="size-3 text-destructive fill-destructive animate-pulse" /> Speed Scan Mode (Continuous)
+              </span>
+            </label>
+            {scanned.length > 0 && (
+              <span className="text-[11px] text-muted-foreground font-semibold bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">
+                Queue: {scanned.length} items
+              </span>
+            )}
+          </div>
         </Card>
 
         {!showResults ? (
@@ -670,10 +720,13 @@ function StockOut() {
               <div className="p-4 sm:p-5 space-y-4">
                 <div>
                   <DialogTitle className="text-lg sm:text-xl font-bold leading-tight break-words">{selected.name}</DialogTitle>
-                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <div className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 items-center">
                     <span>SKU <span className="font-mono text-foreground">{selected.sku ?? "—"}</span></span>
                     <span>Barcode <span className="font-mono text-foreground">{selected.barcode ?? "—"}</span></span>
                     {displaySize(selected) && <span>Size <span className="font-semibold text-foreground">{displaySize(selected)}</span></span>}
+                    <span className="inline-flex items-center gap-1 bg-secondary px-2 py-0.5 rounded border border-border text-[11px] font-semibold text-foreground">
+                      🏠 Rack: {selected.rack ? `${selected.rack}${selected.shelf ? ` / ${selected.shelf}` : ""}` : "Unassigned"}
+                    </span>
                   </div>
                 </div>
                 {selected.pcs_per_case > 0 ? (
@@ -735,7 +788,7 @@ function StockOut() {
                       const p = Number(outPcs) || 0;
                       const actual = perBox > 0 ? b * perBox + p : p;
                       if (!actual || actual < 1) { toast.error("Enter a quantity"); return; }
-                      if (massScanMode) {
+                      if (massScanMode || speedMode || scanned.length > 0) {
                         setScanned((rows) => {
                           const idx = rows.findIndex((r) => r.productId === selected.id);
                           if (idx >= 0) {
@@ -761,7 +814,7 @@ function StockOut() {
                     {(() => {
                       const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
                       const total = perBox > 0 ? Number(outBoxes) * perBox + Number(outPcs) : Number(outPcs);
-                      return massScanMode ? `Add ${total} pcs to list` : `OK · Remove ${total} pcs`;
+                      return (massScanMode || speedMode || scanned.length > 0) ? `Add ${total} pcs to list` : `OK · Remove ${total} pcs`;
                     })()}
                   </Button>
                 </DialogFooter>
