@@ -13,6 +13,7 @@ const DEMO: Record<Role, { email: string; password: string; name: string; icon: 
   admin:    { email: "admin@demo.app",    password: "demo12345", name: "Admin",    icon: Shield },
   operator: { email: "operator@demo.app", password: "demo12345", name: "Operator", icon: UserCog },
   owner:    { email: "owner@demo.app",    password: "demo12345", name: "Owner",    icon: Eye },
+  manager:  { email: "manager@demo.app",  password: "demo12345", name: "Manager",  icon: User },
 };
 
 const USERNAME_DOMAIN = "stockflow.local";

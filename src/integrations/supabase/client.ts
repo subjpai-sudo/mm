@@ -44,8 +44,8 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
  */
 export function getCachedStorageUrl(url: string | null | undefined): string {
   if (!url) return "";
-  // Check if it's a Supabase public storage URL
-  if (url.includes("/storage/v1/object/public/")) {
+  // Check if it's a Supabase public storage URL or a Firebase storage URL
+  if (url.includes("/storage/v1/object/public/") || url.includes("firebasestorage.googleapis.com")) {
     return `/api/public/storage?url=${encodeURIComponent(url)}`;
   }
   return url;

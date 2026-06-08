@@ -5,30 +5,39 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { getConfiguredKey } from "@/lib/config.server";
 import { alertKeyError, looksLikeKeyError } from "@/lib/keyalerts.functions";
 
+async function uploadToFirebase(filename: string, bytes: Uint8Array, contentType: string): Promise<string> {
+  const bucket = "mm-mart-live.firebasestorage.app";
+  const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodeURIComponent(filename)}&uploadType=media`;
+  
+  const res = await fetch(uploadUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": contentType,
+    },
+    body: bytes,
+  });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`Firebase upload failed: ${txt}`);
+  }
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(filename)}?alt=media`;
+}
+
 export const uploadProductImageFile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z.object({ dataUrl: z.string().min(10), ext: z.string().max(10).default("jpg") }).parse(d)
   )
   .handler(async ({ data }) => {
-    // Auto-create bucket if it doesn't exist
-    await supabaseAdmin.storage.createBucket("product-images", { public: true, allowedMimeTypes: ["image/*"] })
-      .catch(() => {/* already exists — ignore */ });
-
     const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(data.dataUrl);
     if (!match) throw new Error("Invalid image data URL");
     const contentType = match[1];
     const ext = contentType.split("/")[1]?.split(";")[0] || data.ext;
     const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
 
-    const path = `${crypto.randomUUID()}.${ext}`;
-    const { error } = await supabaseAdmin.storage
-      .from("product-images")
-      .upload(path, bytes, { contentType, upsert: false });
-    if (error) throw new Error(error.message);
-
-    const { data: urlData } = supabaseAdmin.storage.from("product-images").getPublicUrl(path);
-    return { url: urlData.publicUrl };
+    const path = `product-images/${crypto.randomUUID()}.${ext}`;
+    const url = await uploadToFirebase(path, bytes, contentType);
+    return { url };
   });
 
 // =====================================================
@@ -106,13 +115,9 @@ async function cleanAndUpload(image: string): Promise<string> {
   const ext = contentType.split("/")[1] || "png";
   const bytes = Uint8Array.from(atob(out.data), (c) => c.charCodeAt(0));
 
-  const path = `clean-${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabaseAdmin.storage
-    .from("product-images")
-    .upload(path, bytes, { contentType, upsert: false });
-  if (error) throw new Error(error.message);
-  const { data } = supabaseAdmin.storage.from("product-images").getPublicUrl(path);
-  return data.publicUrl;
+  const path = `product-images/clean-${crypto.randomUUID()}.${ext}`;
+  const url = await uploadToFirebase(path, bytes, contentType);
+  return url;
 }
 
 export const cleanProductImageAI = createServerFn({ method: "POST" })

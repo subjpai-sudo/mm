@@ -25,24 +25,25 @@ export const Route = createFileRoute("/api/public/storage")({
           return new Response("Missing 'url' or 'bucket' and 'path' parameters", { status: 400 });
         }
 
-        // Security: Prevent open proxy vulnerability by ensuring the target URL points to our Supabase domain.
+        // Security: Prevent open proxy vulnerability by ensuring the target URL points to our Supabase domain or Firebase Storage.
         try {
           const parsedTarget = new URL(targetUrl);
+          const allowedHosts = ["firebasestorage.googleapis.com"];
           if (supabaseUrl) {
-            const parsedSupabase = new URL(supabaseUrl);
-            if (parsedTarget.hostname !== parsedSupabase.hostname) {
-              return new Response("Access forbidden: Domain not authorized", { status: 403 });
-            }
+            allowedHosts.push(new URL(supabaseUrl).hostname);
+          }
+          if (!allowedHosts.includes(parsedTarget.hostname)) {
+            return new Response("Access forbidden: Domain not authorized", { status: 403 });
           }
         } catch {
           return new Response("Invalid target URL", { status: 400 });
         }
 
         // Caching logic for Cloudflare Worker runtime
-        const isCloudflare = typeof caches !== "undefined" && !!caches.default;
+        const isCloudflare = typeof caches !== "undefined" && !!(caches as any).default;
         if (isCloudflare) {
           try {
-            const cache = caches.default;
+            const cache = (caches as any).default;
             const cachedResponse = await cache.match(request);
             if (cachedResponse) {
               return cachedResponse;
@@ -84,7 +85,7 @@ export const Route = createFileRoute("/api/public/storage")({
 
           if (isCloudflare && res.ok && res.status !== 206) {
             try {
-              const cache = caches.default;
+              const cache = (caches as any).default;
               const cachedResponseToPut = proxiedResponse.clone();
               cachedResponseToPut.headers.set("X-Cache-Proxy", "HIT");
               // Save in background

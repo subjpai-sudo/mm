@@ -33,12 +33,23 @@ function ChangePinPage() {
     setUploading(true);
     try {
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("avatars")
-        .upload(path, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from("avatars").getPublicUrl(path);
-      const url = pub.publicUrl;
+      const filename = `avatars/${user.id}-${Date.now()}.${ext}`;
+      const bucket = "mm-mart-live.firebasestorage.app";
+      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodeURIComponent(filename)}&uploadType=media`;
+      
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": file.type,
+        },
+        body: file,
+      });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(`Firebase upload failed: ${txt}`);
+      }
+
+      const url = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(filename)}?alt=media`;
       const { error: dbErr } = await supabase.from("profiles").update({ avatar_url: url }).eq("id", user.id);
       if (dbErr) throw dbErr;
       setLocalAvatar(url);
