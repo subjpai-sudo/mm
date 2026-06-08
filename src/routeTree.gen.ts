@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedWarehouseBillsRouteImport } from './routes/_authenticated/warehouse-bills'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedStockOutRouteImport } from './routes/_authenticated/stock-out'
 import { Route as AuthenticatedStockInRouteImport } from './routes/_authenticated/stock-in'
@@ -30,8 +31,10 @@ import { Route as AuthenticatedBillingHistoryRouteImport } from './routes/_authe
 import { Route as AuthenticatedBillingRouteImport } from './routes/_authenticated/billing'
 import { Route as AuthenticatedBackupsRouteImport } from './routes/_authenticated/backups'
 import { Route as AuthenticatedAuditRouteImport } from './routes/_authenticated/audit'
+import { Route as ApiPublicStorageRouteImport } from './routes/api/public/storage'
 import { Route as ApiPublicServerHealthRouteImport } from './routes/api/public/server-health'
 import { Route as ApiPublicScanProductRouteImport } from './routes/api/public/scan-product'
+import { Route as ApiPublicRackAssignRouteImport } from './routes/api/public/rack-assign'
 import { Route as AuthenticatedRacksRackIdRouteImport } from './routes/_authenticated/racks_.$rackId'
 import { Route as AuthenticatedRacksPrintRouteImport } from './routes/_authenticated/racks.print'
 import { Route as AuthenticatedRacksLabelsRouteImport } from './routes/_authenticated/racks.labels'
@@ -53,6 +56,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedWarehouseBillsRoute =
+  AuthenticatedWarehouseBillsRouteImport.update({
+    id: '/warehouse-bills',
+    path: '/warehouse-bills',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -146,6 +155,11 @@ const AuthenticatedAuditRoute = AuthenticatedAuditRouteImport.update({
   path: '/audit',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const ApiPublicStorageRoute = ApiPublicStorageRouteImport.update({
+  id: '/api/public/storage',
+  path: '/api/public/storage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
   id: '/api/public/server-health',
   path: '/api/public/server-health',
@@ -154,6 +168,11 @@ const ApiPublicServerHealthRoute = ApiPublicServerHealthRouteImport.update({
 const ApiPublicScanProductRoute = ApiPublicScanProductRouteImport.update({
   id: '/api/public/scan-product',
   path: '/api/public/scan-product',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicRackAssignRoute = ApiPublicRackAssignRouteImport.update({
+  id: '/api/public/rack-assign',
+  path: '/api/public/rack-assign',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRacksRackIdRoute =
@@ -213,12 +232,15 @@ export interface FileRoutesByFullPath {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/warehouse-bills': typeof AuthenticatedWarehouseBillsRoute
   '/products/$productId': typeof AuthenticatedProductsProductIdRoute
   '/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
+  '/api/public/rack-assign': typeof ApiPublicRackAssignRoute
   '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/storage': typeof ApiPublicStorageRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -243,12 +265,15 @@ export interface FileRoutesByTo {
   '/stock-in': typeof AuthenticatedStockInRoute
   '/stock-out': typeof AuthenticatedStockOutRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/warehouse-bills': typeof AuthenticatedWarehouseBillsRoute
   '/products/$productId': typeof AuthenticatedProductsProductIdRoute
   '/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/racks/print': typeof AuthenticatedRacksPrintRoute
   '/racks/$rackId': typeof AuthenticatedRacksRackIdRoute
+  '/api/public/rack-assign': typeof ApiPublicRackAssignRoute
   '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/storage': typeof ApiPublicStorageRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -275,12 +300,15 @@ export interface FileRoutesById {
   '/_authenticated/stock-in': typeof AuthenticatedStockInRoute
   '/_authenticated/stock-out': typeof AuthenticatedStockOutRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/_authenticated/warehouse-bills': typeof AuthenticatedWarehouseBillsRoute
   '/_authenticated/products_/$productId': typeof AuthenticatedProductsProductIdRoute
   '/_authenticated/racks/labels': typeof AuthenticatedRacksLabelsRoute
   '/_authenticated/racks/print': typeof AuthenticatedRacksPrintRoute
   '/_authenticated/racks_/$rackId': typeof AuthenticatedRacksRackIdRoute
+  '/api/public/rack-assign': typeof ApiPublicRackAssignRoute
   '/api/public/scan-product': typeof ApiPublicScanProductRoute
   '/api/public/server-health': typeof ApiPublicServerHealthRoute
+  '/api/public/storage': typeof ApiPublicStorageRoute
   '/api/public/hooks/mirror-sync': typeof ApiPublicHooksMirrorSyncRoute
   '/api/public/hooks/nightly-backup': typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -307,12 +335,15 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/warehouse-bills'
     | '/products/$productId'
     | '/racks/labels'
     | '/racks/print'
     | '/racks/$rackId'
+    | '/api/public/rack-assign'
     | '/api/public/scan-product'
     | '/api/public/server-health'
+    | '/api/public/storage'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesByTo: FileRoutesByTo
@@ -337,12 +368,15 @@ export interface FileRouteTypes {
     | '/stock-in'
     | '/stock-out'
     | '/users'
+    | '/warehouse-bills'
     | '/products/$productId'
     | '/racks/labels'
     | '/racks/print'
     | '/racks/$rackId'
+    | '/api/public/rack-assign'
     | '/api/public/scan-product'
     | '/api/public/server-health'
+    | '/api/public/storage'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   id:
@@ -368,12 +402,15 @@ export interface FileRouteTypes {
     | '/_authenticated/stock-in'
     | '/_authenticated/stock-out'
     | '/_authenticated/users'
+    | '/_authenticated/warehouse-bills'
     | '/_authenticated/products_/$productId'
     | '/_authenticated/racks/labels'
     | '/_authenticated/racks/print'
     | '/_authenticated/racks_/$rackId'
+    | '/api/public/rack-assign'
     | '/api/public/scan-product'
     | '/api/public/server-health'
+    | '/api/public/storage'
     | '/api/public/hooks/mirror-sync'
     | '/api/public/hooks/nightly-backup'
   fileRoutesById: FileRoutesById
@@ -382,8 +419,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  ApiPublicRackAssignRoute: typeof ApiPublicRackAssignRoute
   ApiPublicScanProductRoute: typeof ApiPublicScanProductRoute
   ApiPublicServerHealthRoute: typeof ApiPublicServerHealthRoute
+  ApiPublicStorageRoute: typeof ApiPublicStorageRoute
   ApiPublicHooksMirrorSyncRoute: typeof ApiPublicHooksMirrorSyncRoute
   ApiPublicHooksNightlyBackupRoute: typeof ApiPublicHooksNightlyBackupRoute
 }
@@ -410,6 +449,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/warehouse-bills': {
+      id: '/_authenticated/warehouse-bills'
+      path: '/warehouse-bills'
+      fullPath: '/warehouse-bills'
+      preLoaderRoute: typeof AuthenticatedWarehouseBillsRouteImport
+      parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/users': {
       id: '/_authenticated/users'
@@ -537,6 +583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAuditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/api/public/storage': {
+      id: '/api/public/storage'
+      path: '/api/public/storage'
+      fullPath: '/api/public/storage'
+      preLoaderRoute: typeof ApiPublicStorageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/server-health': {
       id: '/api/public/server-health'
       path: '/api/public/server-health'
@@ -549,6 +602,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/scan-product'
       fullPath: '/api/public/scan-product'
       preLoaderRoute: typeof ApiPublicScanProductRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/rack-assign': {
+      id: '/api/public/rack-assign'
+      path: '/api/public/rack-assign'
+      fullPath: '/api/public/rack-assign'
+      preLoaderRoute: typeof ApiPublicRackAssignRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/racks_/$rackId': {
@@ -628,6 +688,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedStockInRoute: typeof AuthenticatedStockInRoute
   AuthenticatedStockOutRoute: typeof AuthenticatedStockOutRoute
   AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+  AuthenticatedWarehouseBillsRoute: typeof AuthenticatedWarehouseBillsRoute
   AuthenticatedProductsProductIdRoute: typeof AuthenticatedProductsProductIdRoute
   AuthenticatedRacksRackIdRoute: typeof AuthenticatedRacksRackIdRoute
 }
@@ -651,6 +712,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedStockInRoute: AuthenticatedStockInRoute,
   AuthenticatedStockOutRoute: AuthenticatedStockOutRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
+  AuthenticatedWarehouseBillsRoute: AuthenticatedWarehouseBillsRoute,
   AuthenticatedProductsProductIdRoute: AuthenticatedProductsProductIdRoute,
   AuthenticatedRacksRackIdRoute: AuthenticatedRacksRackIdRoute,
 }
@@ -663,8 +725,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  ApiPublicRackAssignRoute: ApiPublicRackAssignRoute,
   ApiPublicScanProductRoute: ApiPublicScanProductRoute,
   ApiPublicServerHealthRoute: ApiPublicServerHealthRoute,
+  ApiPublicStorageRoute: ApiPublicStorageRoute,
   ApiPublicHooksMirrorSyncRoute: ApiPublicHooksMirrorSyncRoute,
   ApiPublicHooksNightlyBackupRoute: ApiPublicHooksNightlyBackupRoute,
 }

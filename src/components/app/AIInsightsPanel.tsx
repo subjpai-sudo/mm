@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import { generateStockInsights } from "@/lib/insights.functions";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

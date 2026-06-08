@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { getConfiguredKey } from "@/lib/config.server";
+import { alertKeyError, looksLikeKeyError } from "@/lib/keyalerts.functions";
 
 export const Route = createFileRoute("/api/public/scan-product")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const apiKey = process.env.ANTHROPIC_API_KEY;
+        const apiKey = await getConfiguredKey("anthropic_api_key", "ANTHROPIC_API_KEY");
         if (!apiKey) {
           return new Response(JSON.stringify({ ok: false, error: "AI not configured" }), {
             status: 503,
@@ -59,7 +61,7 @@ export const Route = createFileRoute("/api/public/scan-product")({
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: "claude-opus-4-8",
             max_tokens: 512,
             messages: [
               {
@@ -75,6 +77,7 @@ export const Route = createFileRoute("/api/public/scan-product")({
 
         if (!res.ok) {
           const err = await res.text();
+          if (looksLikeKeyError(res.status, err)) await alertKeyError("Anthropic", `${res.status}`);
           return new Response(JSON.stringify({ ok: false, error: `AI error: ${res.status}`, detail: err }), {
             status: 502,
             headers: { "content-type": "application/json" },

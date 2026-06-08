@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import JsBarcode from "jsbarcode";
 import { categoryPalette } from "@/lib/category-colors";
 import { Package } from "lucide-react";
+import { getCachedStorageUrl } from "@/integrations/supabase/client";
 
 export type LabelStripProduct = {
   id: string;
@@ -81,7 +82,7 @@ export function ProductLabelStrip({
       >
         {product.image_url ? (
           <img
-            src={product.image_url}
+            src={getCachedStorageUrl(product.image_url)}
             alt={product.name}
             className="w-full h-full object-contain"
             referrerPolicy="no-referrer"

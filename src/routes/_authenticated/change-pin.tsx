@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import { changeOwnPin } from "@/lib/users.functions";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/integrations/supabase/client";

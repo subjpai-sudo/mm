@@ -1,20 +1,9 @@
-import { createServerFn } from "@tanstack/react-start";
-
-async function getCfEnv(): Promise<Record<string, string>> {
-  try {
-    const m = await import("cloudflare:workers" as string);
-    return (m.env as Record<string, string>) ?? {};
-  } catch {
-    return {};
-  }
-}
+import { createServerFn } from "@tanstack/start-client-core";
+import { getConfiguredKey } from "@/lib/config.server";
 
 export const getStrichLicense = createServerFn({ method: "GET" }).handler(async () => {
-  let key = process.env.STRICH_LICENSE_KEY ?? "";
-  if (!key) {
-    const cfEnv = await getCfEnv();
-    key = cfEnv.STRICH_LICENSE_KEY ?? "";
-  }
+  // app_settings.strich_license_key first, then STRICH_LICENSE_KEY env/secret.
+  const key = await getConfiguredKey("strich_license_key", "STRICH_LICENSE_KEY");
   console.log("[strich] key present:", !!key, "len:", key.length);
   return { key };
 });

@@ -4,7 +4,7 @@ import { UniversalScanner } from "@/components/app/UniversalScanner";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { useAuth } from "@/lib/auth";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { PackagePlus, PackageMinus, ScanLine, Boxes, AlertTriangle, ArrowUpRight, ArrowDownRight, ImageIcon } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -34,7 +34,7 @@ export function OperatorDashboard() {
       <div className="flex items-center gap-3">
         <div className="size-14 rounded-full overflow-hidden border-2 border-primary/30 bg-muted grid place-items-center shrink-0">
           {avatarUrl
-            ? <img src={avatarUrl} alt={greetName} className="size-full object-cover" />
+            ? <img src={getCachedStorageUrl(avatarUrl)} alt={greetName} className="size-full object-cover" />
             : <span className="font-semibold text-base">{initials || "U"}</span>}
         </div>
         <div className="min-w-0 flex-1">
@@ -47,7 +47,7 @@ export function OperatorDashboard() {
       {/* Hero scan tile */}
       <button
         onClick={() => setScanOpen(true)}
-        className="relative w-full rounded-[22px] gradient-primary text-primary-foreground text-left overflow-hidden px-6 py-7 min-h-[120px] active:scale-[0.99] transition shadow-[0_18px_40px_-20px_rgba(0,0,0,0.5)]"
+        className="relative w-full rounded-[22px] bg-primary gradient-primary text-primary-foreground text-left overflow-hidden px-6 py-7 min-h-[120px] active:scale-[0.99] transition shadow-[0_18px_40px_-20px_rgba(0,0,0,0.5)]"
       >
         <div aria-hidden className="grid-tex absolute inset-0 opacity-[0.18]" />
         <div className="relative flex items-center gap-5">
@@ -114,7 +114,7 @@ export function OperatorDashboard() {
             return (
               <div key={m.id} className="flex items-center gap-3 p-3">
                 {m.products?.image_url
-                  ? <img src={m.products.image_url} alt="" className="size-10 rounded-[10px] object-cover border border-border shrink-0" />
+                  ? <img src={getCachedStorageUrl(m.products.image_url)} alt="" className="size-10 rounded-[10px] object-cover border border-border shrink-0" />
                   : <div className="size-10 rounded-[10px] bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export function OperatorDashboard() {
       </div>
 
       <Link to="/products" className="mt-1 inline-flex items-center justify-center gap-2 text-[13px] text-muted-foreground hover:text-foreground transition py-2">
-        <Boxes className="size-4" /> Browse product catalog
+        <Boxes className="size-4" /> Open MAIN Product List
       </Link>
 
       <UniversalScanner open={scanOpen} onClose={() => setScanOpen(false)} />

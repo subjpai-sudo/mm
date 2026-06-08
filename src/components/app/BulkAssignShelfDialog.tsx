@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -111,7 +111,7 @@ export function BulkAssignShelfDialog({ products, onClose }: Props) {
                   {on && <Check className="size-3.5" />}
                 </div>
                 {p.image_url ? (
-                  <img src={p.image_url} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
+                  <img src={getCachedStorageUrl(p.image_url)} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
                 ) : (
                   <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
                 )}

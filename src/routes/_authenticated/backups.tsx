@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import {
   listBackups,
   listMirrorLogs,
@@ -13,7 +13,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Database, Download, RefreshCw, AlertTriangle, PlayCircle, CloudUpload, Trash2,
+  Database, Download, RefreshCw, AlertTriangle, PlayCircle, CloudUpload, Trash2, Info,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
@@ -121,6 +121,7 @@ function BackupsPage() {
   const files = backupsQ.data?.files ?? [];
   const backupLogs = backupsQ.data?.logs ?? [];
   const mirrorLogs = mirrorQ.data?.logs ?? [];
+  const mirrorConfigured = mirrorQ.data?.configured ?? false;
 
   return (
     <div className="p-6 md:p-10 max-w-5xl mx-auto space-y-8">
@@ -144,26 +145,47 @@ function BackupsPage() {
           <CloudUpload className="size-5 text-primary mt-0.5" />
           <div className="flex-1">
             <h2 className="font-semibold">Mirror to your Supabase</h2>
-            <p className="text-sm text-muted-foreground">Runs every 5 minutes via cron. Truncates and re-inserts all tables.</p>
+            <p className="text-sm text-muted-foreground">Full copy to a second database for redundancy. Requires <code className="text-xs bg-secondary px-1 rounded">MIRROR_DB_URL</code> secret.</p>
           </div>
-          <Button size="sm" onClick={() => mirrorNow.mutate()} disabled={mirrorNow.isPending}>
-            <PlayCircle className="size-4" /> {mirrorNow.isPending ? "Syncing…" : "Sync now"}
-          </Button>
+          {mirrorConfigured && (
+            <Button size="sm" onClick={() => mirrorNow.mutate()} disabled={mirrorNow.isPending}>
+              <PlayCircle className="size-4" /> {mirrorNow.isPending ? "Syncing…" : "Sync now"}
+            </Button>
+          )}
         </div>
-        <div className="space-y-1.5 text-sm">
-          {mirrorQ.isLoading && <p className="text-muted-foreground">Loading…</p>}
-          {mirrorLogs.length === 0 && !mirrorQ.isLoading && <p className="text-muted-foreground">No sync runs yet.</p>}
-          {mirrorLogs.map((l: any) => (
-            <div key={l.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
-              <StatusBadge status={l.status} />
-              <span className="text-muted-foreground text-xs flex-1">
-                {format(new Date(l.started_at), "MMM d, HH:mm:ss")} · {formatDistanceToNow(new Date(l.started_at), { addSuffix: true })}
-              </span>
-              {l.error && <span className="text-destructive text-xs truncate max-w-[40%]" title={l.error}>{l.error}</span>}
-              {l.rows_synced && <span className="text-xs text-muted-foreground tabular-nums">{Object.values(l.rows_synced as Record<string, number>).reduce((a, b) => a + b, 0)} rows</span>}
+
+        {!mirrorConfigured && !mirrorQ.isLoading && (
+          <div className="rounded-xl border border-border bg-secondary/40 p-4 flex gap-3">
+            <Info className="size-4 text-muted-foreground mt-0.5 shrink-0" />
+            <div className="text-sm space-y-1">
+              <p className="font-medium">Mirror not configured</p>
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                To enable mirror sync, add a <code className="bg-secondary px-1 rounded">MIRROR_DB_URL</code> secret to your Cloudflare Worker
+                with a <code className="bg-secondary px-1 rounded">postgres://</code> connection string pointing to your backup Supabase project.
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Run: <code className="bg-secondary px-1 rounded">wrangler secret put MIRROR_DB_URL</code>
+              </p>
             </div>
-          ))}
-        </div>
+          </div>
+        )}
+
+        {mirrorConfigured && (
+          <div className="space-y-1.5 text-sm">
+            {mirrorQ.isLoading && <p className="text-muted-foreground">Loading…</p>}
+            {mirrorLogs.length === 0 && !mirrorQ.isLoading && <p className="text-muted-foreground">No sync runs yet.</p>}
+            {mirrorLogs.map((l: any) => (
+              <div key={l.id} className="flex items-center gap-3 py-1.5 border-b border-border last:border-0">
+                <StatusBadge status={l.status} />
+                <span className="text-muted-foreground text-xs flex-1">
+                  {format(new Date(l.started_at), "MMM d, HH:mm:ss")} · {formatDistanceToNow(new Date(l.started_at), { addSuffix: true })}
+                </span>
+                {l.error && <span className="text-destructive text-xs truncate max-w-[40%]" title={l.error}>{l.error}</span>}
+                {l.rows_synced && <span className="text-xs text-muted-foreground tabular-nums">{Object.values(l.rows_synced as Record<string, number>).reduce((a, b) => a + b, 0)} rows</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Backups panel */}

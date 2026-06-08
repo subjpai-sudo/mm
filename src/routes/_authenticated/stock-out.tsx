@@ -7,18 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ScanLine, Search, Camera, ImageIcon, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, CheckCircle2, X, Plus } from "lucide-react";
+import { ScanLine, Search, Camera, Folder, ChevronRight, ChevronLeft, FolderOpen, Package, Truck, Store, Zap, Trash2, X, Plus, ReceiptText, ExternalLink } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
-const BILLING_SERVER = "https://billing-server-421265140321.asia-southeast1.run.app";
-function notifyBillingStockSync() {
-  fetch(`${BILLING_SERVER}/api/sync/stock`, { method: "POST", credentials: "include" }).catch(() => {});
-}
+import {
+  createWarehouseBill,
+  openBillingInvoiceBuilder,
+  type IssuedBill,
+  type WarehouseBillRow,
+} from "@/lib/warehouse-bills";
 import { StrichScanner } from "@/components/app/StrichScanner";
-import { checkLowStockAlert } from "@/lib/notifications.functions";
 import { displaySize, displayStock } from "@/lib/product-format";
 
 type StockOutSearch = { barcode?: string };
@@ -31,20 +32,15 @@ export const Route = createFileRoute("/_authenticated/stock-out")({
 
 const TOP_DESTINATIONS = ["Delivery", "Shops"] as const;
 type DestKind = (typeof TOP_DESTINATIONS)[number];
-type ScanRow = {
-  productId: string;
-  name: string;
-  image_url: string | null;
-  stock: number;
-  barcode: string | null;
-  boxes: string;
-  qty: string;
-  pcsPerCase: number | null;
-};
+type ScanRow = WarehouseBillRow;
 
 function formatDetectedProductLabel(code: string, products: any[]) {
   const match = products.find((x: any) => x.barcode === code || x.sku === code);
   return match ? `${match.name} · ${code}` : code;
+}
+
+function formatYen(value: number) {
+  return `¥${Math.round(value || 0).toLocaleString("en-US")}`;
 }
 
 function StockOut() {
@@ -68,6 +64,9 @@ function StockOut() {
   const [child, setChild] = useState<any | null>(null);
   const [scanned, setScanned] = useState<ScanRow[]>([]);
   const [massSearch, setMassSearch] = useState("");
+  const [destModalOpen, setDestModalOpen] = useState(false);
+  const [massScanMode, setMassScanMode] = useState(false);
+  const [issuedBill, setIssuedBill] = useState<IssuedBill | null>(null);
 
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
@@ -99,10 +98,22 @@ function StockOut() {
   const addCustomerMut = useMutation({
     mutationFn: async () => {
       if (!newCustName.trim()) throw new Error("Name required");
-      const { data } = await (supabase as any).from("billing_customers").insert({ name: newCustName.trim(), company: newCustCompany.trim() || null }).select().single();
+      const { data, error } = await (supabase as any)
+        .from("billing_customers")
+        .insert({ name: newCustName.trim(), company: newCustCompany.trim() || null })
+        .select("id,name,company")
+        .single();
+      if (error) throw error;
       return data;
     },
-    onSuccess: (d) => { setCustomerId(d.id); setAddingCustomer(false); setNewCustName(""); setNewCustCompany(""); toast.success("Customer added"); },
+    onSuccess: async (d) => {
+      setCustomerId(d.id);
+      setAddingCustomer(false);
+      setNewCustName("");
+      setNewCustCompany("");
+      await qc.invalidateQueries({ queryKey: ["billing-customers"] });
+      toast.success("Customer added");
+    },
     onError: (e: any) => toast.error(e.message),
   });
   const parents = categories.filter((c: any) => !c.parent_id);
@@ -126,24 +137,10 @@ function StockOut() {
     const p = products.find((x: any) => x.barcode === v || x.sku === v);
     if (!p) { toast.error("Product not found"); return; }
     setScan("");
-    // If scanner is open, treat as mass scan: push to list, increment if exists.
-    if (camOpen) {
-      setScanned((rows) => {
-        const idx = rows.findIndex((r) => r.productId === p.id);
-        if (idx >= 0) {
-          const next = [...rows];
-          next[idx] = { ...next[idx], qty: String((Number(next[idx].qty) || 0) + 1) };
-          return next;
-        }
-        return [...rows, {
-          productId: p.id, name: p.name, image_url: p.image_url ?? null,
-          stock: p.stock, barcode: p.barcode ?? null, boxes: "0", qty: "1",
-          pcsPerCase: p.pcs_per_case ?? null,
-        }];
-      });
-      toast.success(`Added ${p.name}`, { duration: 1200 });
-      return;
-    }
+    setOutBoxes("0");
+    setOutPcs(p.pcs_per_case && p.pcs_per_case > 0 ? "0" : "1");
+    // pause camera while product dialog is shown — no two dialogs at once
+    if (camOpen) setCamOpen(false);
     setSelected(p);
   }
 
@@ -164,7 +161,7 @@ function StockOut() {
         return next;
       }
       return [...rows, {
-        productId: p.id, name: p.name, image_url: p.image_url ?? null,
+        productId: p.id, name: p.name,
         stock: p.stock, barcode: p.barcode ?? null, boxes: "0", qty: "1",
         pcsPerCase: p.pcs_per_case ?? null,
       }];
@@ -180,37 +177,25 @@ function StockOut() {
 
   const submitAll = useMutation({
     mutationFn: async () => {
-      if (scanned.length === 0) throw new Error("Nothing scanned yet");
-      const finalDestination = destKind === "Shops" ? (shop ?? "") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery");
-      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : `Delivery · ${finalDestination}`;
-      const rows = scanned.map((r) => {
-        const b = Math.max(0, Number(r.boxes) || 0);
-        const p = Math.max(0, Number(r.qty) || 0);
-        const perBox = r.pcsPerCase && r.pcsPerCase > 0 ? r.pcsPerCase : 0;
-        const actual = perBox > 0 ? b * perBox + p : p;
-        if (!actual || actual < 1) throw new Error(`Set quantity for ${r.name}`);
-        if (actual > r.stock) throw new Error(`${r.name}: ${actual} pcs exceeds stock (${r.stock})`);
-        const parts = perBox > 0 && b > 0
-          ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
-          : `${actual} pcs`;
-        return {
-          product_id: r.productId, type: "out" as const, quantity: actual, user_id: user?.id,
-          reason: `${reasonBase} · ${parts}`,
-          destination: finalDestination,
-        };
+      return await createWarehouseBill({
+        rows: scanned,
+        products: products as any[],
+        destKind,
+        shop,
+        customerId,
+        billingStores,
+        billingCustomers,
+        userId: user?.id,
       });
-      const { error } = await supabase.from("stock_movements").insert(rows);
-      if (error) throw error;
-      for (const r of scanned) {
-        checkLowStockAlert({ data: { productId: r.productId } }).catch(() => {});
-      }
     },
-    onSuccess: () => {
+    onSuccess: (bill) => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
       qc.invalidateQueries({ queryKey: ["shop-movements"] });
-      notifyBillingStockSync();
-      toast.success(`Submitted ${scanned.length} item${scanned.length === 1 ? "" : "s"}`);
+      qc.invalidateQueries({ queryKey: ["warehouse-bills"] });
+      qc.invalidateQueries({ queryKey: ["warehouse-bill-items"] });
+      setIssuedBill(bill);
+      toast.success(`Bill ${bill.bill_no} created`);
       setScanned([]);
     },
     onError: (e: any) => toast.error(e.message),
@@ -233,28 +218,32 @@ function StockOut() {
       const actual = perBox > 0 ? b * perBox + p : p;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       if (actual > selected.stock) throw new Error(`${actual} pcs exceeds available stock (${selected.stock})`);
-      const finalDestination = destKind === "Shops" ? (shop ?? "") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery");
-      const reasonBase = destKind === "Shops" ? `Shop · ${shop}` : `Delivery · ${finalDestination}`;
-      const parts = perBox > 0 && b > 0
-        ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
-        : `${actual} pcs`;
-      const { error } = await supabase.from("stock_movements").insert({
-        product_id: selected.id, type: "out", quantity: actual, user_id: user?.id,
-        reason: `${reasonBase} · ${parts}`,
-        destination: finalDestination,
+      return await createWarehouseBill({
+        rows: [{
+          productId: selected.id,
+          name: selected.name,
+          stock: selected.stock,
+          barcode: selected.barcode ?? null,
+          boxes: String(b),
+          qty: String(p),
+          pcsPerCase: selected.pcs_per_case ?? null,
+        }],
+        products: products as any[],
+        destKind,
+        shop,
+        customerId,
+        billingStores,
+        billingCustomers,
+        userId: user?.id,
       });
-      if (error) throw error;
-      checkLowStockAlert({ data: { productId: selected.id } }).catch(() => {});
     },
-    onSuccess: () => {
+    onSuccess: (bill) => {
       qc.invalidateQueries({ queryKey: ["products"] });
       qc.invalidateQueries({ queryKey: ["movements-recent"] });
-      notifyBillingStockSync();
-      const b = Number(outBoxes) || 0;
-      const p = Number(outPcs) || 0;
-      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
-      const actual = perBox > 0 ? b * perBox + p : p;
-      toast.success(`Removed ${actual} pcs from ${selected.name}`);
+      qc.invalidateQueries({ queryKey: ["warehouse-bills"] });
+      qc.invalidateQueries({ queryKey: ["warehouse-bill-items"] });
+      setIssuedBill(bill);
+      toast.success(`Bill ${bill.bill_no} created`);
       setSelected(null); setOutBoxes("0"); setOutPcs("1");
     },
     onError: (e: any) => toast.error(e.message),
@@ -339,17 +328,19 @@ function StockOut() {
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="ghost" onClick={() => setAddingCustomer(false)}>Cancel</Button>
-                    <Button size="sm" className="gradient-primary text-primary-foreground border-0" onClick={() => addCustomerMut.mutate()} disabled={!newCustName.trim() || addCustomerMut.isPending}>Save</Button>
+                    <Button size="sm" className="gradient-primary text-primary-foreground border-0" onClick={() => addCustomerMut.mutate()} disabled={!newCustName.trim() || addCustomerMut.isPending}>
+                      {addCustomerMut.isPending ? "Saving…" : "Save"}
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
           )}
+          <Button onClick={() => setDestModalOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
+            <Zap className="size-5 mr-1" /> Start mass scan
+          </Button>
           {(destKind === "Delivery" || (destKind === "Shops" && shop)) && (
             <>
-              <Button onClick={() => setCamOpen(true)} className="w-full h-14 gradient-warning text-warning-foreground border-0 text-base font-bold">
-                <Zap className="size-5 mr-1" /> Start mass scan {destKind === "Shops" ? `→ ${shop}` : `→ ${selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery"}`}
-              </Button>
               <div className="relative">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Or type SKU / product name to add</Label>
                 <div className="relative mt-2">
@@ -366,11 +357,7 @@ function StockOut() {
                     {massSuggestions.map((p: any) => (
                       <button key={p.id} type="button" onClick={() => addProductToScanned(p)}
                         className="w-full flex items-center gap-2 px-2 py-2 hover:bg-secondary/60 text-left">
-                        {p.image_url ? (
-                          <img src={p.image_url} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
-                        ) : (
-                          <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-4" /></div>
-                        )}
+                        <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-4" /></div>
                         <div className="min-w-0 flex-1">
                           <div className="text-sm font-semibold truncate">{p.name}</div>
                           <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"} · stock {displayStock(p)}</div>
@@ -407,11 +394,7 @@ function StockOut() {
             <div className="divide-y divide-border max-h-[55vh] overflow-y-auto -mx-1">
               {scanned.map((r) => (
                 <div key={r.productId} className="flex items-center gap-2 py-2 px-1">
-                  {r.image_url ? (
-                    <img src={r.image_url} alt="" className="size-12 rounded-lg object-cover border border-border shrink-0" />
-                  ) : (
-                    <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-5" /></div>
-                  )}
+                  <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><Package className="size-5" /></div>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold truncate">{r.name}</div>
                     <div className="text-[11px] text-muted-foreground font-mono truncate">{r.barcode ?? "—"} · stock {displayStock({ stock: r.stock, pcs_per_case: r.pcsPerCase })}</div>
@@ -460,7 +443,7 @@ function StockOut() {
             </div>
             <Button onClick={() => submitAll.mutate()} disabled={submitAll.isPending}
               className="w-full h-12 gradient-warning text-warning-foreground border-0 font-bold">
-              <CheckCircle2 className="size-5 mr-1" /> Submit all · {scanned.length}
+              <ReceiptText className="size-5 mr-1" /> Generate bill · {scanned.length}
             </Button>
           </Card>
         )}
@@ -539,11 +522,7 @@ function StockOut() {
                 <button key={p.id} onClick={() => setSelected(p)}
                   className={cn("w-full flex items-center gap-3 px-2 py-2.5 hover:bg-secondary/60 active:bg-secondary rounded-lg text-left",
                     selected?.id === p.id && "bg-destructive/10")}>
-                  {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
-                  ) : (
-                    <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground shrink-0"><Package className="size-5" /></div>
-                  )}
+                  <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground shrink-0"><Package className="size-5" /></div>
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-sm truncate">{p.name}</div>
                     <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "—"} · {p.barcode ?? "no barcode"}</div>
@@ -563,20 +542,128 @@ function StockOut() {
         )}
       </div>
 
-      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setOutBoxes("0"); setOutPcs("1"); } }}>
+      {/* Destination picker modal — opens before camera on "Start mass scan" */}
+      <Dialog open={destModalOpen} onOpenChange={setDestModalOpen}>
+        <DialogContent className="max-w-md gap-0 p-0">
+          <div className="p-5 pb-4 border-b border-border">
+            <DialogTitle className="text-lg font-bold">Where is this stock going?</DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">Select destination before scanning.</p>
+          </div>
+          <div className="p-5 space-y-4">
+            <div className="grid grid-cols-2 gap-2">
+              {TOP_DESTINATIONS.map((d) => {
+                const Icon = d === "Delivery" ? Truck : Store;
+                const active = destKind === d;
+                return (
+                  <button key={d} type="button"
+                    onClick={() => { setDestKind(d); if (d === "Delivery") setShop(null); }}
+                    className={cn(
+                      "h-16 rounded-2xl border flex items-center justify-center gap-2 text-base font-semibold transition active:scale-[0.98]",
+                      active
+                        ? "border-primary bg-primary text-primary-foreground shadow-md"
+                        : "border-border bg-secondary/40 hover:bg-secondary",
+                    )}>
+                    <Icon className="size-5" /> {d}
+                  </button>
+                );
+              })}
+            </div>
+            {destKind === "Shops" && (
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Choose shop</Label>
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {billingStores.map((s) => {
+                    const label = s.sub || s.name;
+                    return (
+                      <button key={s.id} type="button" onClick={() => setShop(label)}
+                        className={cn(
+                          "h-11 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                          shop === label
+                            ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                            : "border-border bg-secondary/40 hover:bg-secondary",
+                        )}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!shop && <p className="text-[11px] text-warning mt-1.5 font-medium">Pick a shop to continue.</p>}
+              </div>
+            )}
+            {destKind === "Delivery" && (
+              <div>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Customer (optional)</Label>
+                <div className="mt-2 flex gap-2 flex-wrap">
+                  <button type="button" onClick={() => setCustomerId(null)}
+                    className={cn(
+                      "h-10 px-4 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                      customerId === null
+                        ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                        : "border-border bg-secondary/40 hover:bg-secondary",
+                    )}>
+                    General Delivery
+                  </button>
+                  {billingCustomers.map((c) => {
+                    const label = c.company || c.name;
+                    return (
+                      <button key={c.id} type="button" onClick={() => setCustomerId(c.id)}
+                        className={cn(
+                          "h-10 px-4 rounded-xl border text-sm font-semibold transition active:scale-[0.98]",
+                          customerId === c.id
+                            ? "border-warning bg-warning text-warning-foreground shadow-sm"
+                            : "border-border bg-secondary/40 hover:bg-secondary",
+                        )}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                  <button type="button" onClick={() => setAddingCustomer(v => !v)}
+                    className="h-10 px-3 rounded-xl border border-dashed border-border bg-secondary/20 hover:bg-secondary text-sm text-muted-foreground transition flex items-center gap-1">
+                    <Plus className="size-3.5" /> Add customer
+                  </button>
+                </div>
+                {addingCustomer && (
+                  <div className="mt-2 p-3 rounded-xl border border-border bg-muted/20 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-xs">Name</Label><Input className="h-8 text-sm" value={newCustName} onChange={e => setNewCustName(e.target.value)} placeholder="Contact name" /></div>
+                      <div><Label className="text-xs">Company</Label><Input className="h-8 text-sm" value={newCustCompany} onChange={e => setNewCustCompany(e.target.value)} placeholder="Optional" /></div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setAddingCustomer(false)}>Cancel</Button>
+                      <Button size="sm" className="gradient-primary text-primary-foreground border-0" onClick={() => addCustomerMut.mutate()} disabled={!newCustName.trim() || addCustomerMut.isPending}>
+                        {addCustomerMut.isPending ? "Saving…" : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter className="px-5 pb-5 gap-2">
+            <Button variant="ghost" className="flex-1 h-12" onClick={() => setDestModalOpen(false)}>Cancel</Button>
+            <Button
+              className="gradient-warning text-warning-foreground border-0 flex-1 h-12 font-bold"
+              disabled={destKind === "Shops" && !shop}
+              onClick={() => { setDestModalOpen(false); setMassScanMode(true); setCamOpen(true); }}>
+              <Zap className="size-4 mr-1" />
+              Start Scanning {destKind === "Shops" ? `→ ${shop ?? ""}` : `→ ${selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery"}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) { setSelected(null); setOutBoxes("0"); setOutPcs("0"); if (massScanMode) setCamOpen(true); } }}>
         <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {selected && (
             <>
-              <div className="relative w-full aspect-[4/3] sm:aspect-square bg-secondary shrink-0">
-                {selected.image_url ? (
-                  <img src={selected.image_url} alt={selected.name} className="w-full h-full object-contain" />
-                ) : (
-                  <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
-                )}
-                <div className="absolute top-2 left-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
+              <div className="relative w-full bg-secondary shrink-0 p-5">
+                <div className="size-14 rounded-2xl bg-background grid place-items-center text-muted-foreground border border-border">
+                  <Package className="size-7" />
+                </div>
+                <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-medium border border-border">
                   Stock: <span className="font-bold">{displayStock(selected)}</span>
                 </div>
-                <div className="absolute top-2 right-2 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-semibold border border-border">
+                <div className="mt-4 inline-flex px-2.5 py-1 rounded-full bg-background/90 backdrop-blur text-[11px] font-semibold border border-border">
                   → {destKind === "Shops" ? (shop ?? "—") : (selectedCustomer ? (selectedCustomer.company || selectedCustomer.name) : "Delivery")}
                 </div>
               </div>
@@ -640,11 +727,41 @@ function StockOut() {
                 )}
                 <DialogFooter className="gap-2 sm:gap-2 sticky bottom-0 -mx-4 sm:-mx-5 px-4 sm:px-5 py-3 bg-card border-t border-border">
                   <Button variant="ghost" onClick={() => { setSelected(null); setOutBoxes("0"); setOutPcs("1"); }} className="flex-1 h-12">Cancel</Button>
-                  <Button className="gradient-warning text-warning-foreground border-0 flex-1 h-12 text-base font-bold" onClick={() => apply.mutate()} disabled={apply.isPending}>
+                  <Button className="gradient-warning text-warning-foreground border-0 flex-1 h-12 text-base font-bold"
+                    disabled={apply.isPending}
+                    onClick={() => {
+                      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
+                      const b = Number(outBoxes) || 0;
+                      const p = Number(outPcs) || 0;
+                      const actual = perBox > 0 ? b * perBox + p : p;
+                      if (!actual || actual < 1) { toast.error("Enter a quantity"); return; }
+                      if (massScanMode) {
+                        setScanned((rows) => {
+                          const idx = rows.findIndex((r) => r.productId === selected.id);
+                          if (idx >= 0) {
+                            const next = [...rows];
+                            const existB = Number(next[idx].boxes) || 0;
+                            const existP = Number(next[idx].qty) || 0;
+                            next[idx] = { ...next[idx], boxes: String(existB + b), qty: String(existP + p) };
+                            return next;
+                          }
+                          return [...rows, {
+                            productId: selected.id, name: selected.name,
+                            stock: selected.stock, barcode: selected.barcode ?? null,
+                            boxes: String(b), qty: String(p),
+                            pcsPerCase: selected.pcs_per_case ?? null,
+                          }];
+                        });
+                        toast.success(`Added ${actual} pcs of ${selected.name}`, { duration: 1200 });
+                        setSelected(null); setOutBoxes("0"); setOutPcs("0");
+                      } else {
+                        apply.mutate();
+                      }
+                    }}>
                     {(() => {
-                      const perBox = selected.pcs_per_case ?? 0;
+                      const perBox = selected.pcs_per_case && selected.pcs_per_case > 0 ? selected.pcs_per_case : 0;
                       const total = perBox > 0 ? Number(outBoxes) * perBox + Number(outPcs) : Number(outPcs);
-                      return `OK · Remove ${total} pcs`;
+                      return massScanMode ? `Add ${total} pcs to list` : `OK · Remove ${total} pcs`;
                     })()}
                   </Button>
                 </DialogFooter>
@@ -653,9 +770,86 @@ function StockOut() {
           )}
         </DialogContent>
       </Dialog>
+      <Dialog open={!!issuedBill} onOpenChange={(v) => !v && setIssuedBill(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          {issuedBill && (
+            <>
+              <div className="space-y-4">
+                <div className="size-12 rounded-2xl gradient-warning grid place-items-center">
+                  <ReceiptText className="size-6 text-warning-foreground" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold">Bill issued</DialogTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Stock reduced. Review lines below, then open billing to edit wholesale prices and finalize the invoice.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border bg-secondary/40 p-4 space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Bill No</span>
+                    <span className="font-mono font-bold">{issuedBill.bill_no}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Destination</span>
+                    <span className="font-semibold text-right">{issuedBill.destination_label}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Items</span>
+                    <span className="font-semibold">{issuedBill.itemCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-2">
+                    <span className="text-muted-foreground">Default total</span>
+                    <span className="font-bold text-base">{formatYen(issuedBill.subtotal)}</span>
+                  </div>
+                </div>
+                {issuedBill.lines.length > 0 && (
+                  <div className="rounded-2xl border border-border overflow-hidden">
+                    <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground bg-secondary/50">
+                      Bill lines
+                    </div>
+                    <div className="divide-y divide-border max-h-48 overflow-y-auto">
+                      {issuedBill.lines.map((line, i) => (
+                        <div key={i} className="px-3 py-2.5 text-sm flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium leading-tight line-clamp-2">{line.name}</div>
+                            <div className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                              {line.sku ?? "—"} · {line.qty_pcs} pcs
+                              {line.pcs_per_case && line.pcs_per_case > 0
+                                ? ` (${line.boxes} box + ${line.loose_pcs} pcs)`
+                                : ""}
+                              {" · "}@{formatYen(line.default_price)}
+                            </div>
+                          </div>
+                          <span className="font-semibold shrink-0">{formatYen(line.line_total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Billing uses its own customer list and editable wholesale prices. Warehouse default prices are only a starting point.
+                </p>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-2 flex-col sm:flex-row">
+                <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setIssuedBill(null)}>Close</Button>
+                <Button variant="outline" className="w-full sm:w-auto" onClick={() => nav({ to: "/warehouse-bills" })}>
+                  View bills
+                </Button>
+                <Button className="w-full sm:flex-1 gradient-primary text-primary-foreground border-0" onClick={() => {
+                  openBillingInvoiceBuilder(issuedBill)
+                    .then(() => qc.invalidateQueries({ queryKey: ["warehouse-bills"] }))
+                    .catch((e) => toast.error(e.message ?? "Could not generate invoice"));
+                }}>
+                  <ExternalLink className="size-4" /> Generate invoice
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
       <StrichScanner
         open={camOpen}
-        onClose={() => setCamOpen(false)}
+        onClose={() => { setCamOpen(false); setMassScanMode(false); }}
         onDetected={lookup}
         keepOpenOnDetect
         onDetectedLabel={(code) => formatDetectedProductLabel(code, products)}

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -311,7 +311,7 @@ function RackDetail() {
                       </button>
                       <div className="aspect-square w-full rounded-md overflow-hidden bg-background/60 border border-border grid place-items-center mt-3">
                         {p.image_url ? (
-                          <img src={p.image_url} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                          <img src={getCachedStorageUrl(p.image_url)} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <Package className="size-6 text-muted-foreground" />
                         )}
@@ -444,7 +444,7 @@ function VirtualPickList({
             >
               {p.image_url ? (
                 <img
-                  src={p.image_url}
+                  src={getCachedStorageUrl(p.image_url)}
                   alt=""
                   loading="lazy"
                   decoding="async"

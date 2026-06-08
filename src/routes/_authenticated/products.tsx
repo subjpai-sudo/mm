@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Maximize2, Minimize2, PackageCheck, AlertTriangle, PackageX, LayoutGrid, Zap, Check, SkipForward, Warehouse } from "lucide-react";
+import { Plus, Search, ScanLine, Pencil, Trash2, ImagePlus, ImageIcon, Calendar, User as UserIcon, Barcode, FolderTree, ChevronRight, ChevronDown, Zap, Check, SkipForward, Warehouse, ClipboardList, Wand2, Images } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { StockStatus } from "./dashboard";
@@ -19,12 +19,11 @@ import { formatDistanceToNow, format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useRealtimeSync } from "@/hooks/use-realtime-sync";
 import { LiveBadge } from "@/components/app/LiveBadge";
-import { useServerFn } from "@tanstack/react-start";
-import { uploadProductImageFile, fetchProductImage, bulkFetchProductImages, generateProductImageAI, bulkGenerateProductImagesAI } from "@/lib/product-images.functions";
-import { Sparkles, Globe, Wand2, Images } from "lucide-react";
-import { ReportPdfDialog } from "@/components/app/ReportPdfDialog";
+import { useServerFn } from "@/lib/use-server-fn";
+import { uploadProductImageFile, cleanProductImageAI } from "@/lib/product-images.functions";
+import { ProductImageZoom } from "@/components/app/ProductImageZoom";
 import { BulkAssignShelfDialog } from "@/components/app/BulkAssignShelfDialog";
-import { SIZE_UNITS, parseSize, displaySize } from "@/lib/product-format";
+import { SIZE_UNITS, parseSize, displaySize, extractSizeFromName } from "@/lib/product-format";
 import { categoryPalette } from "@/lib/category-colors";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -38,25 +37,41 @@ function stockInBoxes(stock: number, pcsPerCase: number | null | undefined): str
     : `${boxes} box${boxes === 1 ? "" : "es"} + ${rem} pcs`;
 }
 
-type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string };
+type ProductsSearch = { filter?: "all" | "in" | "low" | "out"; edit?: string; mc?: string; sc?: string };
 export const Route = createFileRoute("/_authenticated/products")({
   component: ProductsPage,
   validateSearch: (s: Record<string, unknown>): ProductsSearch => ({
     filter: s.filter === "in" || s.filter === "low" || s.filter === "out" || s.filter === "all" ? s.filter : undefined,
     edit: typeof s.edit === "string" ? s.edit : undefined,
+    mc: typeof s.mc === "string" ? s.mc : undefined,
+    sc: typeof s.sc === "string" ? s.sc : undefined,
   }),
 });
 
+const IS_LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === "true";
+
 function ProductsPage() {
   const { role, user } = useAuth();
-  const { lastUpdated } = useRealtimeSync();
+  const { lastUpdated } = useRealtimeSync({ silent: true });
   const qc = useQueryClient();
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<"all" | "in" | "low" | "out">(search.filter ?? "all");
-  const [mainFilter, setMainFilter] = useState<string>("all");
-  const [subFilter, setSubFilter] = useState<string>("all");
+  const [mainFilter, setMainFilter] = useState<string>(search.mc ?? "all");
+  const [subFilter, setSubFilter] = useState<string>(search.sc ?? "all");
+  const [noBarcode, setNoBarcode] = useState(false);
+
+  // Keep filters in URL so browser back restores them
+  const setMainFilterUrl = (v: string) => {
+    setMainFilter(v);
+    setSubFilter("all");
+    navigate({ to: "/products", search: (prev: any) => ({ ...prev, mc: v !== "all" ? v : undefined, sc: undefined }), replace: true });
+  };
+  const setSubFilterUrl = (v: string) => {
+    setSubFilter(v);
+    navigate({ to: "/products", search: (prev: any) => ({ ...prev, sc: v !== "all" ? v : undefined }), replace: true });
+  };
   const [open, setOpen] = useState(false);
   const [scanFor, setScanFor] = useState<{ id: string; name: string } | null>(null);
   const [rapidOpen, setRapidOpen] = useState(false);
@@ -83,19 +98,8 @@ function ProductsPage() {
     queryKey: ["categories"],
     queryFn: async () => (await supabase.from("categories").select("*").order("name")).data ?? [],
   });
-  const { data: reportMovements = [] } = useQuery({
-    queryKey: ["movements-all"],
-    queryFn: async () => (await supabase.from("stock_movements").select("*, products(name)").order("created_at", { ascending: false }).limit(500)).data ?? [],
-  });
-  const productsWithCat = (products as any[]).map((p) => ({
-    ...p,
-    categories: p.categories ? { name: p.categories.name } : null,
-  }));
-  const reportLowList = productsWithCat.filter((p: any) => p.stock > 0 && p.stock <= p.low_stock_threshold);
-  const reportOutList = productsWithCat.filter((p: any) => p.stock <= 0);
-  const reportInQty = (reportMovements as any[]).filter((m) => m.type === "in").reduce((a, m) => a + m.quantity, 0);
-  const reportOutQty = (reportMovements as any[]).filter((m) => m.type === "out").reduce((a, m) => a + m.quantity, 0);
   const [manageCats, setManageCats] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
   // Default to collapsed so users pick one main category at a time
   // instead of seeing everything together.
@@ -112,6 +116,7 @@ function ProductsPage() {
       if (mainId !== mainFilter) return false;
     }
     if (subFilter !== "all" && p.category_id !== subFilter) return false;
+    if (noBarcode && p.barcode) return false;
     return true;
   });
 
@@ -135,17 +140,6 @@ function ProductsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const clearBarcode = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("products")
-        .update({ barcode: null, barcode_registered_by: null, barcode_registered_at: null })
-        .eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["products"] }); toast.success("Barcode removed"); },
-    onError: (e: any) => toast.error(e.message),
-  });
-
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: any }) => {
       const { error } = await supabase.from("products").update(patch).eq("id", id);
@@ -166,28 +160,6 @@ function ProductsPage() {
 
   const canEdit = !!role;
   const canDelete = !!role;
-
-  const fetchImageFn = useServerFn(fetchProductImage);
-  const bulkFetchFn = useServerFn(bulkFetchProductImages);
-  const bulkAutoFill = useMutation({
-    mutationFn: () => bulkFetchFn({}),
-    onSuccess: (r: any) => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`Fetched ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}`);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "Bulk fetch failed"),
-  });
-
-  const generateAIFn = useServerFn(generateProductImageAI);
-  const bulkGenerateAIFn = useServerFn(bulkGenerateProductImagesAI);
-  const bulkAIAll = useMutation({
-    mutationFn: () => bulkGenerateAIFn({ data: { mode: "all", limit: 50 } }),
-    onSuccess: (r: any) => {
-      qc.invalidateQueries({ queryKey: ["products"] });
-      toast.success(`AI generated ${r.updated}/${r.total} images${r.failures.length ? ` · ${r.failures.length} failed` : ""}. Run again to continue.`);
-    },
-    onError: (e: any) => toast.error(e?.message ?? "AI regeneration failed"),
-  });
 
   // Build category tree: main (no parent) -> children -> products
   const mainCats = categories.filter((c: any) => !c.parent_id);
@@ -235,47 +207,22 @@ function ProductsPage() {
   return (
     <div className="p-6 md:p-10 max-w-7xl mx-auto">
       <PageHeader
-        title="Products"
-        subtitle={`${products.length} items in catalog`}
+        title="MAIN Product List"
+        subtitle={`${products.length} warehouse products with SKU, barcode, price and stock`}
         actions={canEdit ? (
           <div className="flex items-center gap-2 flex-wrap">
-            <LiveBadge lastUpdated={lastUpdated} className="mr-1" />
+            {!IS_LOCAL_PREVIEW && <LiveBadge lastUpdated={lastUpdated} className="mr-1" />}
             <div className="inline-flex items-center gap-1 p-1 rounded-2xl border border-border bg-card/60 backdrop-blur">
-              <Button
-                size="icon"
-                variant="ghost"
-                title="Auto-fill images from web"
-                disabled={bulkAutoFill.isPending}
-                onClick={() => { if (confirm("Search the web and add a picture to every product without one?")) bulkAutoFill.mutate(); }}
-              >
-                <Sparkles className="size-4" />
-              </Button>
-              <Button
-                size="icon"
-                variant="ghost"
-                title="Generate AI images (all)"
-                disabled={bulkAIAll.isPending}
-                onClick={() => { if (confirm("Generate fresh AI images for every product (replaces existing)? Processes 50 per run — click again to continue.")) bulkAIAll.mutate(); }}
-              >
-                <Wand2 className="size-4" />
-              </Button>
-              <Button size="icon" variant="ghost" title="Rapid scan" onClick={() => setRapidOpen(true)}>
-                <Zap className="size-4" />
-              </Button>
               <Button size="icon" variant="ghost" title="Assign to shelf" onClick={() => setBulkShelfOpen(true)}>
                 <Warehouse className="size-4" />
               </Button>
               <Button size="icon" variant="ghost" title="Categories" onClick={() => setManageCats(true)}>
                 <FolderTree className="size-4" />
               </Button>
+              <Button size="icon" variant="ghost" title="Import products" onClick={() => setImportOpen(true)}>
+                <ClipboardList className="size-4" />
+              </Button>
               <div className="mx-1 w-px h-6 bg-border" />
-              <ReportPdfDialog
-                products={productsWithCat as any}
-                lowList={reportLowList as any}
-                outList={reportOutList as any}
-                movements={{ inQty: reportInQty, outQty: reportOutQty, total: reportMovements.length }}
-                rawMovements={reportMovements as any}
-              />
               <Dialog open={open} onOpenChange={setOpen}>
                 <DialogTrigger asChild>
                   <Button className="gradient-primary text-primary-foreground border-0 rounded-xl"><Plus className="size-4" /> New product</Button>
@@ -284,7 +231,7 @@ function ProductsPage() {
               </Dialog>
             </div>
           </div>
-        ) : <LiveBadge lastUpdated={lastUpdated} />}
+        ) : !IS_LOCAL_PREVIEW ? <LiveBadge lastUpdated={lastUpdated} /> : null}
       />
 
       {/* Unified search + status segmented control */}
@@ -352,7 +299,7 @@ function ProductsPage() {
 
       {mainCats.length > 0 && (
         <div className="mb-4 flex items-center gap-2 flex-wrap">
-          <Select value={mainFilter} onValueChange={(v) => { setMainFilter(v); setSubFilter("all"); }}>
+          <Select value={mainFilter} onValueChange={setMainFilterUrl}>
             <SelectTrigger className="w-auto h-10 rounded-xl border-border bg-card/60 backdrop-blur gap-2 px-3 text-sm font-semibold">
               <span className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Cat</span>
               <SelectValue />
@@ -367,7 +314,7 @@ function ProductsPage() {
           </Select>
           <Select
             value={subFilter}
-            onValueChange={setSubFilter}
+            onValueChange={setSubFilterUrl}
             disabled={mainFilter === "all" || (subsByMain.get(mainFilter)?.length ?? 0) === 0}
           >
             <SelectTrigger className="w-auto h-10 rounded-xl border-border bg-card/60 backdrop-blur gap-2 px-3 text-sm font-semibold">
@@ -386,6 +333,14 @@ function ProductsPage() {
               ))}
             </SelectContent>
           </Select>
+          <button
+            type="button"
+            onClick={() => setNoBarcode((v) => !v)}
+            className={cn("inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border text-sm font-semibold transition",
+              noBarcode ? "bg-primary text-primary-foreground border-primary" : "border-border bg-card/60 text-muted-foreground hover:text-foreground")}
+          >
+            <Barcode className="size-4" /> No barcode
+          </button>
         </div>
       )}
 
@@ -468,36 +423,35 @@ function ProductsPage() {
               {sections.map((s) => {
                 const pal = categoryPalette(s.name);
                 return (
-                <section key={s.id} id={`cat-${s.id}`} className="scroll-mt-24">
-                  <div
-                    className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-lg border-l-4"
-                    style={{ borderLeftColor: pal.bg, background: pal.soft }}
-                  >
-                    <FolderTree className="size-4" style={{ color: pal.accent }} />
-                    <h2 className="font-bold text-base" style={{ color: pal.accent }}>{s.name}</h2>
-                    <span
-                      className="text-[11px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: pal.bg, color: pal.fg }}
+                  <section key={s.id} id={`cat-${s.id}`} className="scroll-mt-24">
+                    <div
+                      className="flex items-center gap-2 mb-2.5 px-3 py-2 rounded-lg border-l-4"
+                      style={{ borderLeftColor: pal.bg, background: pal.soft }}
                     >
-                      {s.items.length}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {s.items.map((p: any) => (
-                      <ProductCard
-                        key={p.id}
-                        p={p}
-                        canEdit={canEdit}
-                        canDelete={canDelete}
-                        onView={() => openProduct(p)}
-                        onEdit={() => setEditing(p)}
-                        onDelete={() => setDeleting(p)}
-                        onScan={() => setScanFor({ id: p.id, name: p.name })}
-                        onClearBarcode={() => clearBarcode.mutate(p.id)}
-                      />
-                    ))}
-                  </div>
-                </section>
+                      <FolderTree className="size-4" style={{ color: pal.accent }} />
+                      <h2 className="font-bold text-base" style={{ color: pal.accent }}>{s.name}</h2>
+                      <span
+                        className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                        style={{ background: pal.bg, color: pal.fg }}
+                      >
+                        {s.items.length}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {s.items.map((p: any) => (
+                        <ProductCard
+                          key={p.id}
+                          p={p}
+                          canEdit={canEdit}
+                          canDelete={canDelete}
+                          onView={() => openProduct(p)}
+                          onEdit={() => setEditing(p)}
+                          onDelete={() => setDeleting(p)}
+                          onScan={() => setScanFor({ id: p.id, name: p.name })}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 );
               })}
             </div>
@@ -506,6 +460,15 @@ function ProductsPage() {
       })()}
 
       {manageCats && <CategoryManagerDialog categories={categories} onClose={() => setManageCats(false)} />}
+      {importOpen && (
+        <BulkImportDialog
+          categories={categories}
+          defaultMainId={mainFilter !== "all" ? mainFilter : ""}
+          defaultSubId={subFilter !== "all" ? subFilter : ""}
+          onClose={() => setImportOpen(false)}
+          onDone={() => { setImportOpen(false); qc.invalidateQueries({ queryKey: ["products"] }); }}
+        />
+      )}
 
       {scanFor && (
         <StrichScanner
@@ -558,6 +521,7 @@ function ProductsPage() {
 }
 
 function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: (f: any) => void }) {
+  const qc = useQueryClient();
   const [name, setName] = useState(""); const [sku, setSku] = useState(""); const [barcode, setBarcode] = useState("");
   const [price, setPrice] = useState("0"); const [stock, setStock] = useState("0"); const [threshold, setThreshold] = useState("5");
   const [sizeNum, setSizeNum] = useState(""); const [sizeUnit, setSizeUnit] = useState<string>("g");
@@ -566,9 +530,22 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
   const [subCatId, setSubCatId] = useState<string>("");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [scanOpen, setScanOpen] = useState(false);
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
+
+  async function createVendor() {
+    if (!newVendorName.trim() || !mainCatId) return;
+    const { data, error } = await supabase.from("categories").insert({ name: newVendorName.trim(), parent_id: mainCatId }).select().single();
+    if (error) { toast.error(error.message); return; }
+    await qc.invalidateQueries({ queryKey: ["categories"] });
+    setSubCatId(data.id);
+    setNewVendorName("");
+    setAddingVendor(false);
+    toast.success("Vendor added");
+  }
   const categoryId = subCatId || mainCatId;
   const mainName = mainCats.find((c: any) => c.id === mainCatId)?.name;
   const subName = subCats.find((c: any) => c.id === subCatId)?.name;
@@ -596,11 +573,27 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
               <SelectContent>{mainCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div><Label>Vendor / Subcategory</Label>
-            <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId || subCats.length === 0}>
-              <SelectTrigger><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors yet" : "Select vendor"} /></SelectTrigger>
-              <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-            </Select>
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label>Vendor / Subcategory</Label>
+              {mainCatId && !addingVendor && (
+                <button type="button" onClick={() => setAddingVendor(true)} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                  <Plus className="size-3" /> New vendor
+                </button>
+              )}
+            </div>
+            {addingVendor ? (
+              <div className="flex gap-1">
+                <Input autoFocus placeholder="Vendor name" value={newVendorName} onChange={e => setNewVendorName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") createVendor(); if (e.key === "Escape") { setAddingVendor(false); setNewVendorName(""); } }} className="h-9 text-sm" />
+                <Button type="button" size="sm" onClick={createVendor} disabled={!newVendorName.trim()} className="h-9 gradient-primary text-primary-foreground border-0">Add</Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => { setAddingVendor(false); setNewVendorName(""); }} className="h-9 px-2">✕</Button>
+              </div>
+            ) : (
+              <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId}>
+                <SelectTrigger><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors — add one →" : "Select vendor"} /></SelectTrigger>
+                <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            )}
           </div>
         </div>
         <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
@@ -615,7 +608,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
           )}
         </div>
         <div className="grid grid-cols-3 gap-3">
-          <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+          <div><Label>Default price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
           <div><Label>Stock</Label><Input type="number" value={stock} onChange={e => setStock(e.target.value)} /></div>
           <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
         </div>
@@ -651,6 +644,7 @@ function ProductDialog({ categories, onSubmit }: { categories: any[]; onSubmit: 
 }
 
 function ProductEditDialog({ product, categories, onClose, onSave }: { product: any; categories: any[]; onClose: () => void; onSave: (patch: any) => void }) {
+  const qc = useQueryClient();
   const [name, setName] = useState(product.name);
   const [sku, setSku] = useState(product.sku ?? "");
   const [barcode, setBarcode] = useState(product.barcode ?? "");
@@ -658,8 +652,8 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   const [stock, setStock] = useState(String(product.stock ?? 0));
   const [threshold, setThreshold] = useState(String(product.low_stock_threshold ?? 5));
   const _ppc = product.pcs_per_case && product.pcs_per_case > 0 ? product.pcs_per_case : 0;
-  const [stockBoxes, setStockBoxes] = useState(String(_ppc > 0 ? Math.floor((product.stock ?? 0) / _ppc) : 0));
-  const [stockPcs, setStockPcs] = useState(String(_ppc > 0 ? (product.stock ?? 0) % _ppc : (product.stock ?? 0)));
+  const [stockBoxes, setStockBoxes] = useState(String(_ppc > 0 ? Math.floor((product.stock ?? 0) / _ppc) : (product.stock ?? 0)));
+  const [stockPcs, setStockPcs] = useState(String(_ppc > 0 ? (product.stock ?? 0) % _ppc : 0));
   const initialSize = parseSize(product.size, product.unit);
   const [sizeNum, setSizeNum] = useState(initialSize.num);
   const [sizeUnit, setSizeUnit] = useState<string>(initialSize.unit || "g");
@@ -671,9 +665,22 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
   const [subCatId, setSubCatId] = useState<string>(initialSubId);
   const [imageUrl, setImageUrl] = useState<string>(product.image_url ?? "");
   const [scanOpen, setScanOpen] = useState(false);
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
 
   const mainCats = categories.filter((c: any) => !c.parent_id);
   const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
+
+  async function createVendor() {
+    if (!newVendorName.trim() || !mainCatId) return;
+    const { data, error } = await supabase.from("categories").insert({ name: newVendorName.trim(), parent_id: mainCatId }).select().single();
+    if (error) { toast.error(error.message); return; }
+    await qc.invalidateQueries({ queryKey: ["categories"] });
+    setSubCatId(data.id);
+    setNewVendorName("");
+    setAddingVendor(false);
+    toast.success("Vendor added");
+  }
   const categoryId = subCatId || mainCatId;
   const mainName = mainCats.find((c: any) => c.id === mainCatId)?.name;
   const subName = subCats.find((c: any) => c.id === subCatId)?.name;
@@ -702,11 +709,27 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
                 <SelectContent>{mainCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div><Label>Vendor / Subcategory</Label>
-              <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId || subCats.length === 0}>
-                <SelectTrigger><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors yet" : "Select vendor"} /></SelectTrigger>
-                <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <Label>Vendor / Subcategory</Label>
+                {mainCatId && !addingVendor && (
+                  <button type="button" onClick={() => setAddingVendor(true)} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                    <Plus className="size-3" /> New vendor
+                  </button>
+                )}
+              </div>
+              {addingVendor ? (
+                <div className="flex gap-1">
+                  <Input autoFocus placeholder="Vendor name" value={newVendorName} onChange={e => setNewVendorName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") createVendor(); if (e.key === "Escape") { setAddingVendor(false); setNewVendorName(""); } }} className="h-9 text-sm" />
+                  <Button type="button" size="sm" onClick={createVendor} disabled={!newVendorName.trim()} className="h-9 gradient-primary text-primary-foreground border-0">Add</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setAddingVendor(false); setNewVendorName(""); }} className="h-9 px-2">✕</Button>
+                </div>
+              ) : (
+                <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId}>
+                  <SelectTrigger><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors — add one →" : "Select vendor"} /></SelectTrigger>
+                  <SelectContent>{subCats.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
             </div>
           </div>
           <div className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs">
@@ -721,7 +744,7 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
+            <div><Label>Default price</Label><Input type="number" step="0.01" value={price} onChange={e => setPrice(e.target.value)} /></div>
             <div><Label>Low at</Label><Input type="number" value={threshold} onChange={e => setThreshold(e.target.value)} /></div>
           </div>
           <div>
@@ -730,24 +753,29 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
           </div>
           <div>
             <Label>Stock</Label>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-1">
-              <div>
-                <Input type="number" inputMode="numeric" placeholder="Boxes" value={stockBoxes} onChange={e => setStockBoxes(e.target.value)} />
-                <p className="text-[10px] text-muted-foreground text-center mt-0.5">{Number(pcsPerCase) > 0 ? `boxes × ${pcsPerCase}` : "boxes"}</p>
-              </div>
-              <span className="text-muted-foreground font-medium">+</span>
-              <div>
-                <Input type="number" inputMode="numeric" placeholder="Pcs" value={stockPcs} onChange={e => setStockPcs(e.target.value)} />
-                <p className="text-[10px] text-muted-foreground text-center mt-0.5">extra pcs</p>
-              </div>
-            </div>
-            {Number(pcsPerCase) > 0 ? (() => {
-              const b = Number(stockBoxes) || 0;
-              const p = Number(stockPcs) || 0;
-              const ppc = Number(pcsPerCase);
-              const total = b * ppc + p;
-              return <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{b} boxes × {ppc} + {p} pcs = {total} total pcs</p>;
-            })() : <p className="text-[11px] text-muted-foreground mt-1">Set pcs per box above to use boxes, or enter pcs directly.</p>}
+            {Number(pcsPerCase) > 0 ? (
+              <>
+                <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 mt-1">
+                  <div>
+                    <Input type="number" inputMode="numeric" placeholder="Boxes" value={stockBoxes} onChange={e => setStockBoxes(e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground text-center mt-0.5">boxes × {pcsPerCase}</p>
+                  </div>
+                  <span className="text-muted-foreground font-medium">+</span>
+                  <div>
+                    <Input type="number" inputMode="numeric" placeholder="Pcs" value={stockPcs} onChange={e => setStockPcs(e.target.value)} />
+                    <p className="text-[10px] text-muted-foreground text-center mt-0.5">extra pcs</p>
+                  </div>
+                </div>
+                {(() => {
+                  const b = Number(stockBoxes) || 0;
+                  const p = Number(stockPcs) || 0;
+                  const ppc = Number(pcsPerCase);
+                  return <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1 font-medium">{b} boxes × {ppc} + {p} pcs = {b * ppc + p} total pcs</p>;
+                })()}
+              </>
+            ) : (
+              <Input className="mt-1" type="number" inputMode="numeric" placeholder="0" value={stockBoxes} onChange={e => setStockBoxes(e.target.value)} />
+            )}
           </div>
           <div className="grid grid-cols-[1fr_120px] gap-3">
             <div><Label>Size</Label><Input type="number" step="0.01" inputMode="decimal" placeholder="400" value={sizeNum} onChange={e => setSizeNum(e.target.value)} /></div>
@@ -767,11 +795,12 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
             onPointerDown={() => (document.activeElement as HTMLElement)?.blur()}
             onClick={() => onSave({
               name, sku: sku || null, barcode: barcode || null,
-              category_id: categoryId || null, image_url: imageUrl || null,
+              category_id: categoryId || null,
+              image_url: imageUrl || null,
               size: sizeNum ? sizeNum : null,
               unit: sizeNum ? sizeUnit : null,
               price: Number(price),
-              stock: Number(stockBoxes) * (Number(pcsPerCase) || 0) + Number(stockPcs),
+              stock: Number(pcsPerCase) > 0 ? Number(stockBoxes) * Number(pcsPerCase) + Number(stockPcs) : Number(stockBoxes),
               low_stock_threshold: Number(threshold),
               pcs_per_case: pcsPerCase ? Number(pcsPerCase) : null,
             })}>Save changes</Button>
@@ -779,6 +808,116 @@ function ProductEditDialog({ product, categories, onClose, onSave }: { product: 
         <StrichScanner open={scanOpen} onClose={() => setScanOpen(false)} onDetected={(c) => { setBarcode(c); setScanOpen(false); }} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void; productName?: string }) {
+  const [uploading, setUploading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+  const uploadFn = useServerFn(uploadProductImageFile);
+  const cleanFn = useServerFn(cleanProductImageAI);
+
+  async function handleFile(file: File) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const res = await uploadFn({ data: { dataUrl, ext } });
+      onChange(res.url);
+      toast.success("Image uploaded");
+    } catch (e: any) {
+      toast.error(e.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleClean() {
+    if (!value) return;
+    setCleaning(true);
+    try {
+      const res = await cleanFn({ data: { image: value } });
+      onChange(res.url);
+      toast.success("Photo cleaned");
+    } catch (e: any) {
+      toast.error(e.message ?? "Clean failed");
+    } finally {
+      setCleaning(false);
+    }
+  }
+
+  const busy = uploading || cleaning;
+
+  return (
+    <div className="flex items-center gap-3">
+      {value ? (
+        <img src={value} alt="Product" className="size-20 rounded-xl object-cover border border-border shrink-0" />
+      ) : (
+        <div className="size-20 rounded-xl border border-dashed border-border bg-secondary grid place-items-center text-muted-foreground shrink-0">
+          <ImageIcon className="size-6" />
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+        <label className="inline-flex">
+          <input type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-full border border-border bg-secondary hover:bg-secondary/70 cursor-pointer whitespace-nowrap">
+            <ImagePlus className="size-3.5" />{busy ? "Working…" : "Take photo"}
+          </span>
+        </label>
+        <label className="inline-flex">
+          <input type="file" accept="image/*" className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+          <span className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-full border border-border bg-secondary hover:bg-secondary/70 cursor-pointer whitespace-nowrap">
+            <Images className="size-3.5" />Gallery
+          </span>
+        </label>
+        {value && (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={handleClean}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-full border border-border bg-secondary hover:bg-secondary/70 disabled:opacity-50 whitespace-nowrap"
+          >
+            <Wand2 className="size-3.5" />Clean photo
+          </button>
+        )}
+        {value && (
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-3 text-xs text-destructive rounded-full" onClick={() => onChange("")}>
+            Remove
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ProductDetailImage({ src, alt }: { src: string | null | undefined; alt: string }) {
+  const [zoomOpen, setZoomOpen] = useState(false);
+  if (src) {
+    return (
+      <>
+        <button
+          type="button"
+          className="size-32 rounded-xl overflow-hidden border border-border shrink-0"
+          onClick={() => setZoomOpen(true)}
+        >
+          <img src={getCachedStorageUrl(src)} alt={alt} className="size-full object-cover" />
+        </button>
+        <ProductImageZoom open={zoomOpen} onOpenChange={setZoomOpen} src={getCachedStorageUrl(src)} alt={alt} />
+      </>
+    );
+  }
+  return (
+    <div className="size-32 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0">
+      <ImageIcon className="size-10" />
+    </div>
   );
 }
 
@@ -814,11 +953,7 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
         <DialogHeader><DialogTitle>{product.name}</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="flex gap-4">
-            {product.image_url ? (
-              <img src={product.image_url} alt={product.name} className="size-32 rounded-xl object-cover border border-border" />
-            ) : (
-              <div className="size-32 rounded-xl bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-10" /></div>
-            )}
+            <ProductDetailImage src={product.image_url} alt={product.name} />
             <div className="flex-1 min-w-0 space-y-1.5 text-sm">
               <div className="text-xs text-muted-foreground">{product.categories?.name ?? "Uncategorized"}</div>
               {(() => {
@@ -907,80 +1042,41 @@ function ProductDetailDialog({ product, onClose, onEdit, onScan, canEdit }:
   );
 }
 
-function ImagePicker({ value, onChange }: { value: string; onChange: (url: string) => void; productName?: string }) {
-  const [uploading, setUploading] = useState(false);
-  const uploadFn = useServerFn(uploadProductImageFile);
-
-  async function handleFile(file: File) {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-      const res = await uploadFn({ data: { dataUrl, ext } });
-      onChange(res.url);
-      toast.success("Image uploaded");
-    } catch (e: any) {
-      toast.error(e.message ?? "Upload failed");
-    } finally {
-      setUploading(false);
-    }
-  }
-
+function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan }:
+  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void }) {
+  const [zoomOpen, setZoomOpen] = useState(false);
+  const catName = p.categories?.name || "";
+  const pal = categoryPalette(catName);
   return (
-    <div className="flex items-center gap-3">
-      {value ? (
-        <img src={value} alt="Product" className="size-20 rounded-xl object-cover border border-border" />
-      ) : (
-        <div className="size-20 rounded-xl border border-dashed border-border bg-secondary grid place-items-center text-muted-foreground">
-          <ImageIcon className="size-6" />
-        </div>
-      )}
-      <div className="space-y-2">
-        {/* Camera — opens camera directly on mobile */}
-        <label className="inline-flex">
-          <input type="file" accept="image/*" capture="environment" className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-          <span className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-border bg-secondary hover:bg-secondary/70 cursor-pointer">
-            <ImagePlus className="size-3.5" />{uploading ? "Uploading…" : "Take photo"}
-          </span>
-        </label>
-        {/* Gallery — file picker (phone gallery / computer folder) */}
-        <label className="inline-flex">
-          <input type="file" accept="image/*" className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
-          <span className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg border border-border bg-secondary hover:bg-secondary/70 cursor-pointer">
-            <Images className="size-3.5" />Gallery
-          </span>
-        </label>
-        {value && (
-          <Button type="button" variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => onChange("")}>Remove</Button>
+    <>
+      <div className="rounded-xl border border-border bg-card hover:border-primary/40 transition-colors cursor-pointer overflow-hidden flex flex-col" onClick={onView}>
+        {catName && (
+          <div className="px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider truncate" style={{ background: pal.bg, color: pal.fg }}>
+            {catName}
+          </div>
         )}
-      </div>
-    </div>
-  );
-}
-
-function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, onClearBarcode }:
-  { p: any; canEdit: boolean; canDelete: boolean; onView: () => void; onEdit: () => void; onDelete: () => void; onScan: () => void; onClearBarcode: () => void }) {
-  return (
-    <div className="rounded-xl border border-border bg-card hover:bg-secondary/40 hover:border-primary/40 transition-colors cursor-pointer overflow-hidden" onClick={onView}>
-      <div className="flex items-start gap-3 p-3">
-        {p.image_url ? (
-          <img src={p.image_url} alt={p.name} className="size-14 rounded-lg object-cover border border-border shrink-0" />
-        ) : (
-          <div className="size-14 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-5" /></div>
-        )}
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="font-semibold text-sm leading-tight line-clamp-2">{p.name}</div>
+        <div className="p-3 min-w-0 flex-1 space-y-2">
+          <div className="flex items-start gap-2">
+            <button
+              type="button"
+              className="size-14 rounded-lg border border-border shrink-0 overflow-hidden bg-secondary grid place-items-center text-muted-foreground"
+              onClick={(e) => { e.stopPropagation(); if (p.image_url) setZoomOpen(true); }}
+            >
+              {p.image_url ? (
+                <img src={getCachedStorageUrl(p.image_url)} alt={p.name} className="size-full object-cover" />
+              ) : (
+                <ImageIcon className="size-5" />
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-sm leading-tight line-clamp-2">{p.name}</div>
+              <div className="text-[11px] text-muted-foreground font-mono truncate">{p.sku ?? "No SKU"}</div>
+            </div>
+          </div>
           <div className="flex items-center gap-2 flex-wrap">
             <StockStatus stock={p.stock} threshold={p.low_stock_threshold} />
-            <span className="text-[11px] text-muted-foreground">Qty <span className="text-foreground font-bold">{p.stock}</span></span>
+            <span className="text-[11px] text-muted-foreground">Stock <span className="text-foreground font-bold">{p.stock}</span></span>
+            <span className="text-[11px] text-muted-foreground">¥<span className="text-foreground font-bold">{Number(p.price ?? 0).toLocaleString("en-US")}</span></span>
             {stockInBoxes(p.stock, p.pcs_per_case) && (
               <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20">
                 {stockInBoxes(p.stock, p.pcs_per_case)}
@@ -991,37 +1087,27 @@ function ProductCard({ p, canEdit, canDelete, onView, onEdit, onDelete, onScan, 
             )}
           </div>
           {p.barcode && (
-            <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-              <span className="font-mono text-[10px] text-muted-foreground truncate flex-1">{p.barcode}</span>
-              {canEdit && (
-                <button
-                  onClick={() => { if (confirm(`Remove barcode ${p.barcode} from "${p.name}"?`)) onClearBarcode(); }}
-                  className="size-5 grid place-items-center rounded text-destructive hover:bg-destructive/10"
-                  aria-label="Remove barcode"
-                >
-                  <Trash2 className="size-3" />
-                </button>
-              )}
-            </div>
+            <div className="font-mono text-[10px] text-muted-foreground truncate">{p.barcode}</div>
           )}
         </div>
-      </div>
-      {canEdit && (
-        <div className="flex border-t border-border divide-x divide-border" onClick={(e) => e.stopPropagation()}>
-          <button onClick={onScan} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-            <ScanLine className="size-3.5" /> Scan
-          </button>
-          <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
-            <Pencil className="size-3.5" /> Edit
-          </button>
-          {canDelete && (
-            <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors">
-              <Trash2 className="size-3.5" /> Delete
+        {canEdit && (
+          <div className="flex border-t border-border divide-x divide-border" onClick={(e) => e.stopPropagation()}>
+            <button onClick={onScan} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+              <ScanLine className="size-3.5" /> Scan
             </button>
-          )}
-        </div>
-      )}
-    </div>
+            <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors">
+              <Pencil className="size-3.5" /> Edit
+            </button>
+            {canDelete && (
+              <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-1 py-2 text-xs text-destructive hover:bg-destructive/10 transition-colors">
+                <Trash2 className="size-3.5" /> Delete
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      <ProductImageZoom open={zoomOpen} onOpenChange={setZoomOpen} src={getCachedStorageUrl(p.image_url)} alt={p.name} />
+    </>
   );
 }
 
@@ -1031,6 +1117,7 @@ function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onC
   const [parentId, setParentId] = useState<string>("__root__");
   const [editingCat, setEditingCat] = useState<any | null>(null);
   const [editName, setEditName] = useState("");
+  const [editParentId, setEditParentId] = useState<string>("__root__");
 
   const mainCats = categories.filter((c: any) => !c.parent_id);
 
@@ -1046,10 +1133,11 @@ function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onC
 
   const rename = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("categories").update({ name: editName.trim() }).eq("id", editingCat.id);
+      const newParent = editParentId === "__root__" ? null : editParentId;
+      const { error } = await supabase.from("categories").update({ name: editName.trim(), parent_id: newParent }).eq("id", editingCat.id);
       if (error) throw error;
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setEditingCat(null); toast.success("Category renamed"); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["categories"] }); setEditingCat(null); toast.success("Category updated"); },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -1086,10 +1174,10 @@ function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onC
               const subs = categories.filter((c: any) => c.parent_id === mc.id);
               return (
                 <div key={mc.id} className="rounded-lg border border-border">
-                  <CategoryRow cat={mc} onEdit={() => { setEditingCat(mc); setEditName(mc.name); }} onDelete={() => remove.mutate(mc.id)} />
+                  <CategoryRow cat={mc} onEdit={() => { setEditingCat(mc); setEditName(mc.name); setEditParentId("__root__"); }} onDelete={() => remove.mutate(mc.id)} />
                   {subs.map((sub: any) => (
                     <div key={sub.id} className="pl-6 border-t border-border">
-                      <CategoryRow cat={sub} onEdit={() => { setEditingCat(sub); setEditName(sub.name); }} onDelete={() => remove.mutate(sub.id)} />
+                      <CategoryRow cat={sub} onEdit={() => { setEditingCat(sub); setEditName(sub.name); setEditParentId(sub.parent_id ?? "__root__"); }} onDelete={() => remove.mutate(sub.id)} />
                     </div>
                   ))}
                 </div>
@@ -1101,8 +1189,25 @@ function CategoryManagerDialog({ categories, onClose }: { categories: any[]; onC
         {editingCat && (
           <Dialog open onOpenChange={(v) => !v && setEditingCat(null)}>
             <DialogContent>
-              <DialogHeader><DialogTitle>Rename category</DialogTitle></DialogHeader>
-              <Input value={editName} onChange={e => setEditName(e.target.value)} />
+              <DialogHeader><DialogTitle>Edit category</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Name</label>
+                  <Input className="mt-1" value={editName} onChange={e => setEditName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">Parent category</label>
+                  <Select value={editParentId} onValueChange={setEditParentId}>
+                    <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__root__">— Top level (main category)</SelectItem>
+                      {mainCats.filter((c: any) => c.id !== editingCat.id).map((c: any) => (
+                        <SelectItem key={c.id} value={c.id}>Sub of: {c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
               <DialogFooter>
                 <Button variant="ghost" onClick={() => setEditingCat(null)}>Cancel</Button>
                 <Button className="gradient-primary text-primary-foreground border-0" onClick={() => rename.mutate()}>Save</Button>
@@ -1317,7 +1422,7 @@ function RapidScanDialog({
                   "px-2 py-0.5 rounded-full border",
                   isCurrent ? "border-primary bg-primary text-primary-foreground font-bold"
                     : passed ? "border-success/40 bg-success/10 text-success line-through"
-                    : "border-border bg-secondary/40 text-muted-foreground"
+                      : "border-border bg-secondary/40 text-muted-foreground"
                 )}>{i + 1}. {s.name}</span>
               );
             })}
@@ -1407,6 +1512,172 @@ function RapidScanDialog({
           keepOpenOnDetect
           onDetectedLabel={detectedLabelFor}
         />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function BulkImportDialog({
+  categories,
+  defaultMainId,
+  defaultSubId,
+  onClose,
+  onDone,
+}: {
+  categories: any[];
+  defaultMainId: string;
+  defaultSubId: string;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const qc = useQueryClient();
+  const [mainCatId, setMainCatId] = useState(defaultMainId);
+  const [subCatId, setSubCatId] = useState(defaultSubId);
+  const [text, setText] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [addingVendor, setAddingVendor] = useState(false);
+  const [newVendorName, setNewVendorName] = useState("");
+
+  const mainCats = categories.filter((c: any) => !c.parent_id);
+  const subCats = categories.filter((c: any) => c.parent_id === mainCatId);
+  const categoryId = subCatId || mainCatId;
+
+  const rows = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .map((line) => {
+      const extracted = extractSizeFromName(line);
+      return { name: line, size: extracted?.size ?? "", unit: extracted?.unit ?? "" };
+    });
+
+  async function createVendor() {
+    if (!newVendorName.trim() || !mainCatId) return;
+    const { data, error } = await supabase.from("categories").insert({ name: newVendorName.trim(), parent_id: mainCatId }).select().single();
+    if (error) { toast.error(error.message); return; }
+    await qc.invalidateQueries({ queryKey: ["categories"] });
+    setSubCatId(data.id);
+    setNewVendorName("");
+    setAddingVendor(false);
+    toast.success("Vendor added");
+  }
+
+  async function doImport() {
+    if (!rows.length || !categoryId) return;
+    setImporting(true);
+    try {
+      const records = rows.map((r) => ({
+        name: r.name,
+        size: r.size || null,
+        unit: r.unit || null,
+        category_id: categoryId,
+        stock: 0,
+        price: 0,
+        low_stock_threshold: 5,
+      }));
+      const { error } = await supabase.from("products").insert(records);
+      if (error) throw error;
+      toast.success(`Imported ${records.length} products`);
+      onDone();
+    } catch (e: any) {
+      toast.error(e.message ?? "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col gap-0 p-0">
+        <DialogHeader className="p-4 pb-3 border-b border-border shrink-0">
+          <DialogTitle className="flex items-center gap-2"><ClipboardList className="size-5 text-primary" /> Import products</DialogTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">Paste product names — one per line. Sizes like 450ml or 400g are extracted automatically.</p>
+        </DialogHeader>
+
+        <div className="p-4 space-y-3 shrink-0">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Category</Label>
+              <Select value={mainCatId} onValueChange={(v) => { setMainCatId(v); setSubCatId(""); }} >
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Select category" /></SelectTrigger>
+                <SelectContent>{mainCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Vendor</Label>
+                {mainCatId && !addingVendor && (
+                  <button type="button" onClick={() => setAddingVendor(true)} className="text-[11px] text-primary hover:underline flex items-center gap-0.5">
+                    <Plus className="size-3" /> New vendor
+                  </button>
+                )}
+              </div>
+              {addingVendor ? (
+                <div className="flex gap-1 mt-1">
+                  <Input autoFocus placeholder="Vendor name" value={newVendorName} onChange={e => setNewVendorName(e.target.value)} onKeyDown={e => { if (e.key === "Enter") createVendor(); if (e.key === "Escape") { setAddingVendor(false); setNewVendorName(""); } }} className="h-9 text-sm" />
+                  <Button type="button" size="sm" onClick={createVendor} disabled={!newVendorName.trim()} className="h-9 gradient-primary text-primary-foreground border-0">Add</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setAddingVendor(false); setNewVendorName(""); }} className="h-9 px-2">✕</Button>
+                </div>
+              ) : (
+                <Select value={subCatId} onValueChange={setSubCatId} disabled={!mainCatId} >
+                  <SelectTrigger className="mt-1"><SelectValue placeholder={!mainCatId ? "Pick category first" : subCats.length === 0 ? "No vendors — add one →" : "Select vendor"} /></SelectTrigger>
+                  <SelectContent>{subCats.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Paste product names</Label>
+            <textarea
+              className="mt-1 w-full h-36 rounded-md border border-input bg-background px-3 py-2 text-sm font-mono resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder={"Fish Sauce 700ml\nCoconut Milk 400ml\nJasmine Rice 5kg\nSoy Sauce 300ml"}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {rows.length > 0 && (
+          <div className="flex-1 overflow-auto border-t border-border">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-secondary/80 backdrop-blur">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-8">#</th>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground">Product name</th>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-20">Size</th>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground w-16">Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className="border-t border-border/50 hover:bg-secondary/30">
+                    <td className="px-3 py-1.5 text-muted-foreground">{i + 1}</td>
+                    <td className="px-3 py-1.5 font-medium">{r.name}</td>
+                    <td className="px-3 py-1.5 font-mono text-accent">{r.size || <span className="text-muted-foreground">—</span>}</td>
+                    <td className="px-3 py-1.5 text-muted-foreground">{r.unit || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="p-4 border-t border-border shrink-0 flex items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">
+            {rows.length > 0 ? <><span className="font-semibold text-foreground">{rows.length}</span> products ready</> : "Paste names above"}
+          </span>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              className="gradient-primary text-primary-foreground border-0 gap-2"
+              disabled={!rows.length || !categoryId || importing}
+              onClick={doImport}
+            >
+              {importing ? <><span className="size-4 border-2 border-primary-foreground/40 border-t-primary-foreground rounded-full animate-spin" />Importing…</> : <><ClipboardList className="size-4" />Import {rows.length > 0 ? rows.length : ""} products</>}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

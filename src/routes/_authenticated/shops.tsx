@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -181,7 +181,7 @@ function ShopsPage() {
           {visible.map((m: any) => (
             <div key={m.id} className="flex items-center gap-3 p-3 sm:p-4 hover:bg-secondary/30">
               {m.products?.image_url ? (
-                <img src={m.products.image_url} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
+                <img src={getCachedStorageUrl(m.products.image_url)} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
               ) : (
                 <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
               )}

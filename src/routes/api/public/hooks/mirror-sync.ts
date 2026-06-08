@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { runMirror } from "@/lib/backups.server";
 
 function checkApiKey(request: Request): boolean {
   const expected = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY ?? "";
@@ -17,6 +16,7 @@ export const Route = createFileRoute("/api/public/hooks/mirror-sync")({
             headers: { "content-type": "application/json" },
           });
         }
+        const { runMirror } = await import("@/lib/backups.server");
         const result = await runMirror("cron");
         return new Response(JSON.stringify(result), {
           status: result.ok ? 200 : 500,

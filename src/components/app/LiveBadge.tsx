@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -12,7 +12,11 @@ export function LiveBadge({ lastUpdated, className }: { lastUpdated: Date; class
     return () => clearInterval(i);
   }, []);
 
+  const lastPulseRef = useRef(0);
   useEffect(() => {
+    const now = Date.now();
+    if (now - lastPulseRef.current < 5000) return;
+    lastPulseRef.current = now;
     setPulse(true);
     const t = setTimeout(() => setPulse(false), 1200);
     return () => clearTimeout(t);

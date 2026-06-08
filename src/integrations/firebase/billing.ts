@@ -17,6 +17,23 @@ const firebaseConfig = {
 
 const ROOT = "billing";
 
+// Optional runtime override of the Firebase config, editable from the Settings
+// page (which mirrors app_settings.firebase_config into this localStorage key on
+// save). Falls back to the hardcoded config above if unset/invalid.
+export const FB_CONFIG_OVERRIDE_KEY = "fb_config_override";
+function resolveConfig() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem(FB_CONFIG_OVERRIDE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.apiKey && parsed.databaseURL) return { ...firebaseConfig, ...parsed };
+      }
+    }
+  } catch { /* ignore — use default */ }
+  return firebaseConfig;
+}
+
 // ── Lazy client-side init ──────────────────────────────────────────────────────
 // All Firebase code is deferred until first use so SSR (Cloudflare Worker)
 // never touches browser-only APIs (localStorage, indexedDB, etc.)
@@ -27,24 +44,24 @@ let _authReady = false;
 function getDB(): Database {
   if (_db) return _db;
   if (typeof window === "undefined") throw new Error("Firebase not available during SSR");
-  _app = getApps().find(a => a.name === "billing") ?? initializeApp(firebaseConfig, "billing");
-  _db  = getDatabase(_app);
+  _app = getApps().find(a => a.name === "billing") ?? initializeApp(resolveConfig(), "billing");
+  _db = getDatabase(_app);
   if (!_authReady) {
     _authReady = true;
-    signInAnonymously(getAuth(_app)).catch(() => {});
+    signInAnonymously(getAuth(_app)).catch(() => { });
   }
   return _db;
 }
 
 // ── Default stores (seed on first use) ────────────────────────────────────────
 const DEFAULT_STORES: BillingStore[] = [
-  { id: "mm_kita_otsuka",  name: "MM-MART", sub: "Kita Otsuka",   address: "東京都豊島区北大塚3-32-3(201)",           tel: "03-6903-6174", zip: "170-0004" },
-  { id: "mm_takadano",     name: "MM-MART", sub: "Takadano Baba", address: "東京都新宿区高田馬場4丁目9-14 岩ビル1階", tel: "03-6768-0683", zip: "169-0075" },
-  { id: "mm_minami",       name: "MM-MART", sub: "Minami Otsuka", address: "東京都豊島区南大塚",                       tel: "",             zip: "170-0005" },
-  { id: "mm_higashi_jujo", name: "MM-MART", sub: "Higashi Jujo",  address: "東京都北区東十条",                         tel: "",             zip: "114-0003" },
-  { id: "mm_sugamo",       name: "MM-MART", sub: "Sugamo",        address: "東京都豊島区巣鴨",                         tel: "",             zip: "170-0002" },
-  { id: "mm_kawaguchi",    name: "MM-MART", sub: "Kawaguchi",     address: "埼玉県川口市",                             tel: "",             zip: "332-0000" },
-  { id: "mm_komagome",     name: "MM-MART", sub: "Komagome",      address: "東京都豊島区駒込",                         tel: "",             zip: "170-0003" },
+  { id: "mm_kita_otsuka", name: "MM-MART", sub: "Kita Otsuka", address: "東京都豊島区北大塚3-32-3(201)", tel: "03-6903-6174", zip: "170-0004" },
+  { id: "mm_takadano", name: "MM-MART", sub: "Takadano Baba", address: "東京都新宿区高田馬場4丁目9-14 岩ビル1階", tel: "03-6768-0683", zip: "169-0075" },
+  { id: "mm_minami", name: "MM-MART", sub: "Minami Otsuka", address: "東京都豊島区南大塚", tel: "", zip: "170-0005" },
+  { id: "mm_higashi_jujo", name: "MM-MART", sub: "Higashi Jujo", address: "東京都北区東十条", tel: "", zip: "114-0003" },
+  { id: "mm_sugamo", name: "MM-MART", sub: "Sugamo", address: "東京都豊島区巣鴨", tel: "", zip: "170-0002" },
+  { id: "mm_kawaguchi", name: "MM-MART", sub: "Kawaguchi", address: "埼玉県川口市", tel: "", zip: "332-0000" },
+  { id: "mm_komagome", name: "MM-MART", sub: "Komagome", address: "東京都豊島区駒込", tel: "", zip: "170-0003" },
 ];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -119,7 +136,7 @@ export async function fbSaveCustomer(customer: BillingCustomer): Promise<Billing
     return customer;
   }
   const newRef = push(rpath("customers"));
-  const id     = newRef.key!;
+  const id = newRef.key!;
   const { id: _discarded, ...rest } = customer;
   await set(newRef, clean(rest));
   return { ...customer, id };
@@ -141,8 +158,8 @@ export async function fbSaveInvoice(
     return { id: existingId, ...data } as BillingInvoice;
   }
 
-  const newRef  = push(rpath("invoices"));
-  const id      = newRef.key!;
+  const newRef = push(rpath("invoices"));
+  const id = newRef.key!;
   const payload = { ...data, created_at: new Date().toISOString() };
   await set(newRef, payload);
   return { id, ...payload } as BillingInvoice;

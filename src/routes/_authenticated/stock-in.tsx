@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { useState, useEffect, useRef } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -9,15 +9,12 @@ import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScanLine, Search, ChevronRight, ChevronLeft, Folder, FolderOpen, Camera, ImageIcon, PackageSearch, Package, PackagePlus, Sparkles, RotateCcw, Loader2 } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import { scanProductImage } from "@/lib/ai-scan.functions";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
-const BILLING_SERVER = "https://billing-server-421265140321.asia-southeast1.run.app";
-function notifyBillingStockSync() {
-  fetch(`${BILLING_SERVER}/api/sync/stock`, { method: "POST", credentials: "include" }).catch(() => {});
-}
+import { notifyBillingStockSync } from "@/lib/billing-server";
 import { cn } from "@/lib/utils";
 import { StrichScanner } from "@/components/app/StrichScanner";
 import { displaySize, displayStock, extractSizeFromName } from "@/lib/product-format";
@@ -112,7 +109,7 @@ function StockIn() {
       const b = Math.max(0, Number(boxQty) || 0);
       const p = Math.max(0, Number(xPcs) || 0);
       const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
-      const actual = perBox > 0 ? b * perBox + p : p;
+      const actual = perBox > 0 ? b * perBox + p : b;
       if (!actual || actual < 1) throw new Error("Enter a quantity");
       const parts = perBox > 0 && b > 0
         ? `${b} box${b !== 1 ? "es" : ""} × ${perBox}${p > 0 ? ` + ${p} pcs` : ""} = ${actual} pcs`
@@ -131,9 +128,9 @@ function StockIn() {
       const b = Number(boxQty) || 0;
       const p = Number(xPcs) || 0;
       const perBox = confirm.pcs_per_case && confirm.pcs_per_case > 0 ? confirm.pcs_per_case : 0;
-      const actual = perBox > 0 ? b * perBox + p : p;
+      const actual = perBox > 0 ? b * perBox + p : b;
       toast.success(`Added ${actual} pcs to ${confirm.name}`);
-      setConfirm(null); setBoxQty("0"); setXPcs("1");
+      setConfirm(null); setBoxQty("0"); setXPcs("0");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -176,7 +173,7 @@ function StockIn() {
     setNewProdImg(dataUrl);
     setAiScanning(true);
     try {
-      const json = await callScanProduct({ data: { image: dataUrl } });
+      const json = await callScanProduct({ data: { images: [dataUrl] } });
       if (json.ok && json.product) {
         const p = json.product as any;
         const nm = p.name ?? "";
@@ -343,7 +340,7 @@ function StockIn() {
                 <button key={p.id} onClick={() => setConfirm(p)}
                   className="w-full flex items-center gap-3 px-2 py-2.5 hover:bg-secondary/60 active:bg-secondary rounded-lg text-left">
                   {p.image_url ? (
-                    <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
+                    <img src={getCachedStorageUrl(p.image_url)} alt={p.name} className="size-12 rounded-lg object-cover border border-border shrink-0" />
                   ) : (
                     <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground shrink-0"><Package className="size-5" /></div>
                   )}
@@ -363,13 +360,13 @@ function StockIn() {
         )}
       </div>
 
-      <Dialog open={!!confirm} onOpenChange={(v) => { if (!v) { setConfirm(null); setBoxQty("0"); setXPcs("1"); } }}>
+      <Dialog open={!!confirm} onOpenChange={(v) => { if (!v) { setConfirm(null); setBoxQty("0"); setXPcs("0"); } }}>
         <DialogContent className="max-w-md p-0 gap-0 max-h-[92vh] overflow-y-auto">
           {confirm && (
             <>
               <div className="relative w-full aspect-[4/3] sm:aspect-square bg-secondary shrink-0">
                 {confirm.image_url ? (
-                  <img src={confirm.image_url} alt={confirm.name} className="w-full h-full object-contain" />
+                  <img src={getCachedStorageUrl(confirm.image_url)} alt={confirm.name} className="w-full h-full object-contain" />
                 ) : (
                   <div className="w-full h-full grid place-items-center text-muted-foreground"><ImageIcon className="size-16" /></div>
                 )}
@@ -423,15 +420,39 @@ function StockIn() {
                     </div>
                   </div>
                 ) : (
-                  <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pieces to add</Label>
-                    <div className="mt-2 flex items-center gap-3">
-                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                        onClick={() => setXPcs(String(Math.max(1, Number(xPcs) - 1)))}>−</Button>
-                      <Input type="number" inputMode="numeric" min="1" value={xPcs} onChange={e => setXPcs(e.target.value)}
-                        className="h-14 sm:h-16 text-center text-2xl font-bold rounded-2xl" />
-                      <Button variant="secondary" size="icon" className="size-14 sm:size-16 text-3xl font-bold shrink-0 rounded-2xl active:scale-95"
-                        onClick={() => setXPcs(String(Number(xPcs) + 1))}>+</Button>
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Quantity to add</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Boxes</div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setBoxQty(String(Math.max(0, Number(boxQty) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={boxQty}
+                            onChange={e => setBoxQty(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setBoxQty(String(Number(boxQty) + 1))}>+</Button>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-muted-foreground mb-1.5 font-medium">Extra Pcs</div>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setXPcs(String(Math.max(0, Number(xPcs) - 1)))}>−</Button>
+                          <Input type="number" inputMode="numeric" min="0" value={xPcs}
+                            onChange={e => setXPcs(e.target.value)}
+                            className="h-11 text-center text-lg font-bold rounded-xl" />
+                          <Button variant="secondary" size="icon" className="size-11 text-xl font-bold rounded-xl shrink-0"
+                            onClick={() => setXPcs(String(Number(xPcs) + 1))}>+</Button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-success/10 border border-success/30 text-sm font-semibold text-center">
+                      {Number(boxQty) > 0 && <span>{boxQty} box{Number(boxQty) !== 1 ? "es" : ""}</span>}
+                      {Number(boxQty) > 0 && Number(xPcs) > 0 && <span className="text-muted-foreground"> + </span>}
+                      {Number(xPcs) > 0 && <span>{xPcs} pcs</span>}
+                      <span className="text-success font-bold"> = {Number(boxQty) + Number(xPcs)} total pcs</span>
                     </div>
                   </div>
                 )}
@@ -486,13 +507,23 @@ function StockIn() {
           <div className="space-y-3">
             <div className="p-3 rounded-lg bg-secondary/60 border border-border text-sm">
               Scanned code: <span className="font-mono text-foreground">{notFound}</span>
-              <p className="text-xs text-muted-foreground mt-1">Pick the product this barcode belongs to. We'll register it for future scans.</p>
+            </div>
+            <Button
+              onClick={() => { setNewProdFields((f) => ({ ...f, sku: f.sku || (notFound ?? "") })); setNewProdOpen(true); }}
+              className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <PackagePlus className="size-4" /> Register as New Product
+            </Button>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">or assign to existing product</span>
+              <div className="flex-1 h-px bg-border" />
             </div>
             <div className="relative">
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input autoFocus value={pickSearch} onChange={e => setPickSearch(e.target.value)} placeholder="Search products or categories…" className="pl-9" />
             </div>
-            <div className="max-h-[320px] overflow-auto space-y-1">
+            <div className="max-h-[280px] overflow-auto space-y-1">
               {products
                 .filter((p: any) => {
                   if (!pickSearch) return true;
@@ -509,7 +540,7 @@ function StockIn() {
                       onClick={() => registerBarcode.mutate({ id: p.id, barcode: notFound! })}
                       className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60 text-left border border-transparent hover:border-border">
                       {p.image_url ? (
-                        <img src={p.image_url} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
+                        <img src={getCachedStorageUrl(p.image_url)} alt={p.name} className="size-10 rounded-lg object-cover border border-border" />
                       ) : (
                         <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground"><ImageIcon className="size-4" /></div>
                       )}
@@ -528,14 +559,8 @@ function StockIn() {
               {products.length === 0 && <p className="text-sm text-muted-foreground p-6 text-center">No products yet.</p>}
             </div>
           </div>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button variant="ghost" onClick={() => setNotFound(null)} className="flex-1">Cancel</Button>
-            <Button
-              onClick={() => { setNewProdOpen(true); }}
-              className="flex-1 gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <PackagePlus className="size-4" /> Register as New Product
-            </Button>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNotFound(null)}>Cancel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -555,45 +580,48 @@ function StockIn() {
           </DialogHeader>
 
           <div className="p-4 space-y-4">
-            {/* Camera section */}
-            <div
-              onClick={() => !aiScanning && fileRef.current?.click()}
-              className={cn(
-                "relative rounded-2xl border-2 border-dashed overflow-hidden cursor-pointer transition-colors",
-                newProdImg ? "border-border" : "border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10",
-                aiScanning && "pointer-events-none",
-              )}
-              style={{ minHeight: 160 }}
-            >
-              {newProdImg ? (
-                <>
-                  <img src={newProdImg} alt="Product" className="w-full object-contain max-h-48" />
-                  {aiScanning && (
-                    <div className="absolute inset-0 bg-background/70 backdrop-blur-sm grid place-items-center gap-2 flex-col">
-                      <Loader2 className="size-8 text-primary animate-spin" />
-                      <span className="text-sm font-medium flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> AI reading product…</span>
+            {/* Camera section — optional */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Photo <span className="normal-case font-normal">(optional — AI auto-fill)</span></span>
+              </div>
+              <div
+                onClick={() => !aiScanning && fileRef.current?.click()}
+                className={cn(
+                  "relative rounded-2xl border-2 border-dashed overflow-hidden cursor-pointer transition-colors",
+                  newProdImg ? "border-border" : "border-border/60 hover:border-primary bg-secondary/30 hover:bg-primary/5",
+                  aiScanning && "pointer-events-none",
+                )}
+                style={{ minHeight: 120 }}
+              >
+                {newProdImg ? (
+                  <>
+                    <img src={newProdImg} alt="Product" className="w-full object-contain max-h-48" />
+                    {aiScanning && (
+                      <div className="absolute inset-0 bg-background/70 backdrop-blur-sm grid place-items-center gap-2 flex-col">
+                        <Loader2 className="size-8 text-primary animate-spin" />
+                        <span className="text-sm font-medium flex items-center gap-1.5"><Sparkles className="size-4 text-primary" /> AI reading product…</span>
+                      </div>
+                    )}
+                    {!aiScanning && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
+                        className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/90 border border-border text-xs font-medium hover:bg-secondary"
+                      >
+                        <RotateCcw className="size-3" /> Retake
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
+                    <Camera className="size-6 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tap to take a photo</p>
+                      <p className="text-xs text-muted-foreground/60 mt-0.5">AI will read the label — or skip and fill below</p>
                     </div>
-                  )}
-                  {!aiScanning && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); fileRef.current?.click(); }}
-                      className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/90 border border-border text-xs font-medium hover:bg-secondary"
-                    >
-                      <RotateCcw className="size-3" /> Retake
-                    </button>
-                  )}
-                </>
-              ) : (
-                <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-                  <div className="size-14 rounded-2xl bg-primary/15 grid place-items-center">
-                    <Camera className="size-7 text-primary" />
                   </div>
-                  <div>
-                    <p className="font-semibold text-sm">Take a photo of the product</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">AI will read the label automatically</p>
-                  </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden"
               onChange={async (e) => { const f = e.target.files?.[0]; if (f) await handlePhotoSelected(f); e.target.value = ""; }} />
@@ -602,7 +630,7 @@ function StockIn() {
             <div className="space-y-3">
               <div>
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Product Name <span className="text-destructive">*</span></Label>
-                <Input className="mt-1" value={newProdFields.name} onChange={e => setNewProdFields(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Fish Sauce Premium" />
+                <Input autoFocus className="mt-1" value={newProdFields.name} onChange={e => setNewProdFields(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Fish Sauce Premium" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

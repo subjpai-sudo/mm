@@ -35,7 +35,7 @@ export function ScannerFAB() {
         onClick={() => setOpen(true)}
         className={cn(
           "fixed z-40 bottom-20 right-4 md:bottom-6 md:right-6",
-          "size-14 md:size-16 rounded-full gradient-primary text-primary-foreground",
+          "size-14 md:size-16 rounded-full bg-primary gradient-primary text-primary-foreground",
           "shadow-[0_10px_30px_-8px_rgba(0,0,0,0.45)] grid place-items-center",
           "ring-4 ring-primary/15 hover:scale-105 active:scale-95 transition-transform",
         )}

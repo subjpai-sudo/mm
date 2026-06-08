@@ -1,19 +1,20 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import JsBarcode from "jsbarcode";
 import { formatDistanceToNow, format, subDays, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
   ChevronLeft, QrCode, Pencil, MapPin, Package, ArrowUpRight, ArrowDownRight,
-  Truck, Warehouse, Store, ImageIcon, Barcode as BarcodeIcon, Calendar, User as UserIcon,
+  Truck, Warehouse, Store, Barcode as BarcodeIcon, Calendar, User as UserIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { displaySize } from "@/lib/product-format";
 import { categoryPalette, resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 import { PageHeader } from "@/components/app/PageHeader";
 import { ProductLocationCard } from "@/components/app/ProductLocationCard";
+import { ProductImageZoom } from "@/components/app/ProductImageZoom";
 
 export const Route = createFileRoute("/_authenticated/products_/$productId")({
   component: ProductDetailPage,
@@ -24,7 +25,16 @@ type Tab = "overview" | "history" | "location";
 function ProductDetailPage() {
   const { productId } = Route.useParams();
   const navigate = useNavigate();
+  const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
+  // Go back to wherever we came from (keeps the category/vendor filter that
+  // products.tsx stores in the URL). Fall back to /products on a deep link
+  // where there's no prior history entry to return to.
+  const handleBack = () => {
+    if (router.history.length > 1) router.history.back();
+    else navigate({ to: "/products" });
+  };
 
   const handlePrintLabel = () => {
     // window.print uses our injected print-area CSS to isolate the label
@@ -121,6 +131,10 @@ function ProductDetailPage() {
   const mainCatName = resolveMainCategoryName(p.category_id, allCategories) ?? p.categories?.name ?? "";
   const palette = categoryPalette(mainCatName);
   const paletteLabel = (mainCatName || "Uncategorized").toUpperCase();
+  const productCategoryName = p.categories?.name ?? "";
+  const categoryPath = mainCatName && productCategoryName && mainCatName !== productCategoryName
+    ? `${mainCatName} -> ${productCategoryName}`
+    : mainCatName || productCategoryName || "Uncategorized";
   const suggested = Math.max(0, threshold * 2 - stock);
   const netSeven = sevenDays.inQty - sevenDays.outQty;
 
@@ -134,9 +148,9 @@ function ProductDetailPage() {
     <div className="px-4 md:px-8 py-5 max-w-[1280px] mx-auto pb-16">
       {/* Back / actions */}
       <div className="flex items-center gap-2 mb-4">
-        <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/products" })} className="-ml-2 shrink-0">
+        <Button variant="ghost" size="sm" onClick={handleBack} className="-ml-2 shrink-0">
           <ChevronLeft className="size-4" />
-          <span className="hidden sm:inline">All products</span>
+          <span className="hidden sm:inline">Back</span>
         </Button>
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
@@ -183,49 +197,66 @@ function ProductDetailPage() {
         </div>
       </div>
 
-      {/* HERO */}
-      <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-[var(--shadow-card)] mb-5">
-        <div className="grid md:grid-cols-[420px_1fr]">
-          {/* Image / origin-band */}
+      {/* HERO — clean product image stage with category border accent */}
+      <div
+        className="rounded-2xl border bg-card overflow-hidden shadow-[var(--shadow-card)] mb-5"
+        style={{ borderColor: palette.border }}
+      >
+        <div className="flex flex-col md:grid md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
           <div
-            className="relative min-h-[280px] md:min-h-[360px] grid place-items-center overflow-hidden"
-            style={{ background: palette.bg, color: palette.fg }}
+            className="relative w-full min-h-[min(62vh,520px)] md:min-h-[460px] flex items-center justify-center overflow-hidden bg-white border-[5px]"
+            style={{ color: palette.accent, borderColor: palette.border }}
           >
             <div
-              className="absolute inset-0 opacity-60"
+              className="absolute inset-0 pointer-events-none"
               style={{
-                backgroundImage:
-                  "radial-gradient(circle at 20% 20%, rgba(255,255,255,0.18) 0%, transparent 45%), radial-gradient(circle at 80% 80%, rgba(0,0,0,0.18) 0%, transparent 55%)",
+                boxShadow: `inset 0 0 0 1px ${palette.border}`,
               }}
             />
             {p.image_url ? (
-              <img
-                src={p.image_url}
-                alt={p.name}
-                className="relative max-h-[260px] max-w-[260px] object-contain drop-shadow-[0_20px_30px_rgba(0,0,0,0.35)]"
-              />
+              <button
+                type="button"
+                className="relative z-10 w-full h-[min(62vh,520px)] md:h-[460px] flex items-center justify-center cursor-zoom-in active:scale-[0.99] transition-transform"
+                onClick={() => setImageZoomOpen(true)}
+                aria-label="Tap to zoom product image"
+              >
+                <img
+                  src={getCachedStorageUrl(p.image_url)}
+                  alt={p.name}
+                  className="w-full h-full object-contain scale-[1.18] sm:scale-[1.22] md:scale-[1.16] drop-shadow-[0_18px_28px_rgba(15,23,42,0.16)]"
+                />
+              </button>
             ) : (
-              <div className="relative w-[200px] h-[220px] rounded-lg border-2 border-black/20 shadow-2xl p-5 flex flex-col justify-between"
-                style={{ background: `linear-gradient(180deg, ${palette.bg}, rgba(0,0,0,0.25))` }}>
-                <div className="size-14 rounded-full bg-white/25 backdrop-blur grid place-items-center border border-white/40">
-                  <Package className="size-7" />
+              <div
+                className="relative z-10 w-[min(82vw,360px)] h-[min(50vh,380px)] rounded-xl border-2 bg-white shadow-xl p-6 flex flex-col justify-between"
+                style={{ borderColor: palette.border, color: palette.accent }}
+              >
+                <div className="size-16 rounded-full grid place-items-center border" style={{ background: palette.soft, borderColor: palette.border }}>
+                  <Package className="size-8" />
                 </div>
                 <div>
-                  <div className="text-xs font-semibold leading-tight drop-shadow">{p.name.split(" ").slice(0, 4).join(" ")}</div>
-                  {p.barcode && <div className="font-mono text-[10px] opacity-80 mt-1.5">{p.barcode}</div>}
+                  <div className="text-sm font-semibold leading-tight">{p.name.split(" ").slice(0, 4).join(" ")}</div>
+                  {p.barcode && <div className="font-mono text-[11px] opacity-80 mt-1.5">{p.barcode}</div>}
                 </div>
               </div>
             )}
-            <div className="absolute left-4 bottom-4 flex items-center gap-1.5 text-[10px] font-mono tracking-[0.15em] opacity-90">
+            {p.image_url && (
+              <span
+                className="absolute bottom-5 right-4 z-10 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 rounded-full bg-white/90 border backdrop-blur-sm pointer-events-none shadow-sm"
+                style={{ borderColor: palette.border, color: palette.accent }}
+              >
+                Tap to zoom
+              </span>
+            )}
+            <div className="absolute left-4 bottom-4 z-10 flex items-center gap-1.5 text-[10px] font-mono tracking-[0.15em] opacity-90">
               <Package className="size-3" /> {paletteLabel}
             </div>
           </div>
 
-          {/* Info */}
-          <div className="p-6 md:p-7 flex flex-col">
+          <div className="p-5 md:p-7 flex flex-col border-t md:border-t-0 md:border-l border-border/60">
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
               <span className="chip chip-pri"><MapPin className="size-3" /> {locationLabel}</span>
-              {p.categories?.name && <span className="chip">{p.categories.name}</span>}
+              <span className="chip">{categoryPath}</span>
               <span className={`chip chip-${isOut ? "bad" : isLow ? "warn" : "ok"}`}>
                 <span className="chip-dot" /> {toneLabel}
               </span>
@@ -334,10 +365,16 @@ function ProductDetailPage() {
       </div>
 
       {tab === "overview" && (
-        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} categories={allCategories} />
+        <OverviewTab p={p} related={related as any[]} history={history as any[]} userById={userById} sevenDays={sevenDays} locationLabel={locationLabel} categories={allCategories} categoryPath={categoryPath} mainCategoryName={mainCatName} />
       )}
       {tab === "history" && <HistoryTab history={history as any[]} userById={userById} />}
       {tab === "location" && <LocationTab p={p} rackLabel={rackLabel} shelfLabel={shelfLabel} />}
+      <ProductImageZoom
+        open={imageZoomOpen}
+        onOpenChange={setImageZoomOpen}
+        src={getCachedStorageUrl(p.image_url)}
+        alt={p.name}
+      />
     </div>
   );
 }
@@ -352,8 +389,8 @@ function Mini({ label, value, tone }: { label: string; value: string; tone: stri
 }
 
 function OverviewTab({
-  p, related, history, userById, sevenDays, locationLabel, categories,
-}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string; categories: CategoryLite[] }) {
+  p, related, history, userById, sevenDays, locationLabel, categories, categoryPath, mainCategoryName,
+}: { p: any; related: any[]; history: any[]; userById: Map<string, string>; sevenDays: { inQty: number; outQty: number; days: { label: string; in: number; out: number }[] }; locationLabel: string; categories: CategoryLite[]; categoryPath: string; mainCategoryName: string }) {
   const navigate = useNavigate();
   const net = sevenDays.inQty - sevenDays.outQty;
   return (
@@ -398,7 +435,7 @@ function OverviewTab({
                   >
                     <div className="aspect-square rounded-md mb-2 overflow-hidden grid place-items-center" style={{ background: pal.bg }}>
                       {r.image_url ? (
-                        <img src={r.image_url} alt={r.name} className="w-full h-full object-contain" loading="lazy" />
+                        <img src={getCachedStorageUrl(r.image_url)} alt={r.name} className="w-full h-full object-contain" loading="lazy" />
                       ) : (
                         <Package className="size-8" style={{ color: pal.fg }} />
                       )}
@@ -422,7 +459,8 @@ function OverviewTab({
           <div className="upper-label mb-3">Identification</div>
           <KV k="SKU" v={p.sku ?? "—"} mono />
           <KV k="Barcode" v={p.barcode ?? "—"} mono />
-          <KV k="Category" v={p.categories?.name ?? "Uncategorized"} />
+          <KV k="Main category" v={mainCategoryName || "Uncategorized"} />
+          <KV k="Category" v={categoryPath} />
           <KV k="Location" v={locationLabel} mono last={!p.barcode} />
           {p.barcode && (
             <div className="mt-3 p-3 bg-white text-black rounded-lg border border-border">

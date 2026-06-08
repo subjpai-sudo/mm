@@ -1,7 +1,8 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/start-client-core";
 import { z } from "zod";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendOwnerSms, sendSmsTo } from "./notifications.server";
+import { getNotifyPrefs } from "./config.server";
 
 export { sendSmsTo };
 
@@ -12,7 +13,37 @@ export const sendViberTest = createServerFn({ method: "POST" })
 
 export const sendOrderRequestAlert = createServerFn({ method: "POST" })
   .inputValidator((input) => z.object({ message: z.string().min(1).max(1500) }).parse(input))
-  .handler(async ({ data }) => sendOwnerSms(data.message));
+  .handler(async ({ data }) => {
+    if (!(await getNotifyPrefs()).newOrder) return { sent: false, reason: "new-order-disabled" };
+    return sendOwnerSms(data.message);
+  });
+
+export const submitOrderRequest = createServerFn({ method: "POST" })
+  .inputValidator((input) =>
+    z.object({
+      type: z.string(),
+      product_name: z.string().min(1),
+      quantity: z.number().int().min(1),
+      notes: z.string().optional(),
+      viber_message: z.string(),
+      created_by: z.string().uuid().optional(),
+    }).parse(input)
+  )
+  .handler(async ({ data }) => {
+    const { error } = await supabaseAdmin.from("order_requests").insert({
+      type: data.type,
+      product_name: data.product_name,
+      quantity: data.quantity,
+      notes: data.notes ?? null,
+      viber_message: data.viber_message,
+      created_by: data.created_by ?? null,
+    });
+    if (error) throw new Error(error.message);
+    // Order is always recorded; SMS only if new-order alerts are enabled.
+    if (!(await getNotifyPrefs()).newOrder) return { sent: false, reason: "new-order-disabled" };
+    const sms = await sendOwnerSms(data.viber_message);
+    return sms;
+  });
 
 export const sendReportLinkSms = createServerFn({ method: "POST" })
   .inputValidator((input) =>
@@ -54,7 +85,12 @@ export const checkLowStockAlert = createServerFn({ method: "POST" })
       return { sent: false, reason: "already-alerted" };
     }
 
-    const status = product.stock <= 0 ? "OUT OF STOCK" : "LOW STOCK";
+    const isOut = product.stock <= 0;
+    const prefs = await getNotifyPrefs();
+    if (isOut && !prefs.outOfStock) return { sent: false, reason: "out-of-stock-disabled" };
+    if (!isOut && !prefs.lowStock) return { sent: false, reason: "low-stock-disabled" };
+
+    const status = isOut ? "OUT OF STOCK" : "LOW STOCK";
     const text = `⚠️ ${status}\n${product.name}${product.sku ? ` (${product.sku})` : ""}\nRemaining: ${product.stock} / threshold ${product.low_stock_threshold}`;
 
     const result = await sendOwnerSms(text);

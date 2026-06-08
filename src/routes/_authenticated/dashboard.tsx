@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowUpRight, ArrowDownRight, ImageIcon, Activity, Truck, Store, PackagePlus, PackageMinus, ScanLine, Printer, History, Plus, Lightbulb, AlertTriangle, Package } from "lucide-react";
@@ -11,15 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatDistanceToNow, format } from "date-fns";
-import { useRealtimeSync } from "@/hooks/use-realtime-sync";
-import { LiveBadge } from "@/components/app/LiveBadge";
+import { cn } from "@/lib/utils";
 import { SHOPS, isShop } from "@/lib/shops";
 import { DEFAULT_RACK_CODES as RACK_IDS } from "@/lib/racks";
 import { Link } from "@tanstack/react-router";
 import { useAuth } from "@/lib/auth";
 import { OperatorDashboard } from "@/components/app/OperatorDashboard";
+import { billingReprintUrl } from "@/lib/billing-server";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({ component: Dashboard });
+
+const IS_LOCAL_PREVIEW = import.meta.env.VITE_LOCAL_PREVIEW === "true";
 
 function Dashboard() {
   const { role } = useAuth();
@@ -28,16 +30,20 @@ function Dashboard() {
 }
 
 function AdminDashboard() {
-  const { lastUpdated } = useRealtimeSync();
+  // Realtime disabled in local preview; no Live badge churn on dashboard.
   const { fullName, user } = useAuth();
   const [scanOpen, setScanOpen] = useState(false);
   const { data: products = [] } = useQuery({
     queryKey: ["products"],
     queryFn: async () => (await supabase.from("products").select("*, categories(name, parent_id)").order("created_at", { ascending: false })).data ?? [],
+    staleTime: 120_000,
+    placeholderData: keepPreviousData,
   });
   const { data: movements = [] } = useQuery({
     queryKey: ["movements-recent"],
     queryFn: async () => (await supabase.from("stock_movements").select("*, products(name, image_url)").order("created_at", { ascending: false }).limit(30)).data ?? [],
+    staleTime: 120_000,
+    placeholderData: keepPreviousData,
   });
   const { data: profiles = [] } = useQuery({
     queryKey: ["profiles-all"],
@@ -53,6 +59,16 @@ function AdminDashboard() {
       .select("id, name, barcode, image_url, barcode_registered_at, barcode_registered_by")
       .not("barcode_registered_at", "is", null)
       .order("barcode_registered_at", { ascending: false }).limit(15)).data ?? [],
+  });
+  const { data: recentBills = [] } = useQuery({
+    queryKey: ["warehouse-bills", "activity"],
+    queryFn: async () => (await supabase
+      .from("warehouse_bills")
+      .select("id,bill_no,status,destination_label,billing_invoice_id,created_at,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(30)).data ?? [],
+    staleTime: 120_000,
+    placeholderData: keepPreviousData,
   });
   const { data: shipments = [] } = useQuery({
     queryKey: ["shipments"],
@@ -144,17 +160,43 @@ function AdminDashboard() {
       when: m.created_at,
       who: profileMap.get(m.user_id) ?? "System",
       product: m.products?.name ?? "—",
+      productId: m.product_id,
       image: m.products?.image_url,
       quantity: m.quantity,
       reason: m.reason,
       destination: m.destination,
+    })),
+    ...(recentBills as any[]).map((b: any) => ({
+      kind: b.status === "deleted" || b.status === "cancelled"
+        ? "bill_deleted"
+        : b.billing_invoice_id
+          ? "invoice_saved"
+          : b.status === "invoiced" || b.status === "sent_to_billing"
+            ? "invoice_started"
+            : "bill_created",
+      id: `bill-${b.id}`,
+      when: b.updated_at || b.created_at,
+      who: "System",
+      product: b.billing_invoice_id ? `Invoice #${b.billing_invoice_id}` : b.bill_no,
+      billNo: b.bill_no,
+      billId: b.id,
+      invoiceId: b.billing_invoice_id,
+      quantity: 0,
+      reason: b.billing_invoice_id
+        ? `Invoice saved from ${b.bill_no}`
+        : b.status === "deleted" || b.status === "cancelled"
+          ? "Bill voided/deleted"
+          : b.status === "invoiced" || b.status === "sent_to_billing"
+            ? "Invoice created from warehouse bill"
+            : "Warehouse bill created",
+      destination: b.destination_label,
     })),
   ].sort((a, b) => new Date(b.when).getTime() - new Date(a.when).getTime()).slice(0, 30);
 
   const filteredActivity = destFilter === "all"
     ? activity
     : activity.filter((a: any) => {
-        if (a.kind !== "stock_out") return false;
+        if (a.kind !== "stock_out" && !a.kind?.startsWith("bill_") && !a.kind?.startsWith("invoice_")) return false;
         if (destFilter === "Delivery") return a.destination === "Delivery";
         if (destFilter === "Shops") return isShop(a.destination);
         return false;
@@ -168,7 +210,6 @@ function AdminDashboard() {
         stockedIn24={stockedIn24}
         stockedOut24={stockedOut24}
         events24={last24.length}
-        lastUpdated={lastUpdated}
       />
 
       {/* Quick actions — Stock In / Stock Out / Scan */}
@@ -234,10 +275,11 @@ function AdminDashboard() {
         />
       </div>
 
-      {/* AI insights */}
-      <div className="mb-6">
-        <AIInsightsPanel />
-      </div>
+      {!IS_LOCAL_PREVIEW && (
+        <div className="mb-6">
+          <AIInsightsPanel />
+        </div>
+      )}
 
       <Tabs defaultValue="activity">
         <TabsList className="h-auto p-1 gap-1 bg-card border border-border rounded-[14px] w-full overflow-x-auto flex-nowrap justify-start sm:w-auto sm:inline-flex">
@@ -288,44 +330,72 @@ function AdminDashboard() {
               </button>
             ))}
             {destFilter !== "all" && (
-              <span className="text-xs text-muted-foreground ml-1">{filteredActivity.length} stock-out events</span>
+              <span className="text-xs text-muted-foreground ml-1">{filteredActivity.length} events</span>
             )}
           </div>
           <Card className="card-elevated p-0 overflow-hidden">
             <div className="divide-y divide-border max-h-[560px] overflow-auto">
               {filteredActivity.length === 0 && <p className="text-center text-muted-foreground py-12">No activity</p>}
-              {filteredActivity.map((a: any) => (
-                <div key={a.id} className="flex items-center gap-3 p-3 sm:p-4 hover:bg-secondary/30">
-                  {a.image ? (
-                    <img src={a.image} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
-                  ) : (
-                    <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
-                      {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
-                      <span className="font-medium truncate">{a.product}</span>
+              {filteredActivity.map((a: any) => {
+                const isStockActivity = a.kind === "stock_in" || a.kind === "stock_out";
+                const titleClass = "font-semibold truncate underline-offset-4 hover:underline";
+                return (
+                  <div key={a.id} className="flex items-start gap-3 p-3 sm:p-4 hover:bg-secondary/30">
+                    {a.image && a.productId ? (
+                      <Link to="/products/$productId" params={{ productId: a.productId }} className="shrink-0" aria-label={`Open ${a.product}`}>
+                        <img src={a.image} alt="" className="size-10 rounded-lg object-cover border border-border" />
+                      </Link>
+                    ) : a.image ? (
+                      <img src={a.image} alt="" className="size-10 rounded-lg object-cover border border-border shrink-0" />
+                    ) : (
+                      <div className="size-10 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border shrink-0"><ImageIcon className="size-4" /></div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {a.kind === "stock_in" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><ArrowUpRight className="size-3" /> +{a.quantity}</Badge>}
+                        {a.kind === "stock_out" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> -{a.quantity}</Badge>}
+                        {a.kind === "bill_created" && <Badge className="bg-warning/15 text-warning border-warning/30 hover:bg-warning/15"><History className="size-3" /> Bill</Badge>}
+                        {a.kind === "invoice_started" && <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/15"><Printer className="size-3" /> Invoice created</Badge>}
+                        {a.kind === "invoice_saved" && <Badge className="bg-success/15 text-success border-success/30 hover:bg-success/15"><Printer className="size-3" /> Invoice saved</Badge>}
+                        {a.kind === "bill_deleted" && <Badge className="bg-destructive/15 text-destructive border-destructive/30 hover:bg-destructive/15"><ArrowDownRight className="size-3" /> Deleted</Badge>}
+                        {isStockActivity && a.productId ? (
+                          <Link to="/products/$productId" params={{ productId: a.productId }} className={cn(titleClass, "text-foreground")}>
+                            {a.product}
+                          </Link>
+                        ) : a.invoiceId ? (
+                          <a href={billingReprintUrl(a.invoiceId)} className={cn(titleClass, "text-primary")}>
+                            {a.product}
+                          </a>
+                        ) : (
+                          <Link to="/warehouse-bills" className={cn(titleClass, "text-foreground")}>
+                            {a.product}
+                          </Link>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap leading-relaxed">
+                        {(a.kind === "stock_out" || a.kind?.startsWith("bill_") || a.kind?.startsWith("invoice_")) && a.destination && (
+                          <span className={`inline-flex items-center gap-1 font-semibold ${a.destination === "Delivery" ? "text-primary" : "text-warning"}`}>
+                            {a.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
+                            {a.destination}
+                          </span>
+                        )}
+                        {(a.kind === "stock_out" || a.kind?.startsWith("bill_") || a.kind?.startsWith("invoice_")) && a.destination && (a.reason || a.who) && <span className="hidden sm:inline">·</span>}
+                        <span className="basis-full sm:basis-auto">{a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out")}</span>
+                        {a.billNo && a.invoiceId && <span className="font-mono text-[11px] text-muted-foreground">Bill {a.billNo}</span>}
+                        <span className="hidden sm:inline">·</span>
+                        <span>by <span className="text-foreground font-medium">{a.who}</span></span>
+                      </div>
+                      <div className="mt-1 text-[11px] text-muted-foreground sm:hidden">
+                        {formatDistanceToNow(new Date(a.when), { addSuffix: true })} · {format(new Date(a.when), "MMM d, p")}
+                      </div>
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      {a.kind === "stock_out" && a.destination && (
-                        <span className={`inline-flex items-center gap-1 font-semibold ${a.destination === "Delivery" ? "text-primary" : "text-warning"}`}>
-                          {a.destination === "Delivery" ? <Truck className="size-3" /> : <Store className="size-3" />}
-                          {a.destination}
-                        </span>
-                      )}
-                      {a.kind === "stock_out" && a.destination && (a.reason || a.who) && <span>·</span>}
-                      <span>{a.reason || (a.kind === "stock_in" ? "Stock in" : "Stock out")}</span>
-                      <span>·</span>
-                      <span>by <span className="text-foreground font-medium">{a.who}</span></span>
+                    <div className="hidden sm:block text-[11px] text-muted-foreground text-right shrink-0">
+                      <div>{formatDistanceToNow(new Date(a.when), { addSuffix: true })}</div>
+                      <div>{format(new Date(a.when), "MMM d, p")}</div>
                     </div>
                   </div>
-                  <div className="text-[11px] text-muted-foreground text-right shrink-0">
-                    <div>{formatDistanceToNow(new Date(a.when), { addSuffix: true })}</div>
-                    <div className="hidden sm:block">{format(new Date(a.when), "MMM d, p")}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Card>
         </TabsContent>
@@ -438,8 +508,8 @@ function greetingPart(d = new Date()) {
 }
 
 function DashboardGreeting({
-  name, stockedIn24, stockedOut24, events24, lastUpdated,
-}: { name: string; stockedIn24: number; stockedOut24: number; events24: number; lastUpdated: Date | null }) {
+  name, stockedIn24, stockedOut24, events24,
+}: { name: string; stockedIn24: number; stockedOut24: number; events24: number }) {
   const first = name.split(/[\s.@]+/)[0] ?? name;
   return (
     <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4 mb-6 sm:mb-7">
@@ -457,7 +527,6 @@ function DashboardGreeting({
         </p>
       </div>
       <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-        {lastUpdated && <LiveBadge lastUpdated={lastUpdated} />}
         <Link to="/racks/print" className="inline-flex items-center gap-2 h-10 px-3 sm:px-3.5 rounded-[12px] border border-border bg-card hover:bg-secondary/60 text-[13px] font-semibold transition" aria-label="Print QR sheet">
           <Printer className="size-4" /> <span className="hidden sm:inline">Print QR sheet</span>
         </Link>

@@ -26,7 +26,8 @@ const SIZES = [
   { key: "xs", label: "XS", desc: "9 × 3 cm",   w: "9cm",  h: "3cm",  variant: "strip" as const },
   { key: "sm", label: "SM", desc: "11 × 4 cm",  w: "11cm", h: "4cm",  variant: "strip" as const },
   { key: "md", label: "MD", desc: "9 × 12 cm",  w: "9cm",  h: "12cm", variant: "card"  as const },
-  { key: "lg", label: "LG", desc: "11 × 15 cm", w: "11cm", h: "15cm", variant: "card"  as const },
+  { key: "lg",  label: "LG",  desc: "11 × 15 cm", w: "11cm", h: "15cm", variant: "card"  as const },
+  { key: "xxl", label: "XXL", desc: "15 × 12 cm", w: "15cm", h: "12cm", variant: "card"  as const },
 ] as const;
 type SizeKey = (typeof SIZES)[number]["key"];
 
@@ -156,7 +157,7 @@ function PrintProductLabels() {
                           />
                         </div>
                       ) : (
-                        <div key={p.id} className="label-item" style={{ width: sz.w, minHeight: sz.h, flexShrink: 0 }}>
+                        <div key={p.id} className="label-item" style={{ width: sz.w, height: sz.h, flexShrink: 0 }}>
                           <ProductLocationCard
                             rackCode={code}
                             product={{ ...p, mainCategoryName: resolveMainCategoryName(p.category_id, allCategories) }}
@@ -199,7 +200,7 @@ function PrintProductLabels() {
           }
           .label-item {
             width: ${sz.w} !important;
-            ${sz.variant === "strip" ? `height: ${sz.h} !important;` : `min-height: ${sz.h} !important;`}
+            height: ${sz.h} !important;
             flex-shrink: 0 !important;
             break-inside: avoid !important;
             overflow: hidden !important;

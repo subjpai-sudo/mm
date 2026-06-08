@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { format, formatDistanceToNow } from "date-fns";
@@ -22,6 +22,7 @@ import {
   Info,
 } from "lucide-react";
 import { displaySize } from "@/lib/product-format";
+import { ProductImageZoom } from "@/components/app/ProductImageZoom";
 import { categoryPalette, resolveMainCategoryName, type CategoryLite } from "@/lib/category-colors";
 
 export function ProductDetailsDialog({
@@ -112,6 +113,7 @@ export function ProductDetailsDialog({
 
   const barcodeRef = useRef<SVGSVGElement | null>(null);
   const qrRef = useRef<HTMLCanvasElement | null>(null);
+  const [imageZoomOpen, setImageZoomOpen] = useState(false);
 
   useEffect(() => {
     if (!open || !barcodeRef.current || !code) return;
@@ -157,6 +159,7 @@ export function ProductDetailsDialog({
   }, [code, open]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -187,18 +190,22 @@ export function ProductDetailsDialog({
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-4">
-              <div className="rounded-xl border border-border bg-secondary/30 aspect-square grid place-items-center overflow-hidden">
+              <button
+                type="button"
+                className="rounded-xl border border-border bg-secondary/30 aspect-square grid place-items-center overflow-hidden w-full"
+                onClick={() => (product as any).image_url && setImageZoomOpen(true)}
+              >
                 {(product as any).image_url ? (
                   <img
-                    src={(product as any).image_url}
+                    src={getCachedStorageUrl((product as any).image_url)}
                     alt={(product as any).name}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain p-2"
                     loading="lazy"
                   />
                 ) : (
                   <Package className="size-10 text-muted-foreground" />
                 )}
-              </div>
+              </button>
               <div className="space-y-1 min-w-0">
                 <h2 className="text-xl font-bold leading-tight">{(product as any).name}</h2>
                 <div className="flex flex-wrap gap-1.5 text-[11px]">
@@ -352,5 +359,12 @@ export function ProductDetailsDialog({
         )}
       </DialogContent>
     </Dialog>
+    <ProductImageZoom
+      open={imageZoomOpen}
+      onOpenChange={setImageZoomOpen}
+      src={getCachedStorageUrl((product as any)?.image_url)}
+      alt={(product as any)?.name ?? "Product"}
+    />
+    </>
   );
 }

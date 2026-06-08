@@ -1,32 +1,23 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/start-client-core";
 import { z } from "zod";
-
-async function getCfEnv(): Promise<Record<string, string>> {
-  try {
-    const m = await import("cloudflare:workers" as string);
-    return (m.env as Record<string, string>) ?? {};
-  } catch {
-    return {};
-  }
-}
+import { getConfiguredKey } from "@/lib/config.server";
+import { alertKeyError, looksLikeKeyError } from "@/lib/keyalerts.functions";
 
 export const scanProductImage = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ image: z.string() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ images: z.array(z.string()).min(1) }).parse(d))
   .handler(async ({ data }) => {
-    let apiKey = process.env.ANTHROPIC_API_KEY ?? "";
-    if (!apiKey) {
-      const cfEnv = await getCfEnv();
-      apiKey = cfEnv.ANTHROPIC_API_KEY ?? "";
+    const apiKey = await getConfiguredKey("gemini_api_key", "GEMINI_API_KEY");
+    if (!apiKey) return { ok: false as const, error: "AI not configured — set Gemini key in Settings or GEMINI_API_KEY secret" };
+
+    const imageParts: { inline_data: { mime_type: string; data: string } }[] = [];
+    for (const img of data.images) {
+      const m = img.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
+      if (!m) continue;
+      imageParts.push({ inline_data: { mime_type: m[1], data: m[2] } });
     }
-    console.log("[ai-scan] apiKey present:", !!apiKey, "len:", apiKey.length);
-    if (!apiKey) return { ok: false as const, error: "AI not configured — check ANTHROPIC_API_KEY secret" };
+    if (imageParts.length === 0) return { ok: false as const, error: "Invalid image format" };
 
-    const m = data.image.match(/^data:(image\/(?:jpeg|png|webp));base64,(.+)$/);
-    if (!m) return { ok: false as const, error: "Invalid image" };
-    const mediaType = m[1] as "image/jpeg" | "image/png" | "image/webp";
-    const base64 = m[2];
-
-    const prompt = `Look at this product packaging photo. Return ONLY a valid JSON object, no markdown, no explanation:
+    const prompt = `You are looking at ${imageParts.length} photo(s) of the same product from different angles (front, back, side, etc.). Extract all information you can see across ALL images combined. Return ONLY a valid JSON object, no markdown, no explanation:
 {
   "name": "full product name as on label",
   "brand": "brand name or null",
@@ -38,37 +29,31 @@ export const scanProductImage = createServerFn({ method: "POST" })
 }`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-3-5-sonnet-20241022",
-          max_tokens: 512,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-                { type: "text", text: prompt },
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                ...imageParts,
+                { text: prompt },
               ],
-            },
-          ],
-        }),
-      });
+            }],
+            generationConfig: { temperature: 0, maxOutputTokens: 512 },
+          }),
+        }
+      );
 
-      console.log("[ai-scan] Anthropic response status:", res.status);
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
-        console.error("[ai-scan] Anthropic error", res.status, errText.slice(0, 200));
+        if (looksLikeKeyError(res.status, errText)) await alertKeyError("Gemini", `${res.status}`);
         return { ok: false as const, error: `AI error: ${res.status} ${errText.slice(0, 100)}` };
       }
 
       const aiRes = (await res.json()) as any;
-      const raw: string = aiRes?.content?.[0]?.text ?? "{}";
+      const raw: string = aiRes?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
       let parsed: Record<string, any> = {};
       try {
         parsed = JSON.parse(raw);
@@ -79,7 +64,6 @@ export const scanProductImage = createServerFn({ method: "POST" })
 
       return { ok: true as const, product: parsed };
     } catch (e: any) {
-      console.error("[ai-scan] fetch failed", e);
       return { ok: false as const, error: e?.message ?? "Fetch failed" };
     }
   });

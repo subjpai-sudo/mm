@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useNavigate, Link, useLocation, Navigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, NAV_BY_ROLE, type Role } from "@/lib/auth";
@@ -7,14 +7,15 @@ import {
   LayoutDashboard, PackagePlus, PackageMinus, Boxes,
   ShoppingCart, ClipboardList, BarChart3, Settings as SettingsIcon,
   LogOut, Shield, UserCog, Eye, Menu, Activity, Users as UsersIcon,
-  ScrollText, PackageCheck, Database, Warehouse, Store,
-  Search, Bell, ScanLine, Sun, Moon, ChevronDown, AlertTriangle, Receipt, Briefcase,
+  ScrollText, PackageCheck, Database, Warehouse, Store, FileText,
+  Search, ScanLine, Sun, Moon, ChevronDown, AlertTriangle, Briefcase,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ScannerFAB } from "@/components/app/ScannerFAB";
-import { UniversalScanner } from "@/components/app/UniversalScanner";
+const ScannerFAB = lazy(() => import("@/components/app/ScannerFAB").then((m) => ({ default: m.ScannerFAB })));
+const UniversalScanner = lazy(() => import("@/components/app/UniversalScanner").then((m) => ({ default: m.UniversalScanner })));
+import { NotificationsPopover } from "@/components/app/NotificationsPopover";
 
 export const Route = createFileRoute("/_authenticated")({ component: ProtectedLayout });
 
@@ -22,11 +23,10 @@ const NAV = [
   { id: "dashboard", to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "stock-in", to: "/stock-in", label: "Stock In", icon: PackagePlus },
   { id: "stock-out", to: "/stock-out", label: "Stock Out", icon: PackageMinus },
+  { id: "warehouse-bills", to: "/warehouse-bills", label: "Bills", icon: FileText },
   { id: "products", to: "/products", label: "Products", icon: Boxes },
   { id: "racks", to: "/racks", label: "Racks", icon: Warehouse },
   { id: "shops", to: "/shops", label: "Shops", icon: Store },
-  { id: "billing", to: "/billing", label: "Billing", icon: Receipt },
-  { id: "billing-history", to: "/billing-history", label: "Inv. History", icon: ScrollText },
   { id: "order-request", to: "/order-request", label: "Order Request", icon: ShoppingCart },
   { id: "shipments", to: "/shipments", label: "Shipments", icon: PackageCheck },
   { id: "order-history", to: "/order-history", label: "Order History", icon: ClipboardList },
@@ -36,7 +36,12 @@ const NAV = [
   { id: "audit", to: "/audit", label: "Audit Log", icon: ScrollText },
   { id: "health", to: "/health", label: "Health", icon: Activity },
   { id: "backups", to: "/backups", label: "Backups", icon: Database },
-] as const;
+] as const satisfies readonly ({
+  id: string;
+  to: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+})[];
 
 const ROLE_META: Record<Role, { label: string; icon: any; cls: string }> = {
   admin:    { label: "Admin",    icon: Shield,    cls: "bg-primary/15 text-primary border-primary/30" },
@@ -71,21 +76,14 @@ function ProtectedLayout() {
     if (!loading && !session) nav({ to: "/login" });
   }, [loading, session, nav]);
 
-  // Global realtime: invalidate caches when any of these tables change
+  // Global realtime for tables not covered by page-level useRealtimeSync (avoids duplicate invalidation storms).
   useEffect(() => {
     if (!session) return;
     const channel = supabase
       .channel("global-db-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "products" }, () => {
-        qc.invalidateQueries({ queryKey: ["products"] });
-        qc.invalidateQueries({ queryKey: ["recent-barcodes"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "stock_movements" }, () => {
-        qc.invalidateQueries({ queryKey: ["movements-recent"] });
-        qc.invalidateQueries({ queryKey: ["products"] });
-      })
       .on("postgres_changes", { event: "*", schema: "public", table: "order_requests" }, () => {
         qc.invalidateQueries({ queryKey: ["orders"] });
+        qc.invalidateQueries({ queryKey: ["shipments"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
         qc.invalidateQueries({ queryKey: ["categories"] });
@@ -161,13 +159,7 @@ function ProtectedLayout() {
   );
 
   const SidebarFoot = (
-    <div className="p-3 border-t border-sidebar-border space-y-3">
-      <div className="rounded-[10px] border border-warning/30 bg-warning/10 p-2.5">
-        <div className="flex items-center gap-1.5 text-warning text-[11px] font-semibold">
-          <AlertTriangle className="size-3" /> Needs attention
-        </div>
-        <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">R03 · R05 · R07</div>
-      </div>
+    <div className="p-3 border-t border-sidebar-border">
       <div className="flex items-center gap-2 px-1">
         <div className="size-8 rounded-full grid place-items-center bg-primary/15 text-primary text-[11px] font-bold border border-primary/30 shrink-0">
           {initials || "U"}
@@ -215,10 +207,7 @@ function ProtectedLayout() {
             <Button onClick={() => setScanOpen(true)} variant="ghost" size="icon" className="size-9 rounded-[10px] border border-border hover:bg-secondary" aria-label="Scan">
               <ScanLine className="size-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="size-9 rounded-[10px] border border-border hover:bg-secondary relative" aria-label="Notifications">
-              <Bell className="size-4" />
-              <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-destructive" />
-            </Button>
+            <NotificationsPopover />
             <Button onClick={() => setDark(d => !d)} variant="ghost" size="icon" className="size-9 rounded-[10px] border border-border hover:bg-secondary" aria-label="Toggle theme">
               {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
             </Button>
@@ -273,8 +262,10 @@ function ProtectedLayout() {
           })}
         </nav>
       </main>
-      <ScannerFAB />
-      <UniversalScanner open={scanOpen} onClose={() => setScanOpen(false)} />
+      <Suspense fallback={null}>
+        <ScannerFAB />
+        {scanOpen ? <UniversalScanner open={scanOpen} onClose={() => setScanOpen(false)} /> : null}
+      </Suspense>
     </div>
   );
 }

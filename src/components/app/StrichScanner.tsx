@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { X, Camera, ScanLine, Keyboard } from "lucide-react";
+import { X, Camera, ScanLine, Keyboard, Flashlight, FlashlightOff } from "lucide-react";
 import { toast } from "sonner";
 import { getStrichLicense } from "@/lib/strich.functions";
+import { reportKeyError } from "@/lib/keyalerts.functions";
 
 type Props = {
   open: boolean;
@@ -76,11 +77,14 @@ export function StrichScanner({
   const hostRef = useRef<HTMLDivElement>(null);
   const readerRef = useRef<any>(null);
   const lockRef = useRef(false);
+  const torchTrackRef = useRef<MediaStreamTrack | null>(null);
   const lastRef = useRef<{ code: string; ts: number }>({ code: "", ts: 0 });
   const [status, setStatus] = useState("Starting camera…");
   const [errored, setErrored] = useState(false);
   const [manual, setManual] = useState("");
+  const [torchOn, setTorchOn] = useState(false);
   const fetchKey = useServerFn(getStrichLicense);
+  const reportErr = useServerFn(reportKeyError);
 
   function emit(code: string) {
     if (!code || lockRef.current) return;
@@ -113,6 +117,7 @@ export function StrichScanner({
     lockRef.current = false;
     setErrored(false);
     setStatus("Starting camera…");
+    setTorchOn(false);
 
     (async () => {
       const result = await ensureSdk(fetchKey as any);
@@ -121,6 +126,10 @@ export function StrichScanner({
         setErrored(true);
         setStatus(result.error ?? "Scanner unavailable — type the code below");
         toast.error("Scanner SDK failed to initialize", { description: result.error });
+        // Alert the owner only when it looks license/key-related (not camera/network).
+        if (/licen|key|unauthor|invalid|expir/i.test(result.error ?? "")) {
+          (reportErr as any)({ data: { service: "STRICH", detail: (result.error ?? "init failed").slice(0, 200) } }).catch(() => {});
+        }
         return;
       }
       try {
@@ -172,6 +181,12 @@ export function StrichScanner({
 
     return () => {
       cancelled = true;
+      setTorchOn(false);
+      const track = torchTrackRef.current;
+      torchTrackRef.current = null;
+      if (track) {
+        (track as any).applyConstraints({ advanced: [{ torch: false }] }).catch(() => undefined);
+      }
       const r = readerRef.current;
       readerRef.current = null;
       if (r) {
@@ -183,9 +198,29 @@ export function StrichScanner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  async function toggleTorch() {
+    let track = torchTrackRef.current;
+    if (!track) {
+      const video = hostRef.current?.querySelector("video");
+      const stream = video?.srcObject as MediaStream | null;
+      track = stream?.getVideoTracks()?.[0] ?? null;
+      torchTrackRef.current = track;
+    }
+    if (!track) { toast.error("Camera not ready"); return; }
+    const caps = (track as any).getCapabilities?.();
+    if (!caps?.torch) { toast.error("Torch not supported on this device"); return; }
+    const next = !torchOn;
+    try {
+      await (track as any).applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch {
+      toast.error("Torch not available");
+    }
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl gap-0 overflow-hidden border-border bg-card p-0">
+      <DialogContent className="max-w-3xl gap-0 overflow-hidden border-border bg-card p-0 [&>button:last-child]:hidden">
         <DialogTitle className="sr-only">Scan barcode</DialogTitle>
         <DialogDescription className="sr-only">
           Scan product barcodes or rack QR codes with the camera.
@@ -214,13 +249,22 @@ export function StrichScanner({
             </div>
           )}
 
-          <button
-            onClick={onClose}
-            className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/60 text-white backdrop-blur"
-            aria-label="Close"
-          >
-            <X className="size-5" />
-          </button>
+          <div className="absolute right-3 top-3 flex gap-2">
+            <button
+              onClick={toggleTorch}
+              className={`grid size-9 place-items-center rounded-full backdrop-blur ${torchOn ? "bg-yellow-400 text-black" : "bg-black/60 text-white"}`}
+              aria-label="Toggle torch"
+            >
+              {torchOn ? <FlashlightOff className="size-5" /> : <Flashlight className="size-5" />}
+            </button>
+            <button
+              onClick={onClose}
+              className="grid size-9 place-items-center rounded-full bg-black/60 text-white backdrop-blur"
+              aria-label="Close"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
 
           <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-xs text-white backdrop-blur">
             <Camera className="size-3.5" /> STRICH scanner

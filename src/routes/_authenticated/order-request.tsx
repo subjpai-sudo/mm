@@ -1,7 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getCachedStorageUrl } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { Send, MessageSquare, AlertTriangle, ImageIcon, Plus, RotateCcw, Pencil } from "lucide-react";
-import { sendOrderRequestAlert } from "@/lib/notifications.functions";
+import { submitOrderRequest } from "@/lib/notifications.functions";
 
 export const Route = createFileRoute("/_authenticated/order-request")({ component: OrderRequest });
 
@@ -41,19 +41,16 @@ function OrderRequest() {
 
   const submit = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("order_requests").insert({
+      return submitOrderRequest({ data: {
         type, product_name: productName, quantity: Number(qty),
-        notes: notes || null, viber_message: preview, created_by: user?.id,
-      });
-      if (error) throw error;
-      const r = await sendOrderRequestAlert({ data: { message: preview } }).catch(() => ({ sent: false, reason: "exception" as const }));
-      return r;
+        notes: notes || undefined, viber_message: preview, created_by: user?.id,
+      }});
     },
     onSuccess: (r: any) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
       if (r?.sent) toast.success("Request sent to Owner via SMS");
-      else if (r?.reason === "twilio-not-configured") toast.success("Request saved. Configure Twilio sender + owner phone in Settings.");
-      else toast.success(`Request saved. SMS delivery failed${r?.reason ? ` (${r.reason})` : ""} — check Settings.`);
+      else if (r?.reason === "twilio-not-configured") toast.error("SMS failed: set Twilio sender + owner phone in Settings.");
+      else toast.error(`SMS failed: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
       setProductName(""); setQty("10"); setNotes(""); setCustomMsg(null); setEditTemplate(false);
     },
     onError: (e: any) => toast.error(e.message),
@@ -63,15 +60,17 @@ function OrderRequest() {
     mutationFn: async (p: any) => {
       const suggested = Math.max(p.low_stock_threshold * 3, 10);
       const msg = `📦 RESTOCK REQUEST\n\nProduct: ${p.name}\nSKU: ${p.sku ?? "—"}\nCurrent stock: ${p.stock}\nSuggested order: ${suggested}\nRequested by: ${user?.email}\nDate: ${new Date().toLocaleString()}`;
-      const { error } = await supabase.from("order_requests").insert({
+      return submitOrderRequest({ data: {
         type: "restock", product_name: p.name, quantity: suggested,
         notes: `Auto-suggested from low stock (current ${p.stock}, low at ${p.low_stock_threshold})`,
         viber_message: msg, created_by: user?.id,
-      });
-      if (error) throw error;
-      await sendOrderRequestAlert({ data: { message: msg } }).catch(() => {});
+      }});
     },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Restock request sent to Owner"); },
+    onSuccess: (r: any) => {
+      qc.invalidateQueries({ queryKey: ["orders"] });
+      if (r?.sent) toast.success("Restock request sent to Owner via SMS");
+      else toast.error(`SMS failed: ${r?.reason ?? "unknown"}${r?.detail ? ` — ${typeof r.detail === "string" ? r.detail : JSON.stringify(r.detail)}` : ""}`);
+    },
     onError: (e: any) => toast.error(e.message),
   });
 
@@ -96,7 +95,7 @@ function OrderRequest() {
             {lowStock.map((p: any) => (
               <div key={p.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-secondary/40">
                 {p.image_url ? (
-                  <img src={p.image_url} alt={p.name} className="size-12 rounded-lg object-cover border border-border" />
+                  <img src={getCachedStorageUrl(p.image_url)} alt={p.name} className="size-12 rounded-lg object-cover border border-border" />
                 ) : (
                   <div className="size-12 rounded-lg bg-secondary grid place-items-center text-muted-foreground border border-border"><ImageIcon className="size-4" /></div>
                 )}

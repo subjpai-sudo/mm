@@ -1,53 +1,9 @@
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn } from "@tanstack/start-client-core";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-
-async function searchAndUpload(name: string): Promise<string> {
-  const apiKey = process.env.SERPAPI_KEY;
-  if (!apiKey) throw new Error("SERPAPI_KEY is not configured");
-
-  const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google_images");
-  url.searchParams.set("q", `${name} product`);
-  url.searchParams.set("ijn", "0");
-  url.searchParams.set("api_key", apiKey);
-
-  const res = await fetch(url.toString());
-  if (!res.ok) throw new Error(`SerpAPI error ${res.status}`);
-  const json: any = await res.json();
-  const images: any[] = json.images_results ?? [];
-  if (!images.length) throw new Error("No images found");
-
-  // Try the first few until one downloads successfully
-  let blob: ArrayBuffer | null = null;
-  let contentType = "image/jpeg";
-  let ext = "jpg";
-  for (const img of images.slice(0, 5)) {
-    const src = img.original || img.thumbnail;
-    if (!src) continue;
-    try {
-      const r = await fetch(src);
-      if (!r.ok) continue;
-      contentType = r.headers.get("content-type") || "image/jpeg";
-      if (!contentType.startsWith("image/")) continue;
-      ext = contentType.split("/")[1]?.split(";")[0] || "jpg";
-      blob = await r.arrayBuffer();
-      break;
-    } catch {
-      continue;
-    }
-  }
-  if (!blob) throw new Error("Could not download any image");
-
-  const path = `${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabaseAdmin.storage
-    .from("product-images")
-    .upload(path, blob, { contentType, upsert: false });
-  if (error) throw new Error(error.message);
-  const { data } = supabaseAdmin.storage.from("product-images").getPublicUrl(path);
-  return data.publicUrl;
-}
+import { getConfiguredKey } from "@/lib/config.server";
+import { alertKeyError, looksLikeKeyError } from "@/lib/keyalerts.functions";
 
 export const uploadProductImageFile = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -57,7 +13,7 @@ export const uploadProductImageFile = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     // Auto-create bucket if it doesn't exist
     await supabaseAdmin.storage.createBucket("product-images", { public: true, allowedMimeTypes: ["image/*"] })
-      .catch(() => {/* already exists — ignore */});
+      .catch(() => {/* already exists — ignore */ });
 
     const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(data.dataUrl);
     if (!match) throw new Error("Invalid image data URL");
@@ -75,106 +31,82 @@ export const uploadProductImageFile = createServerFn({ method: "POST" })
     return { url: urlData.publicUrl };
   });
 
-export const fetchProductImage = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ name: z.string().min(1).max(200) }).parse(d))
-  .handler(async ({ data }) => {
-    const url = await searchAndUpload(data.name);
-    return { url };
-  });
-
-export const bulkFetchProductImages = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    const { data: products, error } = await supabaseAdmin
-      .from("products")
-      .select("id, name, image_url");
-    if (error) throw new Error(error.message);
-    const targets = (products ?? []).filter((p) => !p.image_url);
-    let updated = 0;
-    const failures: { name: string; error: string }[] = [];
-    for (const p of targets) {
-      try {
-        const url = await searchAndUpload(p.name);
-        const { error: upErr } = await supabaseAdmin
-          .from("products")
-          .update({ image_url: url })
-          .eq("id", p.id);
-        if (upErr) throw upErr;
-        updated++;
-      } catch (e: any) {
-        failures.push({ name: p.name, error: e?.message ?? "unknown" });
-      }
-    }
-    return { updated, total: targets.length, failures };
-  });
-
 // =====================================================
-// AI image generation via Lovable AI Gateway (Gemini)
-// Uses google/gemini-2.5-flash-image (Nano Banana) to
-// generate a clean product photo, optionally referencing
-// the City Star catalog website packaging style.
+// AI photo cleanup via Google Gemini (direct, no gateway)
+// Uses gemini-2.5-flash-image (Nano Banana) in image-EDIT
+// mode: takes the product's own photo and returns a
+// cleaned-up version — pure white background, even studio
+// lighting, crisp/professional — WITHOUT changing the
+// product, packaging, labels or text.
+//
+// Calls the Google Generative Language API directly with
+// GEMINI_API_KEY (same key/pattern as ai-scan.functions.ts),
+// so there is no dependency on any third-party gateway.
 // =====================================================
 
-const CATALOG_REF = "https://catalog-58ec8.web.app/";
+const CLEAN_PROMPT = [
+  "Edit this product photo to look like a professional retail catalog image.",
+  "Cut out the product and place it on a pure solid white background (#FFFFFF).",
+  "Remove any background clutter, props, hands, shadows and reflections.",
+  "Apply even, bright studio lighting and make the product crisp, sharp and clean.",
+  "Center the product so it fills about 85% of a square frame.",
+  "CRITICAL: keep the product itself, its packaging, shape, colors, logos, labels and all text",
+  "EXACTLY the same as the original — do not invent, add, remove or change any product detail,",
+  "and do not add any new text, watermarks or graphics.",
+].join(" ");
 
-function buildPrompt(p: { name: string; brand?: string | null; size?: string | null; origin?: string | null }) {
-  const parts = [
-    `Ultra high-resolution 2048x2048 professional product photograph of "${p.name}"`,
-    p.brand ? `by ${p.brand}` : "",
-    p.size ? `, size ${p.size}` : "",
-    p.origin ? `, origin ${p.origin}` : "",
-    `. Bright studio lighting, pure clean white background (#FFFFFF), product perfectly centered, fills 85% of frame, tack-sharp focus, photorealistic, true-to-life packaging colors, crisp readable labels.`,
-    `Match real retail packaging style used on the City Star catalog (${CATALOG_REF}) so it looks consistent with other items from the same brand/company.`,
-    `No text overlays, no watermarks, no props, no shadows, no reflections, no people, square framing.`,
-  ];
-  return parts.filter(Boolean).join(" ");
+/** Resolve the input image (data URL or http URL) to { mime_type, data(base64) }. */
+async function toInlineData(image: string): Promise<{ mime_type: string; data: string }> {
+  if (image.startsWith("data:")) {
+    const m = /^data:(image\/[^;]+);base64,(.+)$/.exec(image);
+    if (!m) throw new Error("Invalid image data URL");
+    return { mime_type: m[1], data: m[2] };
+  }
+  const r = await fetch(image);
+  if (!r.ok) throw new Error(`Could not load the current image (${r.status})`);
+  const mime_type = r.headers.get("content-type") || "image/jpeg";
+  if (!mime_type.startsWith("image/")) throw new Error("Current image is not a valid image file");
+  const buf = new Uint8Array(await r.arrayBuffer());
+  let binary = "";
+  for (let i = 0; i < buf.length; i++) binary += String.fromCharCode(buf[i]);
+  return { mime_type, data: btoa(binary) };
 }
 
-async function generateAndUpload(p: { name: string; brand?: string | null; size?: string | null; origin?: string | null }): Promise<string> {
-  const apiKey = process.env.LOVABLE_API_KEY;
-  if (!apiKey) throw new Error("LOVABLE_API_KEY is not configured");
+async function cleanAndUpload(image: string): Promise<string> {
+  const apiKey = await getConfiguredKey("gemini_api_key", "GEMINI_API_KEY");
+  if (!apiKey) throw new Error("AI not configured — set Gemini key in Settings or GEMINI_API_KEY secret");
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
-      modalities: ["image", "text"],
-      messages: [
-        { role: "user", content: buildPrompt(p) },
-      ],
-    }),
-  });
+  const inline = await toInlineData(image);
 
-  if (res.status === 429) {
-    const err: any = new Error("Rate limit hit — please retry shortly");
-    err.fatal = true;
-    throw err;
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: CLEAN_PROMPT }, { inline_data: inline }] }],
+        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+      }),
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    if (looksLikeKeyError(res.status, errText)) await alertKeyError("Gemini", `${res.status}`);
+    throw new Error(`AI error ${res.status}: ${errText.slice(0, 200)}`);
   }
-  if (res.status === 402) {
-    const err: any = new Error("AI credits exhausted. Add credits in Lovable → Settings → Workspace → Usage.");
-    err.fatal = true;
-    throw err;
-  }
-  if (!res.ok) throw new Error(`AI gateway error ${res.status}: ${await res.text().catch(() => "")}`);
 
   const json: any = await res.json();
-  const dataUrl: string | undefined =
-    json?.choices?.[0]?.message?.images?.[0]?.image_url?.url ??
-    json?.choices?.[0]?.message?.images?.[0]?.url;
-  if (!dataUrl || !dataUrl.startsWith("data:")) throw new Error("No image returned from AI");
+  const parts: any[] = json?.candidates?.[0]?.content?.parts ?? [];
+  const imgPart = parts.find((p) => p?.inlineData?.data || p?.inline_data?.data);
+  const out = imgPart?.inlineData ?? imgPart?.inline_data;
+  if (!out?.data) throw new Error("No cleaned image returned from AI");
 
-  const match = /^data:(image\/[^;]+);base64,(.+)$/.exec(dataUrl);
-  if (!match) throw new Error("Invalid image data URL");
-  const contentType = match[1];
+  const contentType: string = out.mimeType ?? out.mime_type ?? "image/png";
   const ext = contentType.split("/")[1] || "png";
-  const bytes = Uint8Array.from(atob(match[2]), (c) => c.charCodeAt(0));
+  const bytes = Uint8Array.from(atob(out.data), (c) => c.charCodeAt(0));
 
-  const path = `ai-${crypto.randomUUID()}.${ext}`;
+  const path = `clean-${crypto.randomUUID()}.${ext}`;
   const { error } = await supabaseAdmin.storage
     .from("product-images")
     .upload(path, bytes, { contentType, upsert: false });
@@ -183,61 +115,10 @@ async function generateAndUpload(p: { name: string; brand?: string | null; size?
   return data.publicUrl;
 }
 
-export const generateProductImageAI = createServerFn({ method: "POST" })
+export const cleanProductImageAI = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({ id: z.string().uuid() }).parse(d)
-  )
+  .inputValidator((d: unknown) => z.object({ image: z.string().min(10) }).parse(d))
   .handler(async ({ data }) => {
-    const { data: product, error } = await supabaseAdmin
-      .from("products")
-      .select("id, name, brand, size, origin")
-      .eq("id", data.id)
-      .single();
-    if (error || !product) throw new Error(error?.message ?? "Product not found");
-    const url = await generateAndUpload(product as any);
-    const { error: upErr } = await supabaseAdmin
-      .from("products")
-      .update({ image_url: url })
-      .eq("id", data.id);
-    if (upErr) throw new Error(upErr.message);
+    const url = await cleanAndUpload(data.image);
     return { url };
-  });
-
-export const bulkGenerateProductImagesAI = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({
-      mode: z.enum(["missing", "all"]).default("missing"),
-      limit: z.number().int().min(1).max(200).default(50),
-    }).parse(d ?? {})
-  )
-  .handler(async ({ data }) => {
-    const { data: products, error } = await supabaseAdmin
-      .from("products")
-      .select("id, name, brand, size, origin, image_url");
-    if (error) throw new Error(error.message);
-    const targets = (products ?? [])
-      .filter((p) => (data.mode === "all" ? true : !p.image_url))
-      .slice(0, data.limit);
-
-    let updated = 0;
-    const failures: { name: string; error: string }[] = [];
-    let fatal: string | null = null;
-    for (const p of targets) {
-      try {
-        const url = await generateAndUpload(p as any);
-        const { error: upErr } = await supabaseAdmin
-          .from("products")
-          .update({ image_url: url })
-          .eq("id", p.id);
-        if (upErr) throw upErr;
-        updated++;
-      } catch (e: any) {
-        failures.push({ name: p.name, error: e?.message ?? "unknown" });
-        if (e?.fatal) { fatal = e.message; break; }
-      }
-    }
-    if (fatal) throw new Error(fatal);
-    return { updated, total: targets.length, failures };
   });

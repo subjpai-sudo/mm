@@ -100,6 +100,9 @@ export async function createBackupDownloadUrl(name: string, client?: SupabaseCli
 }
 
 export async function listMirrorLogsOverview(client?: SupabaseClient<Database>) {
+  const configured = hasDirectMirrorDbAccess();
+  if (!configured) return { logs: [], configured: false };
+
   const { data, error } = await getDbClient(client)
     .from("mirror_sync_log")
     .select("*")
@@ -107,7 +110,7 @@ export async function listMirrorLogsOverview(client?: SupabaseClient<Database>) 
     .limit(20);
 
   if (error) throw new Error(error.message);
-  return { logs: data ?? [] };
+  return { logs: data ?? [], configured: true };
 }
 
 export async function deleteBackupByName(name: string, client?: SupabaseClient<Database>) {

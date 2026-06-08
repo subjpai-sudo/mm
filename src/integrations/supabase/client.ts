@@ -38,3 +38,17 @@ export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>,
   },
 });
 
+/**
+ * Wraps a Supabase public storage URL in our Cloudflare caching proxy URL.
+ * Falls back to the original URL if not a Supabase public storage URL.
+ */
+export function getCachedStorageUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  // Check if it's a Supabase public storage URL
+  if (url.includes("/storage/v1/object/public/")) {
+    return `/api/public/storage?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas-pro";
+import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import { useServerFn } from "@tanstack/react-start";
+import { useServerFn } from "@/lib/use-server-fn";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +12,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { FileText, Copy, Send, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { sendReportLinkSms } from "@/lib/notifications.functions";
-import { categoryPalette } from "@/lib/category-colors";
-import { KNOWN_ORIGINS } from "@/lib/origin-colors";
 
 type Product = {
   id: string;
@@ -31,6 +29,9 @@ type Product = {
   unit?: string | null;
   pcs_per_case?: number | null;
   categories?: { name: string | null } | null;
+  category_id?: string | null;
+  main_category?: string | null;
+  report_category?: string | null;
 };
 
 type Movements = { inQty: number; outQty: number; total: number };
@@ -53,15 +54,6 @@ const SECTIONS: { id: SectionId; label: string; desc: string }[] = [
   { id: "destinations", label: "Movement destinations", desc: "Where stock is going" },
 ];
 
-// ────────────────────────────────────────────────────────────────────────────
-// HTML report builder — mirrors the supplied template, threshold column removed.
-// ────────────────────────────────────────────────────────────────────────────
-
-const esc = (s: unknown) =>
-  String(s ?? "")
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
 const fmtNum = (n: number) => n.toLocaleString("en-US");
 const fmtYen = (n: number) => {
   if (!isFinite(n) || n <= 0) return "¥0";
@@ -69,145 +61,70 @@ const fmtYen = (n: number) => {
   return `¥${Math.round(n)}`;
 };
 
-// Swatch color comes from the category palette so Myanmar = green,
-// Thailand = blue, Indonesia = purple, Asian Halal = red, etc.
-function swatchFor(name?: string | null): string {
-  return categoryPalette(name).bg;
-}
-
-// Origins we can infer from a product's category color. If the category name
-// matches one of these (Myanmar/Thailand/Indonesia/Asian Halal — the locked
-// palette overrides), or any other known country origin, we print that as the
-// product's origin when none is explicitly set.
-const COLOR_ORIGIN_LABELS: Record<string, string> = {
-  myanmar: "Myanmar",
-  thailand: "Thailand",
-  indonesia: "Indonesia",
-  "asian halal": "Asian Halal",
-};
-const ORIGIN_LOOKUP = new Map<string, string>([
-  ...KNOWN_ORIGINS.map((o) => [o.toLowerCase(), o] as [string, string]),
-  ...Object.entries(COLOR_ORIGIN_LABELS),
-]);
-function originOf(p: Product): string {
-  const explicit = (p.origin ?? "").trim();
-  if (explicit) return explicit;
-  const cat = (p.categories?.name ?? "").trim().toLowerCase();
-  const match = cat ? ORIGIN_LOOKUP.get(cat) : null;
-  return match ?? "—";
-}
-
-// Render an origin pill colored by its category palette
-// (Myanmar = green, Thailand = blue, Indonesia = purple, Asian Halal = red…).
-function originPill(name: string): string {
-  if (!name || name === "—") return `<span class="mono-sm">—</span>`;
-  const pal = categoryPalette(name);
-  return `<span style="display:inline-block;padding:1.5pt 6pt;border-radius:99pt;background:${pal.bg};color:${pal.fg};font-size:7pt;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-family:'Geist Mono',monospace">${esc(name)}</span>`;
-}
-
-function statusOf(p: Product) {
-  if (p.stock <= 0) return { label: "OUT", color: "var(--bad)" };
-  if (p.stock <= p.low_stock_threshold) return { label: "LOW", color: "var(--warn)" };
-  return { label: "HEALTHY", color: "var(--ok)" };
+function categoryOf(p: Product): string {
+  return p.report_category || p.categories?.name || "Uncategorized";
 }
 
 function displaySize(p: Product): string {
-  const sz = (p.size ?? "").trim();
-  const u = (p.unit ?? "").trim();
-  if (!sz && !u) return "";
-  if (!sz) return u;
-  return /[a-zA-Z]$/.test(sz) ? sz : `${sz}${u ? u : ""}`;
+  const size = (p.size ?? "").trim();
+  const unit = (p.unit ?? "").trim();
+  if (!size && !unit) return "";
+  if (!size) return unit;
+  return /[a-zA-Z]$/.test(size) ? size : `${size}${unit ? unit : ""}`;
 }
 
 function rackLabel(p: Product) {
-  const r = (p.rack ?? "").trim();
-  const s = (p.shelf ?? "").trim().toUpperCase();
-  if (!r && !s) return "—";
-  if (!r) return s;
-  if (!s) return r;
-  return `${r}/${s}`;
+  const rack = (p.rack ?? "").trim();
+  const shelf = (p.shelf ?? "").trim().toUpperCase();
+  if (!rack && !shelf) return "";
+  if (!rack) return shelf;
+  if (!shelf) return rack;
+  return `${rack}/${shelf}`;
 }
 
-function reorderQty(p: Product) {
-  return Math.max(0, p.low_stock_threshold * 2 - p.stock);
+function addLiteHeader(pdf: jsPDF, title: string, reference: string) {
+  pdf.setFillColor(14, 124, 112);
+  pdf.rect(0, 0, 210, 22, "F");
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(15);
+  pdf.text(title, 12, 14);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.text(reference, 158, 14);
+  pdf.setTextColor(10, 19, 32);
 }
 
-const STYLE = `
-  :root{
-    --ink:#0a1320;--ink-2:#475569;--ink-3:#8a99ab;--line:#e2e8ed;
-    --bg:#fafbfc;--surface:#fff;--surface-2:#f5f7fa;
-    --primary:#0e7c70;--primary-2:#14a999;--primary-tint:#e6f4f2;
-    --accent:#b07a16;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;
+function addLiteFooter(pdf: jsPDF, reference: string) {
+  const pageCount = pdf.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    pdf.setTextColor(138, 153, 171);
+    pdf.setFontSize(7);
+    pdf.text(`CITYSTAR INVENTORY · ${reference}`, 12, 289);
+    pdf.text(`Page ${i} / ${pageCount}`, 184, 289);
   }
-  *{box-sizing:border-box}
-  .rpt{font-family:"Geist","Inter",system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
-  .rpt .mono{font-family:"Geist Mono",ui-monospace,monospace}
-  .rpt .page{width:210mm;height:297mm;background:#fff;padding:14mm;position:relative;display:flex;flex-direction:column;overflow:hidden}
-  .rpt h1,.rpt h2,.rpt h3,.rpt h4{margin:0;letter-spacing:-.02em}
-  .rpt h1{font-size:22pt;font-weight:600;letter-spacing:-.025em;line-height:1.05}
-  .rpt h2{font-size:13pt;font-weight:600;line-height:1.15}
-  .rpt h3{font-size:9pt;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-3)}
-  .rpt p{margin:0;line-height:1.45;font-size:9pt;color:var(--ink-2)}
-  .rpt .small{font-size:7.5pt;color:var(--ink-2)}
-  .rpt .upper{font-size:7pt;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-3)}
-  .rpt .doc-head{display:flex;align-items:flex-start;gap:14px;padding-bottom:12px;border-bottom:1px solid var(--line)}
-  .rpt .logo{width:32pt;height:32pt;border-radius:8pt;background:linear-gradient(135deg,var(--primary),var(--primary-2));display:grid;place-items:center;color:#fff;flex-shrink:0}
-  .rpt .logo svg{width:18pt;height:18pt}
-  .rpt .brand .name{font-size:12pt;font-weight:600;letter-spacing:-.01em}
-  .rpt .brand .sub{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em}
-  .rpt .meta{margin-left:auto;text-align:right;font-size:7.5pt;color:var(--ink-2);display:flex;flex-direction:column;gap:2px}
-  .rpt .meta b{color:var(--ink);font-weight:600}
-  .rpt .doc-foot{display:flex;justify-content:space-between;align-items:center;padding-top:8pt;border-top:1px solid var(--line);font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em;margin-top:auto}
-  .rpt .section{margin-top:14pt}
-  .rpt .section-head{display:flex;align-items:center;gap:10pt;margin-bottom:8pt}
-  .rpt .section-head .rule{flex:1;height:1px;background:var(--line)}
-  .rpt .section-head .badge{padding:1.5pt 7pt;border-radius:99pt;font-size:7pt;font-weight:700;font-family:"Geist Mono",monospace;letter-spacing:.06em;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
-  .rpt .section-head .badge.warn{background:var(--warn);color:#fff;border-color:var(--warn)}
-  .rpt .section-head .badge.bad{background:var(--bad);color:#fff;border-color:var(--bad)}
-  .rpt .section-head .badge.ok{background:var(--ok);color:#fff;border-color:var(--ok)}
-  .rpt .section-head .badge.pri{background:var(--primary);color:#fff;border-color:var(--primary)}
-  .rpt table{width:100%;border-collapse:collapse;font-size:8pt}
-  .rpt thead th{text-align:left;padding:5pt 7pt;font-size:6pt;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink-3);background:var(--surface-2);border-bottom:1px solid var(--line)}
-  .rpt tbody td{padding:5pt 7pt;border-bottom:1px solid var(--line);vertical-align:middle}
-  .rpt tbody tr:nth-child(even){background:#fbfcfd}
-  .rpt tbody tr:last-child td{border-bottom:none}
-  .rpt td.right,.rpt th.right{text-align:right}
-  .rpt td.center,.rpt th.center{text-align:center}
-  .rpt .qty{font-weight:600;font-variant-numeric:tabular-nums}
-  .rpt .mono-sm{font-family:"Geist Mono",monospace;font-size:7pt;color:var(--ink-3)}
-  .rpt .swatch{width:12pt;height:12pt;border-radius:3pt;flex-shrink:0;display:inline-block;vertical-align:middle}
-  .rpt .strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10pt;margin-bottom:12pt}
-  .rpt .strip .cell{padding:10pt;border-radius:5pt;background:#fff;border:1px solid var(--line)}
-  .rpt .strip .cell .l{font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.1em;text-transform:uppercase}
-  .rpt .strip .cell .v{font-size:18pt;font-weight:600;letter-spacing:-.02em;margin-top:4pt;line-height:1;font-variant-numeric:tabular-nums}
-  .rpt .strip .cell .s{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;margin-top:3pt}
-  .rpt .strip .cell.ok .v{color:var(--ok)}
-  .rpt .strip .cell.warn .v{color:var(--warn)}
-  .rpt .strip .cell.bad .v{color:var(--bad)}
-  .rpt .strip .cell.pri .v{color:var(--primary)}
-  .rpt .bar{width:100%;height:5pt;background:#eef2f5;border-radius:99pt;overflow:hidden}
-  .rpt .bar>span{display:block;height:100%;border-radius:99pt}
-  .rpt .chart-row{display:grid;grid-template-columns:90pt 1fr 70pt;gap:10pt;align-items:center;margin-bottom:5pt;font-size:8pt}
-  .rpt .chart-row .lbl{font-weight:600}
-  .rpt .chart-row .bar2{height:14pt;background:#eef2f5;border-radius:3pt;overflow:hidden;position:relative}
-  .rpt .chart-row .bar2>div{height:100%;display:flex;align-items:center;justify-content:flex-end;padding:0 6pt;color:#fff;font-weight:700;font-size:6.5pt;font-family:"Geist Mono",monospace;font-variant-numeric:tabular-nums}
-  .rpt .chart-row .share{text-align:right;font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace}
-  .rpt .shop-card{border:1px solid var(--line);border-radius:6pt;padding:10pt;margin-bottom:8pt;display:grid;grid-template-columns:1fr 80pt 80pt;gap:12pt;align-items:center}
-  .rpt .shop-card .rank{font-family:"Geist Mono",monospace;font-weight:700;color:var(--ink-3);font-size:8pt;letter-spacing:.06em}
-  .rpt .shop-card .nm{font-weight:700;font-size:11pt;letter-spacing:-.01em;margin-top:1pt;color:var(--primary)}
-  .rpt .shop-card .addr{font-size:7pt;color:var(--ink-3);font-family:"Geist Mono",monospace;margin-top:2pt;letter-spacing:.04em}
-  .rpt .shop-card .top-prod{font-size:7pt;color:var(--ink-2);margin-top:4pt}
-  .rpt .shop-card .top-prod b{color:var(--ink);font-weight:600}
-  .rpt .shop-card .num{text-align:right}
-  .rpt .shop-card .num .v{font-size:16pt;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--primary)}
-  .rpt .shop-card .num .l{font-size:6.5pt;color:var(--ink-3);font-family:"Geist Mono",monospace;letter-spacing:.06em}
-  .rpt .shop-card .trend{text-align:right;font-family:"Geist Mono",monospace;font-size:8pt;font-weight:700}
-  .rpt .shop-card .trend.up{color:var(--ok)}.rpt .shop-card .trend.down{color:var(--bad)}
-`;
+}
 
-const LOGO_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V9l9-5 9 5v12M3 21h18M7 21v-7h10v7M9 14v7M15 14v7"/></svg>`;
+function statusText(p: Product): string {
+  if (p.stock <= 0) return "OUT";
+  if (p.stock <= p.low_stock_threshold) return "LOW";
+  return "OK";
+}
 
-function buildReportHtml(opts: {
+function compactProductRows(list: Product[]) {
+  return list.map((p) => [
+    p.name,
+    p.sku ?? "",
+    (p.brand ?? "").toUpperCase(),
+    displaySize(p) || "",
+    rackLabel(p),
+    fmtNum(p.stock ?? 0),
+    statusText(p),
+  ]);
+}
+
+function buildLiteReportPdf(opts: {
   selected: Record<SectionId, boolean>;
   products: Product[];
   lowList: Product[];
@@ -217,429 +134,129 @@ function buildReportHtml(opts: {
   reference: string;
   dateLabel: string;
   timeLabel: string;
-}): { html: string; pageCount: number } {
-  const { selected, products, lowList, outList, rawMovements, reference, dateLabel, timeLabel } = opts;
-
+}): Blob {
+  const { selected, products, lowList, outList, movements, rawMovements, reference, dateLabel, timeLabel } = opts;
+  const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const totalUnits = products.reduce((a, p) => a + (p.stock ?? 0), 0);
   const totalValue = products.reduce((a, p) => a + (p.stock ?? 0) * Number(p.price ?? 0), 0);
-  const healthy = products.length - lowList.length - outList.length;
-  const reorderCost =
-    [...lowList, ...outList].reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
+  let y = 32;
 
-  const racks = new Set(products.map((p) => (p.rack ?? "").trim()).filter(Boolean));
+  addLiteHeader(pdf, "Stock Report", reference);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text(`Generated: ${dateLabel} ${timeLabel}`, 12, y);
+  y += 8;
 
-  const pages: string[] = [];
-
-  // ── Helper: header for sub-pages
-  const subHead = (title: string, sub: string, pageNum: number) => `
-    <header class="doc-head">
-      <div class="logo">${LOGO_SVG}</div>
-      <div class="brand">
-        <div class="name">${esc(title)}</div>
-        <div class="sub">${esc(sub)}</div>
-      </div>
-      <div class="meta">
-        <div>Stock Report · <b>${esc(dateLabel)}</b></div>
-        <div>${esc(reference)} · Page ${pageNum}</div>
-      </div>
-    </header>`;
-
-  // ── PAGE 1+: summary + all products (paginated — 15 rows on first page, 30 on each continuation)
-  if (selected.summary || selected.all) {
-    const FIRST_PAGE_ROWS = 15;
-    const CONT_PAGE_ROWS = 30;
-
-    const tableHeader = `<thead><tr>
-      <th style="width:14pt"></th>
-      <th>Product</th><th>Brand</th><th>Origin</th>
-      <th>Size</th><th>Rack</th>
-      <th class="right">Stock</th><th class="right">¥×1</th>
-      <th>Status</th>
-    </tr></thead>`;
-
-    const makeRow = (p: Product) => {
-      const s = statusOf(p);
-      const origin = originOf(p);
-      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
-      const stockColor = p.stock <= 0 ? "var(--bad)" : p.stock <= p.low_stock_threshold ? "var(--warn)" : "var(--ink)";
-      return `<tr>
-        <td><span class="swatch" style="background:${swColor}"></span></td>
-        <td>${esc(p.name)}</td>
-        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${originPill(origin)}</td>
-        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
-        <td class="mono-sm">${esc(rackLabel(p))}</td>
-        <td class="right qty" style="color:${stockColor}">${fmtNum(p.stock ?? 0)}</td>
-        <td class="right mono-sm">${p.price ? fmtNum(Number(p.price)) : "—"}</td>
-        <td><span style="color:${s.color};font-weight:600;font-size:7pt">● ${s.label}</span></td>
-      </tr>`;
-    };
-
-    const sortedAll = (selected.all ? products : [])
-      .slice()
-      .sort((a, b) => (a.categories?.name ?? "").localeCompare(b.categories?.name ?? "") || a.name.localeCompare(b.name));
-
-    const firstBatch = sortedAll.slice(0, FIRST_PAGE_ROWS);
-    const remaining = sortedAll.slice(FIRST_PAGE_ROWS);
-
-    // Build page chunks for remaining rows
-    const contBatches: Product[][] = [];
-    for (let i = 0; i < remaining.length; i += CONT_PAGE_ROWS) {
-      contBatches.push(remaining.slice(i, i + CONT_PAGE_ROWS));
-    }
-
-    pages.push(`<div class="page">
-      <header class="doc-head">
-        <div class="logo">${LOGO_SVG}</div>
-        <div class="brand">
-          <div class="name">CityStar Inventory</div>
-          <div class="sub">STOCK REPORT · ${esc(dateLabel.toUpperCase())}</div>
-        </div>
-        <div class="meta">
-          <div><b>Generated</b> ${esc(timeLabel)}</div>
-          <div>Reference <b>${esc(reference)}</b></div>
-          <div>Period <b>Live snapshot</b></div>
-        </div>
-      </header>
-
-      <div style="margin-top:12pt;margin-bottom:10pt">
-        <h1>All products — full inventory</h1>
-        <p style="margin-top:4pt">${products.length} SKUs across ${racks.size || "—"} racks · ${fmtNum(totalUnits)} total units · ${fmtYen(totalValue)} inventory value.</p>
-      </div>
-
-      <div class="strip">
-        <div class="cell ok"><div class="l">Healthy</div><div class="v">${healthy}</div><div class="s">ABOVE THRESHOLD</div></div>
-        <div class="cell warn"><div class="l">Low stock</div><div class="v">${lowList.length}</div><div class="s">AT OR BELOW THRESHOLD</div></div>
-        <div class="cell bad"><div class="l">Out of stock</div><div class="v">${outList.length}</div><div class="s">ZERO UNITS</div></div>
-        <div class="cell pri"><div class="l">Reorder need</div><div class="v">${fmtYen(reorderCost)}</div><div class="s">EST. COST</div></div>
-      </div>
-
-      ${selected.all ? `<div class="section">
-        <div class="section-head">
-          <h2>All products</h2>
-          <span class="badge">${products.length} ITEMS</span>
-          <div class="rule"></div>
-          <span class="upper">SORTED BY CATEGORY</span>
-        </div>
-        <table>${tableHeader}<tbody>${
-          firstBatch.length ? firstBatch.map(makeRow).join("") :
-          `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No products.</td></tr>`
-        }</tbody></table>
-        ${contBatches.length ? `<p style="font-size:7pt;color:var(--ink-3);text-align:right;margin-top:4pt">Continued on next page…</p>` : ""}
-      </div>` : ""}
-
-      <footer class="doc-foot">
-        <span>CITYSTAR INVENTORY · CONFIDENTIAL</span>
-        <span>${esc(reference)}</span>
-        <span>PAGE __P__</span>
-      </footer>
-    </div>`);
-
-    // Continuation pages for all-products
-    for (let ci = 0; ci < contBatches.length; ci++) {
-      const batch = contBatches[ci];
-      const isLast = ci === contBatches.length - 1;
-      pages.push(`<div class="page">
-        ${subHead("All products (continued)", `PAGE ${ci + 2} OF ${contBatches.length + 1} · ${products.length} TOTAL ITEMS`, pages.length + 1)}
-        <div style="margin-top:10pt">
-          <table>${tableHeader}<tbody>${batch.map(makeRow).join("")}</tbody></table>
-          ${!isLast ? `<p style="font-size:7pt;color:var(--ink-3);text-align:right;margin-top:4pt">Continued on next page…</p>` : ""}
-        </div>
-        <footer class="doc-foot">
-          <span>CITYSTAR INVENTORY · CONFIDENTIAL</span>
-          <span>${esc(reference)}</span>
-          <span>PAGE __P__</span>
-        </footer>
-      </div>`);
-    }
+  if (selected.summary) {
+    autoTable(pdf, {
+      startY: y,
+      theme: "grid",
+      head: [["Metric", "Value"]],
+      body: [
+        ["Products", fmtNum(products.length)],
+        ["Total stock units", fmtNum(totalUnits)],
+        ["Low stock", fmtNum(lowList.length)],
+        ["Out of stock", fmtNum(outList.length)],
+        ["Estimated stock value", fmtYen(totalValue)],
+        ["Stock in", fmtNum(movements.inQty)],
+        ["Stock out", fmtNum(movements.outQty)],
+      ],
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [14, 124, 112] },
+      margin: { left: 12, right: 12 },
+    });
+    y = ((pdf as any).lastAutoTable?.finalY ?? y) + 8;
   }
 
-  // ── PAGE 2: out of stock
-  if (selected.out) {
-    const outCost = outList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
-    const body = outList.map((p) => {
-      const origin = originOf(p);
-      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
-      const reorder = reorderQty(p) || p.low_stock_threshold * 2 || 1;
-      const unitPrice = Number(p.price ?? 0);
-      const estCost = reorder * unitPrice;
-      return `<tr>
-        <td><span class="swatch" style="background:${swColor}"></span></td>
-        <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")} · ${esc(p.barcode ?? "—")}</div></td>
-        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${originPill(origin)}</td>
-        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
-        <td class="mono-sm">${esc(rackLabel(p))}</td>
-        <td class="right qty" style="color:var(--primary)">+${reorder}</td>
-        <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
-        <td class="right qty" style="color:var(--accent)">${fmtNum(Math.round(estCost))}</td>
-      </tr>`;
-    }).join("");
-
-    // Top stocked-out movers (from rawMovements)
-    const outMoves = rawMovements.filter((m) => m.type === "out");
-    const byName = new Map<string, number>();
-    for (const m of outMoves) {
-      const n = m.products?.name ?? "—";
-      byName.set(n, (byName.get(n) ?? 0) + m.quantity);
+  const addProductTable = (title: string, list: Product[]) => {
+    if (y > 240) {
+      pdf.addPage();
+      addLiteHeader(pdf, title, reference);
+      y = 32;
     }
-    const topMovers = [...byName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-    const maxMove = topMovers[0]?.[1] || 1;
-    const totalMove = topMovers.reduce((a, [, v]) => a + v, 0);
-
-    pages.push(`<div class="page">
-      ${subHead("Out of stock", "URGENT · 0 UNITS ON HAND", pages.length + 1)}
-      <div style="margin-top:10pt">
-        <h1>Out of stock</h1>
-        <p style="margin-top:4pt">These cannot be picked or delivered. Total replacement cost <b>${fmtYen(outCost)}</b>.</p>
-      </div>
-      <div class="section">
-        <div class="section-head">
-          <h2>Action needed today</h2>
-          <span class="badge bad">${outList.length} ITEMS</span>
-          <div class="rule"></div>
-        </div>
-        <table>
-          <thead><tr>
-            <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Origin</th>
-            <th>Size</th><th>Rack</th>
-            <th class="right">Reorder</th><th class="right">¥ / case</th><th class="right">Est. cost</th>
-          </tr></thead>
-          <tbody>${body || `<tr><td colspan="10" style="text-align:center;color:var(--ink-3);padding:14pt">Nothing out of stock — nice.</td></tr>`}</tbody>
-        </table>
-      </div>
-      ${topMovers.length ? `<div class="section">
-        <div class="section-head"><h2>Most stocked-out this week</h2><div class="rule"></div><span class="upper">UNITS · RECENT</span></div>
-        <div style="margin-top:4pt">
-          ${topMovers.map(([name, qty]) => {
-            const width = Math.round((qty / maxMove) * 100);
-            const share = totalMove ? Math.round((qty / totalMove) * 100) : 0;
-            return `<div class="chart-row"><span class="lbl">${esc(name)}</span><div class="bar2"><div style="width:${width}%;background:#dc2626">${qty}</div></div><span class="share">${share}%</span></div>`;
-          }).join("")}
-        </div>
-      </div>` : ""}
-      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
-    </div>`);
-  }
-
-  // ── PAGE 3: low stock
-  if (selected.low) {
-    const lowCost = lowList.reduce((a, p) => a + reorderQty(p) * Number(p.price ?? 0), 0);
-    const body = lowList.map((p) => {
-      const origin = originOf(p);
-      const swColor = swatchFor(origin !== "—" ? origin : p.categories?.name);
-      const coverage = p.low_stock_threshold > 0 ? Math.min(100, Math.round((p.stock / p.low_stock_threshold) * 100)) : 0;
-      const reorder = reorderQty(p);
-      const unitPrice = Number(p.price ?? 0);
-      return `<tr>
-        <td><span class="swatch" style="background:${swColor}"></span></td>
-        <td><b>${esc(p.name)}</b><div class="mono-sm">${esc(p.sku ?? "—")}</div></td>
-        <td>${esc((p.brand ?? "—").toUpperCase())}</td>
-        <td>${originPill(origin)}</td>
-        <td class="mono-sm">${esc(displaySize(p) || "—")}</td>
-        <td class="right qty" style="color:var(--warn)">${fmtNum(p.stock ?? 0)}</td>
-        <td style="padding-right:12pt"><div class="bar"><span style="width:${coverage}%;background:var(--warn)"></span></div></td>
-        <td class="right qty" style="color:var(--primary)">+${reorder}</td>
-        <td class="right mono-sm">${unitPrice ? fmtNum(unitPrice) : "—"}</td>
-      </tr>`;
-    }).join("");
-
-    pages.push(`<div class="page">
-      ${subHead("Low stock", "AT OR BELOW THRESHOLD", pages.length + 1)}
-      <div style="margin-top:10pt"><h1>Low stock</h1>
-        <p style="margin-top:4pt">${lowList.length} item${lowList.length === 1 ? "" : "s"} at or below threshold · estimated combined reorder cost <b>${fmtYen(lowCost)}</b>.</p>
-      </div>
-      <div class="section">
-        <div class="section-head"><h2>Reorder list</h2><span class="badge warn">${lowList.length} ITEMS</span><div class="rule"></div></div>
-        <table>
-          <thead><tr>
-            <th style="width:14pt"></th>
-            <th>Product</th><th>Brand</th><th>Origin</th>
-            <th>Size</th><th class="right">Stock</th>
-            <th>Coverage</th>
-            <th class="right">Reorder</th><th class="right">¥ / case</th>
-          </tr></thead>
-          <tbody>${body || `<tr><td colspan="9" style="text-align:center;color:var(--ink-3);padding:14pt">No low-stock items.</td></tr>`}</tbody>
-        </table>
-      </div>
-      ${lowList.length ? `<div style="margin-top:14pt;padding:10pt 12pt;background:var(--primary-tint);border-radius:5pt;border:1px solid #cbe6e2;display:flex;align-items:center;gap:12pt">
-        <div style="width:28pt;height:28pt;border-radius:6pt;background:var(--primary);color:#fff;display:grid;place-items:center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 5 5 9-11" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-        <div style="flex:1">
-          <div style="font-size:9pt;font-weight:600">Approve combined reorder</div>
-          <div class="small">Routes one PO per brand to the supplier on file.</div>
-        </div>
-        <div style="text-align:right">
-          <div class="upper">Total</div>
-          <div style="font-size:13pt;font-weight:700;color:var(--accent);margin-top:2pt">${fmtYen(lowCost)}</div>
-        </div>
-      </div>` : ""}
-      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
-    </div>`);
-  }
-
-  // ── PAGE 4: category & brand distribution
-  if (selected.insights) {
-    const catTot = new Map<string, { units: number; skus: number }>();
-    for (const p of products) {
-      const k = p.categories?.name ?? "Uncategorized";
-      const cur = catTot.get(k) ?? { units: 0, skus: 0 };
-      cur.units += p.stock ?? 0;
-      cur.skus += 1;
-      catTot.set(k, cur);
-    }
-    const catRows = [...catTot.entries()].sort((a, b) => b[1].units - a[1].units);
-    const catMax = catRows[0]?.[1].units || 1;
-    const catTotal = catRows.reduce((a, [, v]) => a + v.units, 0);
-
-    const brandTot = new Map<string, { units: number; value: number; skus: number; cat: string; statusMix: string }>();
-    for (const p of products) {
-      const key = (p.brand ?? "Unbranded").toUpperCase();
-      const cur = brandTot.get(key) ?? { units: 0, value: 0, skus: 0, cat: p.categories?.name ?? "—", statusMix: "" };
-      cur.units += p.stock ?? 0;
-      cur.value += (p.stock ?? 0) * Number(p.price ?? 0);
-      cur.skus += 1;
-      brandTot.set(key, cur);
-    }
-    const brandRows = [...brandTot.entries()].sort((a, b) => b[1].value - a[1].value).slice(0, 12);
-
-    const brandBody = brandRows.map(([brand, v]) => {
-      const sw = swatchFor(brand);
-      const items = products.filter((p) => (p.brand ?? "Unbranded").toUpperCase() === brand);
-      const out = items.filter((p) => p.stock <= 0).length;
-      const low = items.filter((p) => p.stock > 0 && p.stock <= p.low_stock_threshold).length;
-      const status = out > 0 ? { c: "var(--bad)", l: "OUT" } : low > 0 ? { c: "var(--warn)", l: "LOW" } : { c: "var(--ok)", l: "HEALTHY" };
-      return `<tr>
-        <td><span class="swatch" style="background:${sw}"></span></td>
-        <td><b>${esc(brand)}</b></td>
-        <td>${esc(v.cat)}</td>
-        <td class="right mono-sm">${v.skus}</td>
-        <td class="right qty">${fmtNum(v.units)}</td>
-        <td class="right qty" style="color:var(--accent)">${fmtYen(v.value)}</td>
-        <td class="right" style="color:${status.c};font-weight:600;font-size:7pt">● ${status.l}</td>
-      </tr>`;
-    }).join("");
-
-    pages.push(`<div class="page">
-      ${subHead("By category & brand", "DISTRIBUTION ANALYSIS", pages.length + 1)}
-      <div style="margin-top:10pt"><h1>Stock by category</h1>
-        <p style="margin-top:4pt">Where your inventory weight sits across the ${catRows.length} categor${catRows.length === 1 ? "y" : "ies"} you stock.</p>
-      </div>
-      <div class="section"><div style="margin-top:4pt">
-        ${catRows.map(([name, v]) => {
-          const width = Math.round((v.units / catMax) * 100);
-          const share = catTotal ? Math.round((v.units / catTotal) * 100) : 0;
-          const c = swatchFor(name);
-          return `<div class="chart-row"><span class="lbl">${esc(name)}</span><div class="bar2"><div style="width:${Math.max(width, 2)}%;background:${c}">${v.units}</div></div><span class="share">${v.skus} SKU · ${share}%</span></div>`;
-        }).join("")}
-      </div></div>
-      <div class="section">
-        <div class="section-head"><h2>Top brands by stock value</h2><div class="rule"></div><span class="upper">¥ × 1 retail</span></div>
-        <table>
-          <thead><tr>
-            <th style="width:14pt"></th>
-            <th>Brand</th><th>Category</th>
-            <th class="right">SKUs</th><th class="right">Units</th>
-            <th class="right">Stock ¥</th><th class="right">Status mix</th>
-          </tr></thead>
-          <tbody>${brandBody || `<tr><td colspan="7" style="text-align:center;color:var(--ink-3);padding:14pt">No brand data.</td></tr>`}</tbody>
-        </table>
-      </div>
-      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
-    </div>`);
-  }
-
-  // ── PAGE 5: shop tracker (destinations)
-  if (selected.destinations) {
-    const byDest = new Map<string, { qty: number; trips: number; products: Map<string, number> }>();
-    for (const m of rawMovements) {
-      if (m.type !== "out") continue;
-      const dest = (m.destination ?? "").trim() || "Unspecified";
-      const cur = byDest.get(dest) ?? { qty: 0, trips: 0, products: new Map() };
-      cur.qty += m.quantity;
-      cur.trips += 1;
-      const n = m.products?.name ?? "—";
-      cur.products.set(n, (cur.products.get(n) ?? 0) + m.quantity);
-      byDest.set(dest, cur);
-    }
-    const ranked = [...byDest.entries()].sort((a, b) => b[1].qty - a[1].qty);
-    const totalDelivered = ranked.reduce((a, [, v]) => a + v.qty, 0);
-    const totalTrips = ranked.reduce((a, [, v]) => a + v.trips, 0);
-    const topShop = ranked[0];
-    const topShare = topShop && totalDelivered ? Math.round((topShop[1].qty / totalDelivered) * 100) : 0;
-
-    const cardColors = ["#0ea5e9", "#a855f7", "#ec4899", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#84cc16"];
-
-    pages.push(`<div class="page">
-      ${subHead("Shop tracker", "WHO ORDERS WHAT", pages.length + 1)}
-      <div style="margin-top:10pt"><h1>Shop tracker</h1>
-        <p style="margin-top:4pt">Which destination took most stock and what product they pulled most. Ranked by units delivered.</p>
-      </div>
-      <div class="strip">
-        <div class="cell pri"><div class="l">Total units delivered</div><div class="v">${fmtNum(totalDelivered)}</div><div class="s">ALL DESTINATIONS</div></div>
-        <div class="cell pri"><div class="l">Movements</div><div class="v">${fmtNum(totalTrips)}</div><div class="s">DISPATCHED</div></div>
-        <div class="cell ok"><div class="l">Top destination</div><div class="v" style="font-size:14pt">${esc(topShop?.[0] ?? "—")}</div><div class="s">${topShop ? `${fmtNum(topShop[1].qty)} UNITS · ${topShare}%` : "—"}</div></div>
-        <div class="cell"><div class="l">Active routes</div><div class="v">${ranked.length}</div><div class="s">RECENT</div></div>
-      </div>
-      <div class="section">
-        <div class="section-head"><h2>Ranked by volume</h2><span class="badge pri">${ranked.length} DESTINATION${ranked.length === 1 ? "" : "S"}</span><div class="rule"></div></div>
-        ${ranked.length === 0 ? `<p style="text-align:center;color:var(--ink-3);padding:14pt">No movement destinations yet.</p>` :
-          ranked.map(([dest, v], idx) => {
-            const top = [...v.products.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-            const topName = top[0]?.[0] ?? "—";
-            const topQty = top[0]?.[1] ?? 0;
-            const also = top.slice(1).map(([n]) => n).join(", ") || "—";
-            const c = cardColors[idx % cardColors.length];
-            return `<div class="shop-card">
-              <div>
-                <div class="rank">#${idx + 1}</div>
-                <div class="nm" style="color:${c}">${esc(dest)}</div>
-                <div class="addr">${v.trips} TRIP${v.trips === 1 ? "" : "S"} · ${v.products.size} SKU</div>
-                <div class="top-prod">Top product: <b>${esc(topName)}</b> · ${fmtNum(topQty)} units · also: ${esc(also)}</div>
-              </div>
-              <div class="num"><div class="v">${fmtNum(v.qty)}</div><div class="l">UNITS</div></div>
-              <div class="trend up">${totalDelivered ? `${Math.round((v.qty / totalDelivered) * 100)}%` : "—"}</div>
-            </div>`;
-          }).join("")
-        }
-      </div>
-      <footer class="doc-foot"><span>CITYSTAR INVENTORY · CONFIDENTIAL · END OF REPORT</span><span>${esc(reference)}</span><span>PAGE __P__</span></footer>
-    </div>`);
-  }
-
-  if (pages.length === 0) {
-    pages.push(`<div class="page"><div style="margin:auto;text-align:center;color:var(--ink-3)">No sections selected.</div></div>`);
-  }
-
-  // Fill in page numbers
-  const total = pages.length;
-  const finalPages = pages.map((html, i) => html.replace("__P__", `${i + 1} / ${total}`));
-
-  return {
-    html: `<style>${STYLE}</style><div class="rpt">${finalPages.join("")}</div>`,
-    pageCount: total,
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(12);
+    pdf.text(title, 12, y);
+    y += 5;
+    autoTable(pdf, {
+      startY: y,
+      theme: "striped",
+      head: [["Product", "SKU", "Brand", "Size", "Rack", "Stock", "Status"]],
+      body: compactProductRows(list),
+      styles: { fontSize: 6.7, cellPadding: 1.5, overflow: "linebreak" },
+      headStyles: { fillColor: [14, 124, 112], fontSize: 6.5 },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 32 },
+        3: { cellWidth: 18 },
+        4: { cellWidth: 18 },
+        5: { cellWidth: 18, halign: "right" },
+        6: { cellWidth: 18 },
+      },
+      margin: { left: 8, right: 8 },
+    });
+    y = ((pdf as any).lastAutoTable?.finalY ?? y) + 8;
   };
+
+  if (selected.low) addProductTable("Low Stock Products", lowList);
+  if (selected.out) addProductTable("Out Of Stock Products", outList);
+  if (selected.all) addProductTable("All Products", products);
+
+  if (selected.destinations && rawMovements.length > 0) {
+    if (y > 225) {
+      pdf.addPage();
+      addLiteHeader(pdf, "Movement Destinations", reference);
+      y = 32;
+    }
+    autoTable(pdf, {
+      startY: y,
+      theme: "striped",
+      head: [["Date", "Type", "Product", "Qty", "Destination"]],
+      body: rawMovements.slice(0, 150).map((m) => [
+        format(new Date(m.created_at), "yyyy-MM-dd HH:mm"),
+        m.type.toUpperCase(),
+        m.products?.name ?? "",
+        fmtNum(m.quantity),
+        m.destination ?? "",
+      ]),
+      styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
+      headStyles: { fillColor: [14, 124, 112] },
+      margin: { left: 10, right: 10 },
+    });
+  }
+
+  addLiteFooter(pdf, reference);
+  return pdf.output("blob");
 }
 
 export function ReportPdfDialog({
   products, lowList, outList, movements, rawMovements = [],
+  triggerLabel = "PDF report",
+  triggerClassName,
+  triggerDisabled = false,
+  defaultSelected,
 }: {
   products: Product[];
   lowList: Product[];
   outList: Product[];
   movements: Movements;
   rawMovements?: RawMovement[];
+  triggerLabel?: string;
+  triggerClassName?: string;
+  triggerDisabled?: boolean;
+  defaultSelected?: Partial<Record<SectionId, boolean>>;
 }) {
+  const initialSelected: Record<SectionId, boolean> = {
+    summary: true, low: true, out: true, all: true, insights: true, destinations: true,
+    ...defaultSelected,
+  };
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const [phone, setPhone] = useState("");
   const [sending, setSending] = useState(false);
-  const [selected, setSelected] = useState<Record<SectionId, boolean>>({
-    summary: true, low: true, out: true, all: true, insights: true, destinations: true,
-  });
+  const [selected, setSelected] = useState<Record<SectionId, boolean>>(initialSelected);
   const sendSms = useServerFn(sendReportLinkSms);
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -653,53 +270,11 @@ export function ReportPdfDialog({
     const timeLabel = format(new Date(), "HH:mm");
     const reference = `SR-${format(new Date(), "yyyyMMdd-HHmm")}`;
 
-    const { html } = buildReportHtml({
+    return buildLiteReportPdf({
       selected, products, lowList, outList,
       movements, rawMovements,
       reference, dateLabel, timeLabel,
     });
-
-    // Ensure Geist fonts are loaded (one-shot, cached by the browser)
-    if (!document.getElementById("rpt-geist-fonts")) {
-      const link = document.createElement("link");
-      link.id = "rpt-geist-fonts";
-      link.rel = "stylesheet";
-      link.href = "https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap";
-      document.head.appendChild(link);
-      try { await (document as any).fonts?.ready; } catch { /* noop */ }
-    }
-
-    // Mount offscreen for capture
-    const holder = document.createElement("div");
-    holder.style.cssText = "position:fixed;left:-10000px;top:0;background:#fff;";
-    holder.innerHTML = html;
-    document.body.appendChild(holder);
-    // Allow layout / fonts / paint to settle
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    try { await (document as any).fonts?.ready; } catch { /* noop */ }
-
-    const pageEls = Array.from(holder.querySelectorAll<HTMLElement>(".rpt .page"));
-    const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-    const pageWmm = 210;
-    const pageHmm = 297;
-
-    try {
-      for (let i = 0; i < pageEls.length; i++) {
-        const canvas = await html2canvas(pageEls[i], {
-          scale: 2,
-          backgroundColor: "#ffffff",
-          useCORS: true,
-          logging: false,
-        });
-        const img = canvas.toDataURL("image/jpeg", 0.92);
-        if (i > 0) pdf.addPage();
-        pdf.addImage(img, "JPEG", 0, 0, pageWmm, pageHmm, undefined, "FAST");
-      }
-    } finally {
-      document.body.removeChild(holder);
-    }
-
-    return pdf.output("blob");
   }
 
   async function generateAndUpload() {
@@ -774,21 +349,21 @@ export function ReportPdfDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setUrl(null); setPhone(""); } }}>
       <DialogTrigger asChild>
-        <Button variant="ghost" className="rounded-xl h-9 px-3 text-sm font-medium">
-          <Download className="size-4" />PDF report
+        <Button variant="ghost" disabled={triggerDisabled} className={triggerClassName ?? "rounded-xl h-9 px-3 text-sm font-medium"}>
+          <Download className="size-4" />{triggerLabel}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[92dvh] overflow-hidden p-0 gap-0">
+        <DialogHeader className="px-5 pt-5 pb-3 border-b border-border">
           <DialogTitle>Generate report (PDF)</DialogTitle>
           <DialogDescription>
-            Choose which sections to include. One PDF will be generated with only the selected sections.
+            Lite PDF mode creates faster table reports with only selected sections.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto px-5 py-4 max-h-[calc(92dvh-168px)]">
           <div className="rounded-lg border border-border divide-y divide-border">
-            <div className="flex items-center justify-between px-3 py-2 bg-muted/30">
+            <div className="sticky top-0 z-10 flex items-center justify-between px-3 py-2 bg-muted">
               <span className="text-xs font-semibold uppercase text-muted-foreground">Sections</span>
               <div className="flex gap-3 text-xs">
                 <button type="button" onClick={() => setAll(true)} className="text-primary hover:underline">All</button>
@@ -804,16 +379,6 @@ export function ReportPdfDialog({
                 </div>
               </label>
             ))}
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={generateAndUpload} disabled={busy || !anySelected} className="flex-1">
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
-              {url ? "Regenerate & upload" : "Generate & get link"}
-            </Button>
-            <Button variant="secondary" onClick={downloadLocal} disabled={!anySelected}>
-              <Download className="size-4" />Download
-            </Button>
           </div>
 
           {url && (
@@ -847,7 +412,14 @@ export function ReportPdfDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="sticky bottom-0 border-t border-border bg-background px-5 py-3 gap-2 sm:space-x-0">
+          <Button onClick={generateAndUpload} disabled={busy || !anySelected} className="flex-1">
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+            {url ? "Regenerate link" : "Get link"}
+          </Button>
+          <Button variant="secondary" onClick={downloadLocal} disabled={busy || !anySelected}>
+            <Download className="size-4" />Download PDF
+          </Button>
           <Button variant="ghost" onClick={() => setOpen(false)}>Close</Button>
         </DialogFooter>
       </DialogContent>

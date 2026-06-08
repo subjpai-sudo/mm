@@ -15,6 +15,7 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.env
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -25,7 +26,10 @@ billing/billing.db
 billing/__pycache__/
 billing/*.pyc
 
-# Vendor / product folders (local only)
+# mm2 lives as sibling folder — never copy back into warehouse root
+../mm2/
+
+# Vendor / product folders (local only — also under mm2 now)
 A 1 Thai/
 ABC Company/
 Ambika corporation/
@@ -72,3 +76,4 @@ firebase.json
 *.njsproj
 *.sln
 *.sw?
+*.diff

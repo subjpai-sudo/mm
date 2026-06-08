@@ -13,5 +13,12 @@ export default defineConfig({
     server: { entry: "server" },
   },
   // public/ is Firebase Hosting's dir — don't copy portal HTML into the Cloudflare build
-  vite: { publicDir: false },
+  vite: {
+    publicDir: false,
+    build: {
+      rollupOptions: {
+        external: ["postgres"],
+      },
+    },
+  },
 });
