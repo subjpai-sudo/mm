@@ -1036,6 +1036,130 @@ def crm():
     resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate'
     return resp
 
+WAREHOUSE_URL        = 'https://stock-order-hub.citystar.workers.dev'
+WAREHOUSE_HEALTH_URL = f'{WAREHOUSE_URL}/api/public/server-health'
+MIGRATE_FB_BASE      = 'https://migrate-86fa4-default-rtdb.asia-southeast1.firebasedatabase.app'
+MM_MART_FB_BASE      = 'https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app'
+
+def _http_get_json(url, timeout=8):
+    """GET JSON from URL; returns (ok, data_or_error)."""
+    try:
+        req = urllib.request.Request(url, headers={'Accept': 'application/json'})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read()
+            if not body:
+                return True, {}
+            return True, json.loads(body)
+    except Exception as e:
+        return False, str(e)[:160]
+
+def _firebase_rtdb_ok(base, path='catalog'):
+    ok, data = _http_get_json(f'{base}/{path}.json?shallow=true&limitToFirst=1', timeout=8)
+    if ok:
+        return {'ok': True, 'reachable': True}
+    return {'ok': False, 'reachable': False, 'error': data}
+
+def _auth_user_count(base):
+    ok, data = _http_get_json(f'{base}/auth_users.json?shallow=true', timeout=8)
+    if ok and isinstance(data, dict):
+        return {'ok': True, 'count': len(data)}
+    return {'ok': False, 'count': 0, 'error': data if not ok else 'invalid response'}
+
+def _supabase_ping():
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        return {'ok': False, 'reachable': False, 'configured': False}
+    try:
+        url = f'{SUPABASE_URL}/rest/v1/products?select=id&limit=1'
+        req = urllib.request.Request(url, headers={
+            'apikey': SUPABASE_SERVICE_KEY,
+            'Authorization': f'Bearer {SUPABASE_SERVICE_KEY}',
+            'Accept': 'application/json',
+        })
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return {'ok': r.status < 400, 'reachable': True, 'configured': True, 'status': r.status}
+    except Exception as e:
+        return {'ok': False, 'reachable': False, 'configured': True, 'error': str(e)[:160]}
+
+@app.route('/api/system/status', methods=['GET'])
+def system_status():
+    """Read-only health: services, Firebase projects, API key presence (never values)."""
+    try:
+        conn = get_db()
+        conn.execute('SELECT 1').fetchone()
+        conn.close()
+        billing_ok = True
+    except Exception:
+        billing_ok = False
+
+    wh_ok, wh_data = _http_get_json(WAREHOUSE_HEALTH_URL, timeout=6)
+    warehouse = {
+        'ok': wh_ok and (wh_data.get('ok', False) if isinstance(wh_data, dict) else False),
+        'reachable': wh_ok,
+        'keys': wh_data.get('present', {}) if isinstance(wh_data, dict) else {},
+        'missing_keys': wh_data.get('missing', []) if isinstance(wh_data, dict) else [],
+        'runtime': wh_data.get('runtime') if isinstance(wh_data, dict) else None,
+    }
+
+    try:
+        req = urllib.request.Request('https://mm-mart-live.web.app/catalog/', method='GET')
+        with urllib.request.urlopen(req, timeout=6) as r:
+            catalog_host_ok = r.status < 400
+    except Exception:
+        catalog_host_ok = False
+
+    api_keys = {
+        'SECRET_KEY':                  bool(os.environ.get('SECRET_KEY')),
+        'SUPABASE_URL':                bool(SUPABASE_URL),
+        'SUPABASE_SERVICE_ROLE_KEY':   bool(SUPABASE_SERVICE_KEY),
+        'TWILIO_ACCOUNT_SID':          bool(os.environ.get('TWILIO_ACCOUNT_SID')),
+        'TWILIO_AUTH_TOKEN':           bool(os.environ.get('TWILIO_AUTH_TOKEN')),
+        'OPENAI_API_KEY':              bool(os.environ.get('OPENAI_API_KEY')),
+    }
+    missing_keys = [k for k, v in api_keys.items() if not v]
+
+    mm_catalog = _firebase_rtdb_ok(MM_MART_FB_BASE, 'catalog')
+    migrate_catalog = _firebase_rtdb_ok(MIGRATE_FB_BASE, 'catalog')
+    mm_auth = _auth_user_count(MM_MART_FB_BASE)
+    migrate_auth = _auth_user_count(MIGRATE_FB_BASE)
+    auth_mismatch = (
+        mm_auth.get('ok') and migrate_auth.get('ok')
+        and mm_auth.get('count') != migrate_auth.get('count')
+    )
+
+    payload = {
+        'ok': billing_ok and mm_catalog.get('ok'),
+        'checked_at': datetime.utcnow().isoformat() + 'Z',
+        'apps': {
+            'billing':   {'ok': billing_ok, 'url': 'https://billing-server-421265140321.asia-southeast1.run.app'},
+            'catalog':   {'ok': catalog_host_ok and migrate_catalog.get('ok'), 'url': 'https://mm-mart-live.web.app/catalog/'},
+            'warehouse': {'ok': warehouse['ok'], 'url': WAREHOUSE_URL},
+            'landing':   {'ok': True, 'url': 'https://mm-mart-live.web.app/'},
+        },
+        'firebase': {
+            'mm_mart_live': {
+                'project': 'mm-mart-live',
+                'catalog': mm_catalog,
+                'auth_users': mm_auth,
+                'used_by': ['billing', 'billing_auth'],
+            },
+            'migrate_86fa4': {
+                'project': 'migrate-86fa4',
+                'catalog': migrate_catalog,
+                'auth_users': migrate_auth,
+                'used_by': ['catalog_app', 'crm_login'],
+            },
+            'auth_users_mismatch': auth_mismatch,
+        },
+        'supabase': _supabase_ping(),
+        'warehouse': warehouse,
+        'api_keys': {
+            'billing': {'present': api_keys, 'missing': missing_keys},
+            'warehouse': {'present': warehouse.get('keys', {}), 'missing': warehouse.get('missing_keys', [])},
+        },
+    }
+    status_code = 200 if payload['ok'] else 503
+    return jsonify(payload), status_code
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     conn = get_db()

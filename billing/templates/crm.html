@@ -103,6 +103,21 @@ a{text-decoration:none;color:inherit}
 .add-form input:focus{border-color:#d4845a}
 .add-form .check-row{display:flex;align-items:center;gap:8px;margin-top:10px}
 .add-form .check-row label{margin:0;font-size:13px;color:#b09a80}
+
+/* System status */
+.status-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:32px}
+.status-card{background:#2a1c10;border:1px solid #3d2c1c;border-radius:14px;padding:18px 20px}
+.status-card-head{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.status-card-title{font-size:14px;font-weight:700;color:#f5efe6;flex:1}
+.status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid #1a120a;font-size:12px}
+.status-row:last-child{border-bottom:none}
+.status-label{color:#9e8870}
+.status-val{color:#b09a80;font-family:monospace;text-align:right}
+.status-val.ok{color:#4a8a5a}.status-val.warn{color:#f59e0b}.status-val.err{color:#ef4444}
+.key-pill{display:inline-block;font-size:10px;padding:2px 7px;border-radius:5px;margin:2px 4px 2px 0;font-family:monospace;border:1px solid #3d2c1c}
+.key-pill.on{background:#14532d;color:#86efac;border-color:#166534}
+.key-pill.off{background:#450a0a;color:#fca5a5;border-color:#7f1d1d}
+.status-updated{font-size:11px;color:#6b5040;font-family:monospace;margin-top:12px}
 </style>
 </head>
 <body>
@@ -121,6 +136,31 @@ a{text-decoration:none;color:inherit}
 </div>
 
 <div class="main">
+
+  <!-- System status -->
+  <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <span>System Status</span>
+    <button class="btn btn-secondary" style="padding:6px 12px;font-size:11px" onclick="loadSystemStatus()">⟳ Refresh</button>
+  </div>
+  <div class="status-grid" id="statusGrid">
+    <div class="status-card">
+      <div class="status-card-head"><span style="font-size:18px">🔥</span><div class="status-card-title">Firebase</div><div class="status-dot" id="fb-overall-dot"></div></div>
+      <div id="fb-status-rows"><div class="status-row"><span class="status-label">Loading…</span></div></div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-head"><span style="font-size:18px">⚡</span><div class="status-card-title">Supabase</div><div class="status-dot" id="sb-dot"></div></div>
+      <div id="sb-status-rows"><div class="status-row"><span class="status-label">Loading…</span></div></div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-head"><span style="font-size:18px">🔑</span><div class="status-card-title">API Keys</div></div>
+      <div id="keys-status"><span class="status-label">Loading…</span></div>
+    </div>
+    <div class="status-card">
+      <div class="status-card-head"><span style="font-size:18px">🌐</span><div class="status-card-title">Applications</div></div>
+      <div id="apps-status-rows"><div class="status-row"><span class="status-label">Loading…</span></div></div>
+    </div>
+  </div>
+  <div class="status-updated" id="statusUpdated"></div>
 
   <!-- Stats -->
   <div class="section-title">Catalog Overview</div>
@@ -162,7 +202,7 @@ a{text-decoration:none;color:inherit}
     </div>
 
     <!-- Product Catalog -->
-    <div class="app-card" onclick="location.href='/catalog'">
+    <div class="app-card" onclick="location.href='https://mm-mart-live.web.app/catalog/'">
       <div class="app-header">
         <div class="app-icon" style="background:linear-gradient(135deg,#6d28d9,#7c3aed)">📦</div>
         <div class="app-info">
@@ -178,8 +218,31 @@ a{text-decoration:none;color:inherit}
           <span class="tag">Firebase Hosting</span>
         </div>
         <div class="app-actions">
-          <a class="btn btn-primary" href="/catalog" onclick="event.stopPropagation()">Open Catalog</a>
+          <a class="btn btn-primary" href="https://mm-mart-live.web.app/catalog/" onclick="event.stopPropagation()">Open Catalog</a>
           <button class="btn btn-secondary" onclick="event.stopPropagation();doPush()">↑ Push Data</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Warehouse -->
+    <div class="app-card" onclick="window.open('https://stock-order-hub.citystar.workers.dev/','_blank')">
+      <div class="app-header">
+        <div class="app-icon" style="background:linear-gradient(135deg,#0369a1,#0ea5e9)">🏭</div>
+        <div class="app-info">
+          <div class="app-name">Warehouse & Stock</div>
+          <div class="app-desc">Stock in/out, orders, product images — Supabase inventory on Cloudflare Workers</div>
+        </div>
+        <div class="status-dot" id="warehouse-dot"></div>
+      </div>
+      <div class="app-body">
+        <div class="app-meta">
+          <span class="tag">Supabase</span>
+          <span class="tag">Cloudflare Workers</span>
+          <span class="tag">stock-order-hub</span>
+        </div>
+        <div class="app-actions">
+          <a class="btn btn-primary" href="https://stock-order-hub.citystar.workers.dev/" target="_blank" onclick="event.stopPropagation()">Open Warehouse</a>
+          <a class="btn btn-secondary" href="https://stock-order-hub.citystar.workers.dev/products" target="_blank" onclick="event.stopPropagation()">Products</a>
         </div>
       </div>
     </div>
@@ -228,9 +291,14 @@ a{text-decoration:none;color:inherit}
       <div class="link-info"><div class="link-name">Billing System</div><div class="link-url">Product & invoice management</div></div>
       <div class="link-arrow">→</div>
     </a>
-    <a class="link-card" href="/catalog">
+    <a class="link-card" href="https://mm-mart-live.web.app/catalog/">
       <div class="link-icon">📦</div>
-      <div class="link-info"><div class="link-name">Product Catalog</div><div class="link-url">Firebase live catalog</div></div>
+      <div class="link-info"><div class="link-name">Product Catalog</div><div class="link-url">mm-mart-live.web.app/catalog</div></div>
+      <div class="link-arrow">→</div>
+    </a>
+    <a class="link-card" href="https://stock-order-hub.citystar.workers.dev/" target="_blank">
+      <div class="link-icon">🏭</div>
+      <div class="link-info"><div class="link-name">Warehouse</div><div class="link-url">stock-order-hub.citystar.workers.dev</div></div>
       <div class="link-arrow">→</div>
     </a>
     <a class="link-card" href="/api/export/csv" target="_blank">
@@ -280,7 +348,101 @@ a{text-decoration:none;color:inherit}
 function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString(); }
 tick(); setInterval(tick,1000);
 
-const BILLING = 'https://billing-server-421265140321.asia-southeast1.run.app';
+const BILLING   = 'https://billing-server-421265140321.asia-southeast1.run.app';
+const WAREHOUSE = 'https://stock-order-hub.citystar.workers.dev';
+const LANDING   = 'https://mm-mart-live.web.app';
+const FB_MIGRATE = 'https://migrate-86fa4-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FB_MM_MART = 'https://mm-mart-live-default-rtdb.asia-southeast1.firebasedatabase.app';
+
+function setDot(id, ok){
+  const dot=document.getElementById(id);
+  if(!dot) return;
+  dot.classList.toggle('offline', !ok);
+}
+
+function statusText(ok, label){
+  return `<span class="status-val ${ok?'ok':'err'}">${ok?'● online':'● offline'}${label?(' · '+label):''}</span>`;
+}
+
+function renderKeyPills(present, prefix){
+  if(!present) return '';
+  return Object.entries(present).map(([k,v])=>
+    `<span class="key-pill ${v?'on':'off'}" title="${prefix||''}${k}">${k.replace(/_/g,' ')}</span>`
+  ).join('');
+}
+
+async function pingFirebase(base, path){
+  try{
+    const r=await fetch(`${base}/${path}.json?shallow=true&limitToFirst=1`,{signal:AbortSignal.timeout(8000)});
+    return r.ok;
+  }catch(e){ return false; }
+}
+
+async function loadSystemStatus(){
+  const fbRows=document.getElementById('fb-status-rows');
+  const sbRows=document.getElementById('sb-status-rows');
+  const keysEl=document.getElementById('keys-status');
+  const appsRows=document.getElementById('apps-status-rows');
+  const updated=document.getElementById('statusUpdated');
+
+  let server=null;
+  try{
+    const r=await fetch(BILLING+'/api/system/status',{signal:AbortSignal.timeout(12000)});
+    server=await r.json();
+  }catch(e){
+    fbRows.innerHTML=`<div class="status-row"><span class="status-label">Billing API</span><span class="status-val err">unreachable</span></div>`;
+  }
+
+  const [mmCat, migCat, mmAuth, migAuth]=await Promise.all([
+    pingFirebase(FB_MM_MART,'catalog'),
+    pingFirebase(FB_MIGRATE,'catalog'),
+    pingFirebase(FB_MM_MART,'auth_users'),
+    pingFirebase(FB_MIGRATE,'auth_users'),
+  ]);
+  const fbOk=mmCat&&migCat;
+  setDot('fb-overall-dot', fbOk);
+
+  const mmCount=server?.firebase?.mm_mart_live?.auth_users?.count;
+  const migCount=server?.firebase?.migrate_86fa4?.auth_users?.count;
+  const mismatch=server?.firebase?.auth_users_mismatch;
+  fbRows.innerHTML=`
+    <div class="status-row"><span class="status-label">mm-mart-live catalog</span>${statusText(mmCat)}</div>
+    <div class="status-row"><span class="status-label">migrate-86fa4 catalog</span>${statusText(migCat)}</div>
+    <div class="status-row"><span class="status-label">mm-mart-live auth_users</span>${statusText(mmAuth, mmCount!=null?mmCount+' users':'')}</div>
+    <div class="status-row"><span class="status-label">migrate-86fa4 auth_users</span>${statusText(migAuth, migCount!=null?migCount+' users':'')}</div>
+    ${mismatch?'<div class="status-row"><span class="status-label">Auth sync</span><span class="status-val warn">● count mismatch</span></div>':''}`;
+
+  const sb=server?.supabase||{};
+  const sbOk=sb.ok||sb.reachable;
+  setDot('sb-dot', !!sbOk);
+  sbRows.innerHTML=`
+    <div class="status-row"><span class="status-label">Configured</span><span class="status-val ${sb.configured?'ok':'warn'}">${sb.configured?'yes':'not on billing'}</span></div>
+    <div class="status-row"><span class="status-label">API reachable</span>${statusText(!!sb.reachable)}</div>
+    <div class="status-row"><span class="status-label">Stock sync</span><span class="status-val ${sb.configured&&sb.ok?'ok':'warn'}">${sb.configured?(sb.ok?'ready':'check keys'):'billing env only'}</span></div>`;
+
+  const billKeys=server?.api_keys?.billing?.present||{};
+  const whKeys=server?.api_keys?.warehouse?.present||{};
+  keysEl.innerHTML=`
+    <div style="margin-bottom:10px"><div class="status-label" style="margin-bottom:6px">Billing (Cloud Run)</div>${renderKeyPills(billKeys,'billing: ')}</div>
+    <div><div class="status-label" style="margin-bottom:6px">Warehouse (Worker)</div>${renderKeyPills(whKeys,'worker: ')||'<span class="status-val warn">unavailable</span>'}</div>`;
+
+  const apps=server?.apps||{};
+  const billingOk=apps.billing?.ok!==false;
+  const catalogOk=apps.catalog?.ok;
+  const warehouseOk=apps.warehouse?.ok;
+  setDot('billing-dot', billingOk);
+  setDot('warehouse-dot', !!warehouseOk);
+  setDot('catalog-dot', !!catalogOk);
+  appsRows.innerHTML=`
+    <div class="status-row"><span class="status-label">Landing / CRM</span>${statusText(true)}</div>
+    <div class="status-row"><span class="status-label">Billing</span>${statusText(billingOk)}</div>
+    <div class="status-row"><span class="status-label">Catalog</span>${statusText(!!catalogOk)}</div>
+    <div class="status-row"><span class="status-label">Warehouse</span>${statusText(!!warehouseOk)}</div>`;
+
+  if(updated) updated.textContent='Last checked: '+new Date().toLocaleString()+(server?.checked_at?' · server '+server.checked_at:'');
+}
+loadSystemStatus();
+setInterval(loadSystemStatus, 60000);
 
 // Load stats
 async function loadStats(){
@@ -296,19 +458,6 @@ async function loadStats(){
   }catch(e){}
 }
 loadStats();
-
-// Check billing service status
-async function checkStatus(){
-  try{
-    await fetch(BILLING+'/api/stats');
-    const dot=document.getElementById('billing-dot');
-    if(dot) dot.classList.remove('offline');
-  }catch(e){
-    const dot=document.getElementById('billing-dot');
-    if(dot) dot.classList.add('offline');
-  }
-}
-checkStatus();
 
 function log(msg, ok=true){
   const el=document.getElementById('syncLog');
@@ -382,10 +531,11 @@ function onAuthReady(u){
     hr.insertBefore(pill, hr.firstChild);
   }
   loadStats();
+  loadSystemStatus();
 }
 
-// Users management (reads/writes Firebase auth_users directly)
-const FB_DB = 'https://migrate-86fa4-default-rtdb.asia-southeast1.firebasedatabase.app';
+// Users management (reads/writes Firebase auth_users — same DB as login gate)
+const FB_DB = FB_MIGRATE;
 function phoneKey(p){ return p.replace(/\D/g,''); }
 
 async function openUsers(){
